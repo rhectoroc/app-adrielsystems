@@ -1,0 +1,58 @@
+
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ProtectedRoute } from './components/ui/ProtectedRoute';
+
+// Layouts
+import { AdminLayout } from './components/layouts/AdminLayout';
+import { ClientLayout } from './components/layouts/ClientLayout';
+import { AuthLayout } from './components/layouts/AuthLayout';
+
+// Pages
+import { Login } from './pages/auth/Login';
+import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { ClientDashboard } from './pages/client/ClientDashboard';
+
+function App() {
+    return (
+        <AuthProvider>
+            <Router>
+                <Routes>
+                    {/* Default Route */}
+                    <Route path="/" element={<Navigate to="/login" replace />} />
+
+                    {/* Auth Routes */}
+                    <Route element={<AuthLayout />}>
+                        <Route path="/login" element={<Login />} />
+                    </Route>
+
+                    {/* Admin Routes (Protected) */}
+                    <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                        <Route path="/admin" element={<AdminLayout />}>
+                            <Route index element={<AdminDashboard />} />
+                            {/* Add more admin routes here later */}
+                            <Route path="clients" element={<div>Clients Management Placeholder</div>} />
+                            <Route path="payments" element={<div>Payments Overview Placeholder</div>} />
+                            <Route path="settings" element={<div>Settings Placeholder</div>} />
+                        </Route>
+                    </Route>
+
+                    {/* Client Routes (Protected) */}
+                    <Route element={<ProtectedRoute allowedRoles={['CLIENT']} />}>
+                        <Route path="/client" element={<ClientLayout />}>
+                            <Route index element={<ClientDashboard />} />
+                            {/* Add more client routes here later */}
+                            <Route path="payments" element={<div>My Payments Placeholder</div>} />
+                            <Route path="support" element={<div>Support Placeholder</div>} />
+                        </Route>
+                    </Route>
+
+                    {/* Fallback */}
+                    <Route path="*" element={<Navigate to="/login" replace />} />
+                </Routes>
+            </Router>
+        </AuthProvider>
+    );
+}
+
+export default App;
