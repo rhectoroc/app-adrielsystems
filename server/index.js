@@ -4,6 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { query } from './db.js';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 // Configuration
 dotenv.config();
@@ -28,19 +30,56 @@ app.get('/api/health', async (req, res) => {
     }
 });
 
-// Auth Routes (Placeholder)
+// Auth Routes (Real Implementation)
 app.post('/api/auth/login', async (req, res) => {
-    // TODO: Implement actual login logic with bcrypt and jwt
     const { email, password } = req.body;
     console.log(`Login attempt for: ${email}`);
 
-    // Simulating response for now
-    if (email === 'admin@adrielssystems.com' && password === 'admin') {
-        res.json({ token: 'fake-jwt-token-admin', role: 'ADMIN', user: { email, name: 'Admin User' } });
-    } else if (email === 'client@adrielssystems.com' && password === 'client') {
-        res.json({ token: 'fake-jwt-token-client', role: 'CLIENT', user: { email, name: 'Client User' } });
-    } else {
-        res.status(401).json({ message: 'Invalid credentials' });
+    try {
+        // Check if user exists
+        const result = await query('SELECT * FROM users WHERE email = $1', [email]);
+
+        if (result.rows.length === 0) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        const user = result.rows[0];
+
+        // Verify password
+        const validPassword = await bcrypt.compare(password, user.password_hash);
+
+        if (!validPassword) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        // Generate Token
+        // In production use process.env.AUTH_SECRET
+        const secret = process.env.AUTH_SECRET || 'dev_secret';
+        const token = jwt.sign(
+            { id: user.id, email: user.email, role: user.role },
+            secret,
+            { expiresIn: '24h' }
+        );
+
+        // Fetch additional info if client?
+        let extraInfo = {};
+        if (user.role === 'CLIENT') {
+            // Future: fetch client details
+        }
+
+        res.json({
+            token,
+            role: user.role,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.email.split('@')[0], // Fallback name
+            }
+        });
+
+    } catch (err) {
+        console.error('Login error:', err);
+        res.status(500).json({ message: 'Server error during login' });
     }
 });
 
