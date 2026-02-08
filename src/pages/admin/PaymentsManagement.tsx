@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, Filter, X, Save } from 'lucide-react';
+import { Plus, Loader2, X, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
 
@@ -194,9 +194,15 @@ export const PaymentsManagement = () => {
         }
     };
 
-    const filteredPayments = filterStatus === 'ALL'
-        ? payments
-        : payments.filter(p => p.status === filterStatus);
+    const [filterClient, setFilterClient] = useState<string>('');
+    const [filterMonth, setFilterMonth] = useState<string>('');
+
+    const filteredPayments = payments.filter(p => {
+        const statusMatch = filterStatus === 'ALL' || p.status === filterStatus;
+        const clientMatch = !filterClient || p.client_id.toString() === filterClient;
+        const monthMatch = !filterMonth || p.payment_date.startsWith(filterMonth);
+        return statusMatch && clientMatch && monthMatch;
+    });
 
     return (
         <div className="space-y-6">
@@ -215,17 +221,54 @@ export const PaymentsManagement = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                    <Filter className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-400">Filter by status:</span>
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-end md:items-center bg-white/5 p-4 rounded-xl border border-white/10">
+                <div className="flex flex-wrap gap-4 items-center w-full md:w-auto">
+                    {/* Client Filter */}
+                    <div className="space-y-1">
+                        <label className="text-xs text-gray-400">Client</label>
+                        <select
+                            value={filterClient}
+                            onChange={(e) => setFilterClient(e.target.value)}
+                            className="w-full md:w-48 px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-sm text-white focus:border-primary focus:outline-none"
+                        >
+                            <option value="">All Clients</option>
+                            {clients.map(client => (
+                                <option key={client.id} value={client.id}>{client.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Month Filter */}
+                    <div className="space-y-1">
+                        <label className="text-xs text-gray-400">Month</label>
+                        <input
+                            type="month"
+                            value={filterMonth}
+                            onChange={(e) => setFilterMonth(e.target.value)}
+                            className="w-full md:w-auto px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-sm text-white focus:border-primary focus:outline-none"
+                        />
+                    </div>
+
+                    {(filterClient || filterMonth || filterStatus !== 'ALL') && (
+                        <button
+                            onClick={() => {
+                                setFilterClient('');
+                                setFilterMonth('');
+                                setFilterStatus('ALL');
+                            }}
+                            className="mt-5 text-xs text-gray-400 hover:text-white underline"
+                        >
+                            Clear Filters
+                        </button>
+                    )}
                 </div>
+
                 <div className="flex gap-2">
                     {['ALL', 'PAGADO', 'PENDIENTE', 'VENCIDO'].map(status => (
                         <button
                             key={status}
                             onClick={() => setFilterStatus(status)}
-                            className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${filterStatus === status
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filterStatus === status
                                 ? 'bg-primary text-white'
                                 : 'bg-white/5 text-gray-400 hover:bg-white/10'
                                 }`}
