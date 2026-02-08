@@ -2,6 +2,9 @@
 import { useState, useEffect } from 'react';
 import { Users, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
 import { api } from '../../utils/api';
+import { PaymentSummaryWidget } from '../../components/features/admin/PaymentSummaryWidget';
+import { OverdueClientsWidget } from '../../components/features/admin/OverdueClientsWidget';
+import { UpcomingPaymentsWidget } from '../../components/features/admin/UpcomingPaymentsWidget';
 
 export const AdminDashboard = () => {
     const [stats, setStats] = useState({
@@ -67,6 +70,12 @@ export const AdminDashboard = () => {
                 <p className="text-gray-400 mt-1">System overview and key metrics.</p>
             </div>
 
+            {/* Payment Summary Widgets */}
+            <div className="space-y-6">
+                <h2 className="text-xl font-bold text-white">Payment Overview</h2>
+                <PaymentSummaryWidget />
+            </div>
+
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 {/* Metric Card 1 */}
                 <div className="glass-card flex items-center justify-between group hover:border-primary/30 transition-all">
@@ -100,6 +109,12 @@ export const AdminDashboard = () => {
                         <AlertCircle className="w-6 h-6" />
                     </div>
                 </div>
+            </div>
+
+            {/* Payment Details Widgets */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <OverdueClientsWidget />
+                <UpcomingPaymentsWidget />
             </div>
 
             {/* Recent Activity or Placeholder */}
