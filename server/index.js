@@ -50,7 +50,7 @@ const distPath = path.join(__dirname, '../dist');
 app.use(express.static(distPath));
 
 // Fallback for SPA routing
-app.get('(.*)', (req, res) => {
+app.use((req, res) => {
     if (req.path.startsWith('/api')) {
         // 404 for API routes
         return res.status(404).json({ message: 'API endpoint not found' });
