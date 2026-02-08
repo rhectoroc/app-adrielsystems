@@ -19,9 +19,9 @@ const mockServices: Service[] = [
 const StatusIcon = ({ status }: { status: Service['status'] }) => {
     switch (status) {
         case 'ACTIVE':
-            return <CheckCircle className="w-5 h-5 text-green-500" />;
+            return <CheckCircle className="w-5 h-5 text-secondary" />; // Neon Green
         case 'MAINTENANCE':
-            return <AlertCircle className="w-5 h-5 text-yellow-500" />;
+            return <AlertCircle className="w-5 h-5 text-yellow-400" />;
         case 'INACTIVE':
             return <XCircle className="w-5 h-5 text-red-500" />;
     }
@@ -29,18 +29,18 @@ const StatusIcon = ({ status }: { status: Service['status'] }) => {
 
 export const ServiceStatus = () => {
     return (
-        <div className="p-6 bg-white rounded-lg shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-gray-800">Your Services Status</h2>
+        <div className="glass-card">
+            <h2 className="mb-4 text-lg font-heading font-semibold text-gray-100">Your Services Status</h2>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {mockServices.map((service) => (
-                    <div key={service.id} className="p-4 border border-gray-100 rounded-lg bg-gray-50">
+                    <div key={service.id} className="p-4 border border-white/10 rounded-lg bg-black/20 hover:bg-black/30 transition-colors">
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-gray-500 uppercase">{service.type}</span>
+                            <span className="text-xs font-medium text-primary uppercase tracking-wider">{service.type}</span>
                             <StatusIcon status={service.status} />
                         </div>
-                        <h3 className="text-lg font-bold text-gray-900">{service.name}</h3>
-                        <p className="mt-2 text-sm text-gray-600">
-                            Status: <span className="font-medium">{service.status}</span>
+                        <h3 className="text-lg font-bold text-white">{service.name}</h3>
+                        <p className="mt-2 text-sm text-gray-400">
+                            Status: <span className="font-medium text-gray-200">{service.status}</span>
                         </p>
                         <p className="text-sm text-gray-500">
                             Renews: {service.renewalDate}

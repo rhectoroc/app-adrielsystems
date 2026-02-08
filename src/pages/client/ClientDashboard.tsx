@@ -13,11 +13,16 @@ export const ClientDashboard = () => {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold text-gray-800">
-                    Welcome back, {user?.name || 'Client'}!
-                </h1>
-                <span className="text-sm text-gray-500">
+            <div className="flex items-center justify-between pb-6 border-b border-white/10">
+                <div>
+                    <h1 className="text-3xl font-heading font-bold text-white tracking-wide">
+                        Welcome back, <span className="text-primary">{user?.name || 'Client'}</span>
+                    </h1>
+                    <p className="text-gray-400 mt-1">
+                        Here's an overview of your active services and billing status.
+                    </p>
+                </div>
+                <span className="text-sm font-mono text-gray-500 px-3 py-1 bg-black/30 rounded-full border border-white/5">
                     {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </span>
             </div>

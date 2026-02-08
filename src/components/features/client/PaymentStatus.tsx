@@ -3,7 +3,7 @@ import { getPaymentStatus } from '../../../utils/paymentStatus';
 
 interface PaymentStatusCardProps {
     paymentDay: number;
-    lastPaymentDateString: string | null; // Pass as string (e.g. '2025-05-15') to simplify props
+    lastPaymentDateString: string | null;
 }
 
 export const PaymentStatusCard = ({ paymentDay, lastPaymentDateString }: PaymentStatusCardProps) => {
@@ -13,21 +13,21 @@ export const PaymentStatusCard = ({ paymentDay, lastPaymentDateString }: Payment
     // Color Logic
     const getColor = () => {
         switch (status) {
-            case 'Al día': return 'bg-green-500';
-            case 'Pendiente': return 'bg-yellow-500';
-            case 'Vencido': return 'bg-red-500';
-            default: return 'bg-gray-300';
+            case 'Al día': return 'bg-secondary shadow-[0_0_20px_rgba(0,255,128,0.4)]';
+            case 'Pendiente': return 'bg-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.4)]';
+            case 'Vencido': return 'bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]';
+            default: return 'bg-gray-700';
         }
     };
 
     return (
-        <div className="flex flex-col items-center justify-center p-6 bg-white rounded-lg shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-gray-800">Your Payment Status</h2>
-            <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-4 shadow-lg ${getColor()}`}>
-                <span className="text-xl font-bold text-white uppercase">{status}</span>
+        <div className="flex flex-col items-center justify-center glass-card h-full">
+            <h2 className="mb-6 text-lg font-heading font-semibold text-gray-100">Payment Status</h2>
+            <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-all duration-500 ${getColor()}`}>
+                <span className="text-xl font-bold text-black uppercase font-heading">{status}</span>
             </div>
-            <div className="text-center text-gray-600">
-                <p className="mb-1">Payment Day: <strong>{paymentDay}th of each month</strong></p>
+            <div className="text-center text-gray-400">
+                <p className="mb-1">Payment Day: <strong className="text-gray-200">{paymentDay}th of each month</strong></p>
                 {lastPaymentDate && (
                     <p className="text-sm">Last Payment: {lastPaymentDate.toLocaleDateString()}</p>
                 )}
@@ -36,7 +36,7 @@ export const PaymentStatusCard = ({ paymentDay, lastPaymentDateString }: Payment
                 )}
             </div>
             {status !== 'Al día' && (
-                <button className="px-4 py-2 mt-4 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                <button className="px-6 py-2 mt-6 font-semibold text-white bg-primary rounded-md hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
                     Pay Now
                 </button>
             )}

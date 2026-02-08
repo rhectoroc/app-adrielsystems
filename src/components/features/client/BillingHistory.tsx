@@ -8,12 +8,12 @@ const mockPayments = [
 
 export const BillingHistory = () => {
     return (
-        <div className="p-6 bg-white rounded-lg shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-gray-800">Billing History</h2>
+        <div className="glass-card">
+            <h2 className="mb-4 text-lg font-heading font-semibold text-gray-100">Billing History</h2>
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="text-sm text-gray-500 border-b border-gray-200 bg-gray-50">
+                        <tr className="text-sm text-gray-400 border-b border-white/10">
                             <th className="px-4 py-3 font-medium">Date</th>
                             <th className="px-4 py-3 font-medium">Description</th>
                             <th className="px-4 py-3 font-medium">Amount</th>
@@ -21,19 +21,19 @@ export const BillingHistory = () => {
                             <th className="px-4 py-3 font-medium">Receipt</th>
                         </tr>
                     </thead>
-                    <tbody className="text-sm text-gray-700">
+                    <tbody className="text-sm text-gray-300">
                         {mockPayments.map((payment) => (
-                            <tr key={payment.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                <td className="px-4 py-3">{payment.date}</td>
+                            <tr key={payment.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                <td className="px-4 py-3 text-gray-400">{payment.date}</td>
                                 <td className="px-4 py-3">{payment.description}</td>
-                                <td className="px-4 py-3 font-medium">${payment.amount.toFixed(2)}</td>
+                                <td className="px-4 py-3 font-medium text-white">${payment.amount.toFixed(2)}</td>
                                 <td className="px-4 py-3">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-500/20">
                                         {payment.status}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3">
-                                    <button className="text-blue-600 hover:text-blue-800 hover:underline">
+                                    <button className="text-primary hover:text-primary/80 hover:underline">
                                         Download
                                     </button>
                                 </td>

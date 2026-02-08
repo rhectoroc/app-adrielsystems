@@ -13,6 +13,8 @@ import { Login } from './pages/auth/Login';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { ClientDashboard } from './pages/client/ClientDashboard';
 
+import { Toaster } from './components/ui/sonner';
+
 function App() {
     return (
         <AuthProvider>
@@ -51,6 +53,7 @@ function App() {
                     <Route path="*" element={<Navigate to="/login" replace />} />
                 </Routes>
             </Router>
+            <Toaster />
         </AuthProvider>
     );
 }

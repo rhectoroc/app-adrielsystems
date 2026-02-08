@@ -1,3 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Bruno+Ace+SC&family=Roboto:wght@300;400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    :root {
+        /* Color Palette - HSL based */
+        --bg-deep: 222 47% 11%;
+        /* #0f172a */
+        --bg-dark: 222 47% 8%;
+        --bg-light: 0 0% 96%;
+        --primary: 200 100% 50%;
+        /* #00aaff */
+        --primary-glow: 200 100% 50% / 0.5;
+        --secondary: 150 100% 50%;
+        /* #00ff80 */
+        --accent: 190 100% 50%;
+        --text-main: 210 20% 98%;
+        --text-muted: 210 10% 70%;
+    }
+
+    body {
+        @apply bg-[hsl(var(--bg-deep))] text-[hsl(var(--text-main))] font-sans antialiased;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-family: 'Bruno Ace SC', sans-serif;
+        @apply uppercase tracking-wider;
+    }
+}
+
+@layer utilities {
+    .glass {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .glass-card {
+        @apply glass rounded-xl p-6 shadow-xl;
+    }
+}
