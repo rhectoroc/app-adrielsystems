@@ -99,12 +99,32 @@ export const PaymentsManagement = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleEditClick = (payment: Payment) => {
+    const handleEditClick = async (payment: Payment) => {
         setEditMode(true);
         setCurrentPaymentId(payment.id);
+
+        // Safely handle null/undefined values
+        const clientId = payment.client_id ? payment.client_id.toString() : '';
+        const serviceId = payment.service_id ? payment.service_id.toString() : '';
+
+        // Load services for this client independently to avoid resetting form data
+        if (clientId) {
+            try {
+                const response = await api.get(`/api/clients/${clientId}/services`);
+                if (response.ok) {
+                    const servicesData = await response.json();
+                    setServices(servicesData);
+                }
+            } catch (error) {
+                console.error('Error fetching services:', error);
+            }
+        } else {
+            setServices([]);
+        }
+
         setFormData({
-            client_id: payment.client_id.toString(),
-            service_id: payment.service_id.toString(),
+            client_id: clientId,
+            service_id: serviceId,
             amount: payment.amount.toString(),
             currency: payment.currency,
             payment_date: new Date(payment.payment_date).toISOString().split('T')[0],
@@ -113,8 +133,6 @@ export const PaymentsManagement = () => {
             payment_method: payment.payment_method || '',
             notes: payment.notes || ''
         });
-
-        handleClientChange(payment.client_id.toString());
 
         setIsModalOpen(true);
     };
@@ -245,7 +263,7 @@ export const PaymentsManagement = () => {
                                 filteredPayments.map((payment) => (
                                     <tr key={payment.id} className="hover:bg-white/5 transition-colors">
                                         <td className="px-4 py-3 text-sm text-white">{payment.client_name || `Client #${payment.client_id}`}</td>
-                                        <td className="px-4 py-3 text-sm text-gray-400">{payment.service_name || `Service #${payment.service_id}`}</td>
+                                        <td className="px-4 py-3 text-sm text-gray-400">{payment.service_name || (payment.service_id ? `Service #${payment.service_id}` : 'General / No Service')}</td>
                                         <td className="px-4 py-3 text-sm font-medium text-white">
                                             {payment.currency} {payment.amount}
                                         </td>
