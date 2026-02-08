@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, User, Building, Mail, Phone, Loader2, Globe, MapPin } from 'lucide-react';
+import { Search, Plus, User, Building, Mail, Phone, Loader2, Globe, MapPin, Edit } from 'lucide-react';
 
 interface Client {
     id: number;
@@ -18,9 +18,10 @@ interface Client {
 
 interface ClientsTableProps {
     onAddClick: () => void;
+    onEditClick: (client: Client) => void;
 }
 
-export const ClientsTable = ({ onAddClick }: ClientsTableProps) => {
+export const ClientsTable = ({ onAddClick, onEditClick }: ClientsTableProps) => {
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -83,7 +84,9 @@ export const ClientsTable = ({ onAddClick }: ClientsTableProps) => {
                                 <th className="p-4 font-medium">Contact</th>
                                 <th className="p-4 font-medium">Location/Domain</th>
                                 <th className="p-4 font-medium">Service</th>
+                                <th className="p-4 font-medium">Service</th>
                                 <th className="p-4 font-medium">Joined</th>
+                                <th className="p-4 font-medium w-10"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -154,6 +157,14 @@ export const ClientsTable = ({ onAddClick }: ClientsTableProps) => {
                                         </td>
                                         <td className="p-4 text-gray-400 text-sm">
                                             {new Date(client.created_at).toLocaleDateString()}
+                                        </td>
+                                        <td className="p-4">
+                                            <button
+                                                onClick={() => onEditClick(client)}
+                                                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                            >
+                                                <Edit className="w-4 h-4" />
+                                            </button>
                                         </td>
                                     </tr>
                                 ))

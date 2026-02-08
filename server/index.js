@@ -87,9 +87,11 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/clients', async (req, res) => {
     try {
         const result = await query(`
-            SELECT c.*, u.email as user_email, u.role 
+            SELECT c.*, u.email as user_email, u.role, 
+                   s.name as service_name, s.cost, s.currency, s.status as service_status
             FROM clients c
             LEFT JOIN users u ON u.client_id = c.id
+            LEFT JOIN services s ON s.client_id = c.id
             ORDER BY c.created_at DESC
         `);
         res.json(result.rows);
@@ -100,16 +102,16 @@ app.get('/api/clients', async (req, res) => {
 });
 
 app.post('/api/clients', async (req, res) => {
-    const { name, company_name, email, contact_info, password } = req.body;
+    const { name, company_name, email, phone, domain, country, notes, password, service_name, cost, currency } = req.body;
 
     try {
-        // Start transaction
         await query('BEGIN');
 
         // 1. Create Client
         const clientResult = await query(
-            'INSERT INTO clients (name, company_name, email, contact_info) VALUES ($1, $2, $3, $4) RETURNING id',
-            [name, company_name, email, contact_info]
+            `INSERT INTO clients (name, company_name, email, phone, domain, country, notes) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+            [name, company_name, email, phone, domain, country, notes]
         );
         const clientId = clientResult.rows[0].id;
 
@@ -117,15 +119,22 @@ app.post('/api/clients', async (req, res) => {
         if (email && password) {
             const saltRounds = 10;
             const hash = await bcrypt.hash(password, saltRounds);
-
             await query(
                 'INSERT INTO users (email, password_hash, role, client_id) VALUES ($1, $2, $3, $4)',
                 [email, hash, 'CLIENT', clientId]
             );
         }
 
-        await query('COMMIT');
+        // 3. Create Service from Plan Schema
+        if (service_name) {
+            await query(
+                `INSERT INTO services (client_id, name, cost, currency, status, renewal_day) 
+                 VALUES ($1, $2, $3, $4, 'ACTIVE', 1)`,
+                [clientId, service_name, cost || 0, currency || 'USD']
+            );
+        }
 
+        await query('COMMIT');
         res.status(201).json({ message: 'Client created successfully', clientId });
     } catch (err) {
         await query('ROLLBACK');
@@ -134,6 +143,49 @@ app.post('/api/clients', async (req, res) => {
             return res.status(400).json({ message: 'Email already exists' });
         }
         res.status(500).json({ message: 'Error creating client' });
+    }
+});
+
+app.put('/api/clients/:id', async (req, res) => {
+    const { id } = req.params;
+    const { name, company_name, email, phone, domain, country, notes } = req.body;
+
+    try {
+        await query(
+            `UPDATE clients 
+             SET name = $1, company_name = $2, email = $3, phone = $4, domain = $5, country = $6, notes = $7
+             WHERE id = $8`,
+            [name, company_name, email, phone, domain, country, notes, id]
+        );
+        res.json({ message: 'Client updated successfully' });
+    } catch (err) {
+        console.error('Error updating client:', err);
+        res.status(500).json({ message: 'Error updating client' });
+    }
+});
+
+// Plans Management Routes
+app.get('/api/plans', async (req, res) => {
+    try {
+        const result = await query('SELECT * FROM plans ORDER BY id ASC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching plans:', err);
+        res.status(500).json({ message: 'Error fetching plans' });
+    }
+});
+
+app.post('/api/plans', async (req, res) => {
+    const { name, description, cost, currency, billing_cycle } = req.body;
+    try {
+        const result = await query(
+            'INSERT INTO plans (name, description, cost, currency, billing_cycle) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [name, description, cost, currency, billing_cycle]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error('Error creating plan:', err);
+        res.status(500).json({ message: 'Error creating plan' });
     }
 });
 

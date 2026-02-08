@@ -1,53 +1,129 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ClientsTable } from '../../components/features/admin/ClientsTable';
-import { X, Loader2, Save } from 'lucide-react';
+import { X, Loader2, Save, PenSquare } from 'lucide-react';
 import { toast } from 'sonner';
+
+interface Plan {
+    id: number;
+    name: string;
+    cost: string;
+    currency: string;
+}
 
 export const ClientsManagement = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [plans, setPlans] = useState<Plan[]>([]);
+    const [editMode, setEditMode] = useState(false);
+    const [currentClientId, setCurrentClientId] = useState<number | null>(null);
 
     // Form State
     const [formData, setFormData] = useState({
         name: '',
         company_name: '',
         email: '',
+        phone: '',
+        domain: '',
+        country: '',
+        notes: '',
         contact_info: '',
-        password: ''
+        password: '',
+        service_name: '', // Selected Plan ID or Name
     });
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    useEffect(() => {
+        fetchPlans();
+    }, []);
+
+    const fetchPlans = async () => {
+        try {
+            const response = await fetch('/api/plans');
+            if (response.ok) {
+                const data = await response.json();
+                setPlans(data);
+            }
+        } catch (error) {
+            console.error('Error fetching plans');
+        }
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
+
+    const handleEditClick = (client: any) => {
+        setEditMode(true);
+        setCurrentClientId(client.id);
+        setFormData({
+            name: client.name || '',
+            company_name: client.company_name || '',
+            email: client.email || '',
+            phone: client.phone || '',
+            domain: client.domain || '',
+            country: client.country || '',
+            notes: client.notes || '',
+            contact_info: client.contact_info || '',
+            password: '', // Keep empty
+            service_name: client.service_name || ''
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleAddClick = () => {
+        setEditMode(false);
+        setCurrentClientId(null);
+        setFormData({
+            name: '',
+            company_name: '',
+            email: '',
+            phone: '',
+            domain: '',
+            country: '',
+            notes: '',
+            contact_info: '',
+            password: '',
+            service_name: ''
+        });
+        setIsModalOpen(true);
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
 
         try {
-            const response = await fetch('http://localhost:3000/api/clients', {
-                method: 'POST',
+            const url = editMode && currentClientId
+                ? `/api/clients/${currentClientId}`
+                : '/api/clients';
+
+            const method = editMode ? 'PUT' : 'POST';
+
+            // If taking a plan, we need to find its details to send (for creation)
+            let payload: any = { ...formData };
+            if (!editMode && formData.service_name) {
+                const selectedPlan = plans.find(p => p.name === formData.service_name);
+                if (selectedPlan) {
+                    payload.cost = selectedPlan.cost;
+                    payload.currency = selectedPlan.currency;
+                }
+            }
+
+            const response = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to create client');
+                throw new Error(data.message || 'Failed to save client');
             }
 
-            toast.success('Client created successfully');
+            toast.success(editMode ? 'Client updated successfully' : 'Client created successfully');
             setIsModalOpen(false);
-            setFormData({ name: '', company_name: '', email: '', contact_info: '', password: '' });
-
-            // Reload the table (For now simpler to just reload page or trigger a refresh via context/prop, 
-            // but for MVP a simple window reload or specific trigger is fine. 
-            // Better: passing a refresh trigger to table, but let's just close modal.
-            // Actually, ClientsTable fetches on mount. To refresh, we can force re-mount or pass a key.
-            // Let's reload window for simplicity in this step, or better, pass a key to Table.
-            window.location.reload();
+            window.location.reload(); // Simple refresh to show changes
 
         } catch (error: any) {
             toast.error(error.message);
@@ -65,15 +141,17 @@ export const ClientsManagement = () => {
                 </div>
             </div>
 
-            <ClientsTable onAddClick={() => setIsModalOpen(true)} />
+            <ClientsTable onAddClick={handleAddClick} onEditClick={handleEditClick} />
 
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="relative w-full max-w-lg bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+                    <div className="relative w-full max-w-2xl bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
                         {/* Header */}
-                        <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5">
-                            <h3 className="text-xl font-bold text-white font-heading">Add New Client</h3>
+                        <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5 sticky top-0 backdrop-blur-xl z-10">
+                            <h3 className="text-xl font-bold text-white font-heading">
+                                {editMode ? 'Edit Client' : 'Add New Client'}
+                            </h3>
                             <button
                                 onClick={() => setIsModalOpen(false)}
                                 className="text-gray-400 hover:text-white transition-colors"
@@ -84,67 +162,119 @@ export const ClientsManagement = () => {
 
                         {/* Form */}
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Full Name</label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    required
-                                    value={formData.name}
-                                    onChange={handleInputChange}
-                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg focus:outline-none focus:border-primary text-white"
-                                    placeholder="John Doe"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Company Name</label>
-                                <input
-                                    type="text"
-                                    name="company_name"
-                                    value={formData.company_name}
-                                    onChange={handleInputChange}
-                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg focus:outline-none focus:border-primary text-white"
-                                    placeholder="Acme Corp"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Email (Username)</label>
+                                    <label className="text-sm font-medium text-gray-300">Full Name</label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        required
+                                        value={formData.name}
+                                        onChange={handleInputChange}
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Company Name</label>
+                                    <input
+                                        type="text"
+                                        name="company_name"
+                                        value={formData.company_name}
+                                        onChange={handleInputChange}
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Email</label>
                                     <input
                                         type="email"
                                         name="email"
                                         required
                                         value={formData.email}
                                         onChange={handleInputChange}
-                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg focus:outline-none focus:border-primary text-white"
-                                        placeholder="client@example.com"
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
                                     />
                                 </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Phone</label>
+                                    <input
+                                        type="text"
+                                        name="phone"
+                                        value={formData.phone}
+                                        onChange={handleInputChange}
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Domain</label>
+                                    <input
+                                        type="text"
+                                        name="domain"
+                                        value={formData.domain}
+                                        onChange={handleInputChange}
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                        placeholder="example.com"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Country</label>
+                                    <input
+                                        type="text"
+                                        name="country"
+                                        value={formData.country}
+                                        onChange={handleInputChange}
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            {!editMode && (
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Password</label>
                                     <input
                                         type="password"
                                         name="password"
-                                        required
+                                        required={!editMode}
                                         value={formData.password}
                                         onChange={handleInputChange}
-                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg focus:outline-none focus:border-primary text-white"
-                                        placeholder="••••••••"
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
                                     />
                                 </div>
+                            )}
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-300">Plan / Service</label>
+                                <select
+                                    name="service_name"
+                                    value={formData.service_name}
+                                    onChange={handleInputChange}
+                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    disabled={editMode} // Disable plan changing in edit for now to keep it simple
+                                >
+                                    <option value="">Select a Plan</option>
+                                    {plans.map(plan => (
+                                        <option key={plan.id} value={plan.name}>
+                                            {plan.name} ({plan.cost} {plan.currency})
+                                        </option>
+                                    ))}
+                                </select>
+                                {editMode && <p className="text-xs text-gray-500">Plan cannot be changed here yet.</p>}
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Contact Info</label>
-                                <input
-                                    type="text"
-                                    name="contact_info"
-                                    value={formData.contact_info}
+                                <label className="text-sm font-medium text-gray-300">Notes</label>
+                                <textarea
+                                    name="notes"
+                                    value={formData.notes}
                                     onChange={handleInputChange}
-                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg focus:outline-none focus:border-primary text-white"
-                                    placeholder="Phone number, address, etc."
+                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    rows={3}
                                 />
                             </div>
 
@@ -162,7 +292,7 @@ export const ClientsManagement = () => {
                                     className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
                                 >
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                    Create Client
+                                    {editMode ? 'Update Client' : 'Create Client'}
                                 </button>
                             </div>
                         </form>
