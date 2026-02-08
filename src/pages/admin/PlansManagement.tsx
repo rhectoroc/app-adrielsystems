@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, Save, Trash2, Tag, DollarSign, Calendar } from 'lucide-react';
+import { Plus, Loader2, Save, Tag, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Plan {

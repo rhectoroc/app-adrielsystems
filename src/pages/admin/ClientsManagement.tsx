@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ClientsTable } from '../../components/features/admin/ClientsTable';
-import { X, Loader2, Save, PenSquare } from 'lucide-react';
+import { X, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Plan {
