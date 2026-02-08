@@ -269,6 +269,228 @@ app.get('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req, 
     }
 });
 
+// ============================================
+// PAYMENT TRACKING ROUTES (Protected)
+// ============================================
+
+// Get payment summary for dashboard
+app.get('/api/payments/summary', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const result = await query(`
+            SELECT 
+                COUNT(CASE WHEN status = 'VENCIDO' THEN 1 END) as overdue_count,
+                COALESCE(SUM(CASE WHEN status = 'VENCIDO' THEN amount ELSE 0 END), 0) as overdue_amount,
+                COUNT(CASE WHEN status = 'PENDIENTE' THEN 1 END) as pending_count,
+                COALESCE(SUM(CASE WHEN status = 'PENDIENTE' THEN amount ELSE 0 END), 0) as pending_amount,
+                COUNT(CASE WHEN status = 'PENDIENTE' AND due_date <= CURRENT_DATE + INTERVAL '7 days' THEN 1 END) as upcoming_count,
+                COALESCE(SUM(CASE WHEN status = 'PENDIENTE' AND due_date <= CURRENT_DATE + INTERVAL '7 days' THEN amount ELSE 0 END), 0) as upcoming_amount
+            FROM payments
+        `);
+
+        res.json({
+            overdue: {
+                count: parseInt(result.rows[0].overdue_count) || 0,
+                totalAmount: parseFloat(result.rows[0].overdue_amount) || 0
+            },
+            pending: {
+                count: parseInt(result.rows[0].pending_count) || 0,
+                totalAmount: parseFloat(result.rows[0].pending_amount) || 0
+            },
+            upcoming: {
+                count: parseInt(result.rows[0].upcoming_count) || 0,
+                totalAmount: parseFloat(result.rows[0].upcoming_amount) || 0
+            }
+        });
+    } catch (err) {
+        console.error('Error fetching payment summary:', err);
+        res.status(500).json({ message: 'Error fetching payment summary' });
+    }
+});
+
+// Get overdue clients
+app.get('/api/payments/overdue', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const result = await query(`
+            SELECT 
+                p.id as payment_id,
+                p.amount,
+                p.currency,
+                p.due_date,
+                p.status,
+                CURRENT_DATE - p.due_date as days_overdue,
+                c.id as client_id,
+                c.name as client_name,
+                c.email as client_email,
+                c.phone as client_phone,
+                s.name as service_name
+            FROM payments p
+            JOIN clients c ON p.client_id = c.id
+            LEFT JOIN services s ON p.service_id = s.id
+            WHERE p.status = 'VENCIDO'
+            ORDER BY p.due_date ASC
+        `);
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching overdue payments:', err);
+        res.status(500).json({ message: 'Error fetching overdue payments' });
+    }
+});
+
+// Get upcoming payments (within specified days, default 7)
+app.get('/api/payments/upcoming', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const days = parseInt(req.query.days) || 7;
+
+    try {
+        const result = await query(`
+            SELECT 
+                p.id as payment_id,
+                p.amount,
+                p.currency,
+                p.due_date,
+                p.status,
+                CAST(p.due_date - CURRENT_DATE AS INTEGER) as days_until_due,
+                c.id as client_id,
+                c.name as client_name,
+                c.email as client_email,
+                c.phone as client_phone,
+                s.name as service_name
+            FROM payments p
+            JOIN clients c ON p.client_id = c.id
+            LEFT JOIN services s ON p.service_id = s.id
+            WHERE p.status = 'PENDIENTE' 
+            AND p.due_date <= CURRENT_DATE + INTERVAL '${days} days'
+            ORDER BY p.due_date ASC
+        `);
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching upcoming payments:', err);
+        res.status(500).json({ message: 'Error fetching upcoming payments' });
+    }
+});
+
+// Get payment history for a specific client
+app.get('/api/payments/client/:clientId', authenticateToken, async (req, res) => {
+    const { clientId } = req.params;
+
+    try {
+        const result = await query(`
+            SELECT 
+                p.*,
+                s.name as service_name
+            FROM payments p
+            LEFT JOIN services s ON p.service_id = s.id
+            WHERE p.client_id = $1
+            ORDER BY p.payment_date DESC, p.due_date DESC
+        `, [clientId]);
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching client payments:', err);
+        res.status(500).json({ message: 'Error fetching client payments' });
+    }
+});
+
+// Register new payment
+app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes } = req.body;
+
+    try {
+        await query('BEGIN');
+
+        // Insert payment
+        const result = await query(`
+            INSERT INTO payments (client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING *
+        `, [client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes]);
+
+        // Update service last_payment_date if payment is successful
+        if (status === 'PAGADO' && service_id) {
+            await query(`
+                UPDATE services 
+                SET last_payment_date = $1
+                WHERE id = $2
+            `, [payment_date, service_id]);
+        }
+
+        await query('COMMIT');
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        await query('ROLLBACK');
+        console.error('Error creating payment:', err);
+        res.status(500).json({ message: 'Error creating payment' });
+    }
+});
+
+// Update payment
+app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { id } = req.params;
+    const { amount, currency, payment_date, due_date, status, payment_method, notes } = req.body;
+
+    try {
+        const result = await query(`
+            UPDATE payments 
+            SET amount = $1, currency = $2, payment_date = $3, due_date = $4, 
+                status = $5, payment_method = $6, notes = $7
+            WHERE id = $8
+            RETURNING *
+        `, [amount, currency, payment_date, due_date, status, payment_method, notes, id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Payment not found' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Error updating payment:', err);
+        res.status(500).json({ message: 'Error updating payment' });
+    }
+});
+
+// N8N Integration Endpoint - Get clients needing notifications
+app.get('/api/notifications/pending', authenticateToken, async (req, res) => {
+    try {
+        const result = await query(`
+            SELECT 
+                c.id as client_id,
+                c.name as client_name,
+                c.email,
+                c.phone,
+                s.name as service_name,
+                p.amount as amount_due,
+                p.currency,
+                p.due_date,
+                p.status,
+                CASE 
+                    WHEN p.status = 'VENCIDO' THEN CURRENT_DATE - p.due_date
+                    ELSE 0
+                END as days_overdue,
+                CASE 
+                    WHEN p.status = 'VENCIDO' THEN 'overdue'
+                    WHEN p.due_date = CURRENT_DATE THEN 'due_today'
+                    WHEN p.due_date <= CURRENT_DATE + INTERVAL '3 days' THEN 'upcoming'
+                    ELSE NULL
+                END as notification_type
+            FROM payments p
+            JOIN clients c ON p.client_id = c.id
+            LEFT JOIN services s ON p.service_id = s.id
+            WHERE p.status IN ('PENDIENTE', 'VENCIDO')
+            AND (
+                p.status = 'VENCIDO'
+                OR p.due_date <= CURRENT_DATE + INTERVAL '3 days'
+            )
+            ORDER BY p.due_date ASC
+        `);
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching notifications:', err);
+        res.status(500).json({ message: 'Error fetching notifications' });
+    }
+});
+
 // Serve Static Files (Production)
 // In production, we serve the 'dist' folder generated by Vite
 const distPath = path.join(__dirname, '../dist');
