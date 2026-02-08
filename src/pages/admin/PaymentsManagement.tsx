@@ -33,19 +33,71 @@ export const PaymentsManagement = () => {
     const [payments, setPayments] = useState<Payment[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
     const [services, setServices] = useState<Service[]>([]);
-    const [loading, setLoading] = useState(true);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [editMode, setEditMode] = useState(false);
     const [currentPaymentId, setCurrentPaymentId] = useState<number | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
-    // ... (existing useEffect) ...
+    const [formData, setFormData] = useState({
+        client_id: '',
+        service_id: '',
+        amount: '',
+        currency: 'USD',
+        payment_date: new Date().toISOString().split('T')[0],
+        due_date: new Date().toISOString().split('T')[0],
+        status: 'PENDIENTE' as 'PAGADO' | 'PENDIENTE' | 'VENCIDO',
+        payment_method: '',
+        notes: ''
+    });
 
     useEffect(() => {
         fetchData();
     }, [refreshTrigger]);
 
-    // ... (existing fetchData) ...
-    // Note: ensure fetchData is called when refreshTrigger changes
+    const fetchData = async () => {
+        try {
+            const [paymentsRes, clientsRes] = await Promise.all([
+                api.get('/api/payments'),
+                api.get('/api/clients')
+            ]);
+
+            if (paymentsRes.ok && clientsRes.ok) {
+                const paymentsData = await paymentsRes.json();
+                const clientsData = await clientsRes.json();
+
+                setPayments(paymentsData);
+                setClients(clientsData);
+            }
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            toast.error('Error loading data');
+        }
+    };
+
+    const handleClientChange = async (clientId: string) => {
+        setFormData(prev => ({ ...prev, client_id: clientId, service_id: '' }));
+
+        if (clientId) {
+            try {
+                const response = await api.get(`/api/clients/${clientId}/services`);
+                if (response.ok) {
+                    const servicesData = await response.json();
+                    setServices(servicesData);
+                }
+            } catch (error) {
+                console.error('Error fetching services:', error);
+            }
+        } else {
+            setServices([]);
+        }
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
 
     const handleEditClick = (payment: Payment) => {
         setEditMode(true);
@@ -62,7 +114,6 @@ export const PaymentsManagement = () => {
             notes: payment.notes || ''
         });
 
-        // Load services for this client so the dropdown is populated
         handleClientChange(payment.client_id.toString());
 
         setIsModalOpen(true);
@@ -108,7 +159,7 @@ export const PaymentsManagement = () => {
             setIsModalOpen(false);
             setEditMode(false);
             setCurrentPaymentId(null);
-            setRefreshTrigger(prev => prev + 1); // Trigger refresh
+            setRefreshTrigger(prev => prev + 1);
         } catch (error) {
             toast.error(editMode ? 'Error updating payment' : 'Error registering payment');
         } finally {
@@ -116,7 +167,18 @@ export const PaymentsManagement = () => {
         }
     };
 
-    // ... (helper functions) ...
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'PAGADO': return 'bg-green-500/20 text-green-400 border-green-500/30';
+            case 'PENDIENTE': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+            case 'VENCIDO': return 'bg-red-500/20 text-red-400 border-red-500/30';
+            default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+        }
+    };
+
+    const filteredPayments = filterStatus === 'ALL'
+        ? payments
+        : payments.filter(p => p.status === filterStatus);
 
     return (
         <div className="space-y-6">
@@ -135,7 +197,6 @@ export const PaymentsManagement = () => {
             </div>
 
             {/* Filters */}
-            {/* ... (keep filters) ... */}
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                     <Filter className="w-4 h-4 text-gray-400" />
@@ -216,7 +277,7 @@ export const PaymentsManagement = () => {
                 </div>
             </div>
 
-            {/* Register/Edit Payment Modal (keeping form similar but updating title) */}
+            {/* Register/Edit Payment Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="relative w-full max-w-2xl bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl p-6">
@@ -231,15 +292,7 @@ export const PaymentsManagement = () => {
                                 <X className="w-5 h-5 text-gray-400" />
                             </button>
                         </div>
-                        {/* ... (rest of the form is mostly same, just ensuring handleSubmit is used) ... */}
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* ... (fields) ... */}
-                            {/* Client & Service (Disable editing client/service in Edit Mode for simplicity?) */}
-                            {/* Logic: If editMode, maybe disable client/service select if backend doesn't support moving payments easily. 
-                                  Or allow it. For now, let's allow it but be careful.
-                                  Actually, usually you just edit date/amount/status. 
-                                  Let's keep fields enabled. */}
-
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Client *</label>
@@ -272,7 +325,6 @@ export const PaymentsManagement = () => {
                                         ))}
                                     </select>
                                 </div>
-                                {/* ... other fields ... */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Amount *</label>
                                     <input

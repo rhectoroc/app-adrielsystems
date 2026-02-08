@@ -497,14 +497,13 @@ app.get('/api/notifications/pending', authenticateToken, async (req, res) => {
                 p.due_date,
                 p.status,
                 CASE 
-                    WHEN p.status = 'VENCIDO' THEN CURRENT_DATE - p.due_date
+                    WHEN p.status = 'VENCIDO' OR p.due_date < CURRENT_DATE THEN CURRENT_DATE - p.due_date
                     ELSE 0
                 END as days_overdue,
                 CASE 
-                    WHEN p.status = 'VENCIDO' THEN 'overdue'
+                    WHEN p.status = 'VENCIDO' OR p.due_date < CURRENT_DATE THEN 'overdue'
                     WHEN p.due_date = CURRENT_DATE THEN 'due_today'
-                    WHEN p.due_date <= CURRENT_DATE + INTERVAL '3 days' THEN 'upcoming'
-                    ELSE NULL
+                    ELSE 'upcoming'
                 END as notification_type
             FROM payments p
             JOIN clients c ON p.client_id = c.id

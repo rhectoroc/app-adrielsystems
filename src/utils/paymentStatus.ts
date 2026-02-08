@@ -15,7 +15,8 @@ export type PaymentStatus = 'Al día' | 'Pendiente' | 'Vencido';
 export const getPaymentStatus = (
   paymentDay: number,
   lastPaymentDate: Date | null,
-  currentDate: Date = new Date()
+  currentDate: Date = new Date(),
+  prepaidUntil: Date | null = null
 ): PaymentStatus => {
   const today = currentDate;
   const currentMonth = today.getMonth();
@@ -35,6 +36,10 @@ export const getPaymentStatus = (
   // 2. If lastPaymentDate is NOT in current month:
   //    a. If today <= paymentDeadline: 'Pendiente' (Waiting for payment).
   //    b. If today > paymentDeadline: 'Vencido' (Overdue).
+
+  if (prepaidUntil && prepaidUntil >= today) {
+    return 'Al día';
+  }
 
   if (lastPaymentDate) {
     const lastPaymentMonth = lastPaymentDate.getMonth();
