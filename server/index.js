@@ -163,17 +163,49 @@ app.post('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, 
 
 app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     const { id } = req.params;
-    const { name, company_name, email, phone, domain, country, notes } = req.body;
+    const { name, company_name, email, phone, domain, country, notes, service_name, cost, currency } = req.body;
 
     try {
+        await query('BEGIN');
+
+        // Update client info
         await query(
             `UPDATE clients 
              SET name = $1, company_name = $2, email = $3, phone = $4, domain = $5, country = $6, notes = $7
              WHERE id = $8`,
             [name, company_name, email, phone, domain, country, notes, id]
         );
+
+        // Update or create service if plan is provided
+        if (service_name) {
+            // Check if service exists for this client
+            const existingService = await query(
+                'SELECT id FROM services WHERE client_id = $1',
+                [id]
+            );
+
+            if (existingService.rows.length > 0) {
+                // Update existing service
+                await query(
+                    `UPDATE services 
+                     SET name = $1, cost = $2, currency = $3
+                     WHERE client_id = $4`,
+                    [service_name, cost || 0, currency || 'USD', id]
+                );
+            } else {
+                // Create new service
+                await query(
+                    `INSERT INTO services (client_id, name, cost, currency, status, renewal_day) 
+                     VALUES ($1, $2, $3, $4, 'ACTIVE', 1)`,
+                    [id, service_name, cost || 0, currency || 'USD']
+                );
+            }
+        }
+
+        await query('COMMIT');
         res.json({ message: 'Client updated successfully' });
     } catch (err) {
+        await query('ROLLBACK');
         console.error('Error updating client:', err);
         res.status(500).json({ message: 'Error updating client' });
     }

@@ -248,7 +248,6 @@ export const ClientsManagement = () => {
                                     value={formData.service_name}
                                     onChange={handleInputChange}
                                     className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                    disabled={editMode} // Disable plan changing in edit for now to keep it simple
                                 >
                                     <option value="">Select a Plan</option>
                                     {plans.map(plan => (
@@ -257,7 +256,6 @@ export const ClientsManagement = () => {
                                         </option>
                                     ))}
                                 </select>
-                                {editMode && <p className="text-xs text-gray-500">Plan cannot be changed here yet.</p>}
                             </div>
 
                             <div className="space-y-2">
