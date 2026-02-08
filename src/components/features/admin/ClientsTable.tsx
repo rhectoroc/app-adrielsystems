@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, User, Building, Mail, Phone, Loader2, Globe, MapPin, Edit } from 'lucide-react';
+import { api } from '../../../utils/api';
 
 interface Client {
     id: number;
@@ -32,7 +33,7 @@ export const ClientsTable = ({ onAddClick, onEditClick }: ClientsTableProps) => 
 
     const fetchClients = async () => {
         try {
-            const response = await fetch('/api/clients');
+            const response = await api.get('/api/clients');
             if (response.ok) {
                 const data = await response.json();
                 setClients(data);

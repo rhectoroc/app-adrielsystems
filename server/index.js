@@ -161,7 +161,7 @@ app.post('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, 
     }
 });
 
-app.put('/api/clients/:id', async (req, res) => {
+app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     const { id } = req.params;
     const { name, company_name, email, phone, domain, country, notes } = req.body;
 
@@ -179,8 +179,8 @@ app.put('/api/clients/:id', async (req, res) => {
     }
 });
 
-// Plans Management Routes
-app.get('/api/plans', async (req, res) => {
+// Plans Management Routes (Protected)
+app.get('/api/plans', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query('SELECT * FROM plans ORDER BY id ASC');
         res.json(result.rows);
@@ -190,7 +190,7 @@ app.get('/api/plans', async (req, res) => {
     }
 });
 
-app.post('/api/plans', async (req, res) => {
+app.post('/api/plans', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     const { name, description, cost, currency, billing_cycle } = req.body;
     try {
         const result = await query(
@@ -204,8 +204,8 @@ app.post('/api/plans', async (req, res) => {
     }
 });
 
-// Payment Management Routes
-app.get('/api/payments', async (req, res) => {
+// Payment Management Routes (Protected)
+app.get('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
             SELECT p.*, c.name as client_name, c.company_name, c.email as client_email

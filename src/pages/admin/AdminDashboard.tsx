@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Users, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
+import { api } from '../../utils/api';
 
 export const AdminDashboard = () => {
     const [stats, setStats] = useState({
@@ -14,11 +15,11 @@ export const AdminDashboard = () => {
         const fetchStats = async () => {
             try {
                 // Fetch Clients for count
-                const clientsRes = await fetch('/api/clients');
+                const clientsRes = await api.get('/api/clients');
                 const clients = await clientsRes.json();
 
                 // Fetch Payments for revenue/pending
-                const paymentsRes = await fetch('/api/payments');
+                const paymentsRes = await api.get('/api/payments');
                 const payments = await paymentsRes.json();
 
                 // Calculate stats

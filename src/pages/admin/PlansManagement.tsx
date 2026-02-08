@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Loader2, Save, Tag, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
+import { api } from '../../utils/api';
 
 interface Plan {
     id: number;
@@ -32,7 +33,7 @@ export const PlansManagement = () => {
 
     const fetchPlans = async () => {
         try {
-            const response = await fetch('/api/plans');
+            const response = await api.get('/api/plans');
             if (response.ok) {
                 const data = await response.json();
                 setPlans(data);
@@ -55,11 +56,7 @@ export const PlansManagement = () => {
         setIsSubmitting(true);
 
         try {
-            const response = await fetch('/api/plans', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
+            const response = await api.post('/api/plans', formData);
 
             if (!response.ok) throw new Error('Failed to create plan');
 

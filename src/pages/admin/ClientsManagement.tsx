@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ClientsTable } from '../../components/features/admin/ClientsTable';
 import { X, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { api } from '../../utils/api';
 
 interface Plan {
     id: number;
@@ -37,7 +38,7 @@ export const ClientsManagement = () => {
 
     const fetchPlans = async () => {
         try {
-            const response = await fetch('/api/plans');
+            const response = await api.get('/api/plans');
             if (response.ok) {
                 const data = await response.json();
                 setPlans(data);
@@ -93,12 +94,6 @@ export const ClientsManagement = () => {
         setIsSubmitting(true);
 
         try {
-            const url = editMode && currentClientId
-                ? `/api/clients/${currentClientId}`
-                : '/api/clients';
-
-            const method = editMode ? 'PUT' : 'POST';
-
             // If taking a plan, we need to find its details to send (for creation)
             let payload: any = { ...formData };
             if (!editMode && formData.service_name) {
@@ -109,11 +104,9 @@ export const ClientsManagement = () => {
                 }
             }
 
-            const response = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            const response = editMode && currentClientId
+                ? await api.put(`/api/clients/${currentClientId}`, payload)
+                : await api.post('/api/clients', payload);
 
             const data = await response.json();
 
