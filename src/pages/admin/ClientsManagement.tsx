@@ -94,9 +94,9 @@ export const ClientsManagement = () => {
         setIsSubmitting(true);
 
         try {
-            // If taking a plan, we need to find its details to send (for creation)
+            // If taking a plan, we need to find its details to send
             let payload: any = { ...formData };
-            if (!editMode && formData.service_name) {
+            if (formData.service_name) {
                 const selectedPlan = plans.find(p => p.name === formData.service_name);
                 if (selectedPlan) {
                     payload.cost = selectedPlan.cost;

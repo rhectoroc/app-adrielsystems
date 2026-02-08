@@ -236,6 +236,23 @@ app.post('/api/plans', authenticateToken, authorizeRole('ADMIN'), async (req, re
     }
 });
 
+app.put('/api/plans/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { id } = req.params;
+    const { name, description, cost, currency, billing_cycle } = req.body;
+    try {
+        await query(
+            `UPDATE plans 
+             SET name = $1, description = $2, cost = $3, currency = $4, billing_cycle = $5
+             WHERE id = $6`,
+            [name, description, cost, currency, billing_cycle, id]
+        );
+        res.json({ message: 'Plan updated successfully' });
+    } catch (err) {
+        console.error('Error updating plan:', err);
+        res.status(500).json({ message: 'Error updating plan' });
+    }
+});
+
 // Payment Management Routes (Protected)
 app.get('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {

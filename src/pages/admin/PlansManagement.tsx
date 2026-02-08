@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, Save, Tag, DollarSign } from 'lucide-react';
+import { Plus, Loader2, Save, Tag, DollarSign, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
 
@@ -17,6 +17,8 @@ export const PlansManagement = () => {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [editMode, setEditMode] = useState(false);
+    const [currentPlanId, setCurrentPlanId] = useState<number | null>(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -51,21 +53,38 @@ export const PlansManagement = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleEdit = (plan: Plan) => {
+        setEditMode(true);
+        setCurrentPlanId(plan.id);
+        setFormData({
+            name: plan.name,
+            description: plan.description,
+            cost: plan.cost,
+            currency: plan.currency,
+            billing_cycle: plan.billing_cycle
+        });
+        setIsModalOpen(true);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
 
         try {
-            const response = await api.post('/api/plans', formData);
+            const response = editMode && currentPlanId
+                ? await api.put(`/api/plans/${currentPlanId}`, formData)
+                : await api.post('/api/plans', formData);
 
-            if (!response.ok) throw new Error('Failed to create plan');
+            if (!response.ok) throw new Error(editMode ? 'Failed to update plan' : 'Failed to create plan');
 
-            toast.success('Plan created successfully');
+            toast.success(editMode ? 'Plan updated successfully' : 'Plan created successfully');
             setIsModalOpen(false);
+            setEditMode(false);
+            setCurrentPlanId(null);
             setFormData({ name: '', description: '', cost: '', currency: 'USD', billing_cycle: 'MONTHLY' });
             fetchPlans();
         } catch (error) {
-            toast.error('Error creating plan');
+            toast.error(editMode ? 'Error updating plan' : 'Error creating plan');
         } finally {
             setIsSubmitting(false);
         }
@@ -115,7 +134,13 @@ export const PlansManagement = () => {
                                     </span>
                                     <span className="text-sm text-gray-500">/{plan.billing_cycle === 'MONTHLY' ? 'mo' : 'yr'}</span>
                                 </div>
-                                {/* Future: Edit/Delete actions */}
+                                <button
+                                    onClick={() => handleEdit(plan)}
+                                    className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                    title="Edit plan"
+                                >
+                                    <Edit className="w-4 h-4" />
+                                </button>
                             </div>
                         </div>
                     ))}
@@ -132,7 +157,9 @@ export const PlansManagement = () => {
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="relative w-full max-w-md bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl p-6">
-                        <h3 className="text-xl font-bold text-white font-heading mb-4">New Plan</h3>
+                        <h3 className="text-xl font-bold text-white font-heading mb-4">
+                            {editMode ? 'Edit Plan' : 'New Plan'}
+                        </h3>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-gray-300">Plan Name</label>
