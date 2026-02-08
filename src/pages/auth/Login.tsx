@@ -50,7 +50,13 @@ export const Login = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-6 bg-[radial-gradient(circle_at_top_left,#1a2a4a,#0a101c)]">
+        <div
+            className="min-h-screen flex items-center justify-center p-6"
+            style={{
+                background: 'radial-gradient(circle at top left, #1a2a4a, #0a101c)',
+                minHeight: '100vh'
+            }}
+        >
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
