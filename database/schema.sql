@@ -10,11 +10,15 @@ DROP TABLE IF EXISTS "clients" CASCADE;
 
 -- CLIENTS Table: Stores client information
 CREATE TABLE "clients" (
-  "id" SERIAL PRIMARY KEY, -- Auto-generated ID (Integer) like users
+  "id" SERIAL PRIMARY KEY,
   "name" VARCHAR(255) NOT NULL,
   "company_name" VARCHAR(255),
-  "contact_info" TEXT,
-  "email" VARCHAR(255) UNIQUE, -- Ensure email is unique if used for linking
+  "email" VARCHAR(255) UNIQUE,
+  "phone" VARCHAR(50), -- Movil
+  "domain" VARCHAR(255), -- Dns
+  "country" VARCHAR(100), -- Pais
+  "notes" TEXT, -- Notas/Observaciones
+  "contact_info" TEXT, -- Keeping for backward compatibility or generic info
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -24,7 +28,7 @@ CREATE TABLE "users" (
   "email" VARCHAR(255) UNIQUE NOT NULL,
   "password_hash" VARCHAR(255) NOT NULL,
   "role" VARCHAR(50) NOT NULL CHECK ("role" IN ('ADMIN', 'CLIENT')),
-  "client_id" INTEGER REFERENCES "clients" ("id") ON DELETE SET NULL, -- Linked to clients (Integer)
+  "client_id" INTEGER REFERENCES "clients" ("id") ON DELETE SET NULL,
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -32,10 +36,12 @@ CREATE TABLE "users" (
 CREATE TABLE "services" (
   "id" SERIAL PRIMARY KEY,
   "client_id" INTEGER NOT NULL REFERENCES "clients" ("id") ON DELETE CASCADE,
-  "type" VARCHAR(50) NOT NULL CHECK ("type" IN ('HOSTING', 'WEB', 'N8N')),
+  "name" VARCHAR(255) NOT NULL, -- "Plan admin basico", etc.
+  "type" VARCHAR(50), -- Generic category if needed
   "status" VARCHAR(50) NOT NULL DEFAULT 'ACTIVE' CHECK ("status" IN ('ACTIVE', 'SUSPENDED', 'CANCELLED')),
   "cost" DECIMAL(10, 2) NOT NULL,
-  "renewal_date" DATE NOT NULL,
+  "currency" VARCHAR(10) DEFAULT 'USD', -- USD, VES
+  "renewal_day" INTEGER, -- "11 de cada mes" -> 11
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -46,8 +52,9 @@ CREATE TABLE "payments" (
   "amount" DECIMAL(10, 2) NOT NULL,
   "payment_date" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   "status" VARCHAR(50) NOT NULL CHECK ("status" IN ('PAID', 'PENDING', 'OVERDUE')),
-  "n8n_reference_id" VARCHAR(255), -- ID from n8n automation if applicable
-  "service_month" DATE NOT NULL -- The month this payment covers (e.g., 2023-10-01)
+  "payment_method" VARCHAR(50), -- PayPal, Zelle, Pago Movil
+  "n8n_reference_id" VARCHAR(255),
+  "service_month" VARCHAR(50) -- "febrero 2026" - storing as string or date. Let's strictly use DATE for sorting, but user gave string. I'll store as DATE (first of month).
 );
 
 -- Indexes for performance

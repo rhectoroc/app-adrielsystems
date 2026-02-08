@@ -11,6 +11,8 @@ import { AuthLayout } from './components/layouts/AuthLayout';
 // Pages
 import { Login } from './pages/auth/Login';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { ClientsManagement } from './pages/admin/ClientsManagement';
+import { PaymentsOverview } from './pages/admin/PaymentsOverview';
 import { ClientDashboard } from './pages/client/ClientDashboard';
 
 import { Toaster } from './components/ui/sonner';
@@ -33,8 +35,8 @@ function App() {
                         <Route path="/admin" element={<AdminLayout />}>
                             <Route index element={<AdminDashboard />} />
                             {/* Add more admin routes here later */}
-                            <Route path="clients" element={<div>Clients Management Placeholder</div>} />
-                            <Route path="payments" element={<div>Payments Overview Placeholder</div>} />
+                            <Route path="clients" element={<ClientsManagement />} />
+                            <Route path="payments" element={<PaymentsOverview />} />
                             <Route path="settings" element={<div>Settings Placeholder</div>} />
                         </Route>
                     </Route>
