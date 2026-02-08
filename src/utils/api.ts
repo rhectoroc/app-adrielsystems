@@ -24,15 +24,33 @@ export const apiRequest = async (url: string, options: RequestInit = {}) => {
     });
 
     // Handle token expiration
-    if (response.status === 401) {
-        const data = await response.json();
-        if (data.message === 'Token expired' || data.message === 'Invalid token') {
-            // Clear auth data and redirect to login
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('auth_role');
-            localStorage.removeItem('auth_user');
-            window.location.href = '/login';
-            throw new Error('Session expired. Please login again.');
+    // Handle token expiration and invalid token
+    if (response.status === 401 || response.status === 403) {
+        try {
+            // Clone response to not consume the body for the caller
+            const clone = response.clone();
+            const data = await clone.json();
+
+            // Only redirect if explicitly token related
+            if (data.message === 'Token expired' ||
+                data.message === 'Invalid token' ||
+                data.message === 'Access token required') {
+
+                // Clear auth data and redirect to login
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('auth_role');
+                localStorage.removeItem('auth_user');
+                console.warn('Session expired or invalid, redirecting to login...');
+
+                // Use window.location only if not already there to prevent loops
+                if (window.location.pathname !== '/login') {
+                    window.location.href = '/login';
+                }
+
+                throw new Error(data.message);
+            }
+        } catch (e) {
+            // Ignore JSON parse errors or other issues here, let the caller handle the 401/403 response
         }
     }
 

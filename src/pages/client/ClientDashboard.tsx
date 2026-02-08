@@ -1,15 +1,61 @@
 
-import { ServiceStatus } from '../../components/features/client/ServiceStatus';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { ServiceStatus, Service } from '../../components/features/client/ServiceStatus';
 import { PaymentStatusCard } from '../../components/features/client/PaymentStatus';
-import { BillingHistory } from '../../components/features/client/BillingHistory';
+import { BillingHistory, Payment } from '../../components/features/client/BillingHistory';
 import { SupportWidget } from '../../components/features/client/SupportWidget';
 import { useAuth } from '../../context/AuthContext';
+import { api } from '../../utils/api';
 
 export const ClientDashboard = () => {
     const { user } = useAuth();
-    // Default or fetched data
-    const clientPaymentDay = 5;
-    const lastPaymentDate = '2026-01-05'; // Example: Paid last month
+    const [services, setServices] = useState<Service[]>([]);
+    const [payments, setPayments] = useState<Payment[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            if (!user?.client_id) return;
+
+            try {
+                setLoading(true);
+                // 1. Fetch Client Profile (optional, to ensure we have latest data)
+                // const profileRes = await api.get('/client/me');
+
+                // 2. Fetch Services
+                const servicesRes = await api.get(`/clients/${user.client_id}/services`);
+                const servicesData = await servicesRes.json();
+                setServices(servicesData);
+
+                // 3. Fetch Payments
+                const paymentsRes = await api.get(`/payments/client/${user.client_id}`);
+                const paymentsData = await paymentsRes.json();
+                setPayments(paymentsData);
+
+            } catch (error) {
+                console.error('Error fetching dashboard data:', error);
+                toast.error('Failed to load dashboard data');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (user?.client_id) {
+            fetchDashboardData();
+        }
+    }, [user?.client_id]);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center p-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
+
+    // Determine primary service for Payment Status Card (assuming 1 main service for now)
+    const primaryService = services[0];
 
     return (
         <div className="space-y-6">
@@ -31,13 +77,15 @@ export const ClientDashboard = () => {
             <div className="grid gap-6 lg:grid-cols-3">
                 {/* Service Status takes 2/3 width */}
                 <div className="lg:col-span-2">
-                    <ServiceStatus />
+                    <ServiceStatus services={services} />
                 </div>
                 {/* Payment Status takes 1/3 width */}
                 <div className="lg:col-span-1">
                     <PaymentStatusCard
-                        paymentDay={clientPaymentDay}
-                        lastPaymentDateString={lastPaymentDate}
+                        paymentDay={primaryService?.renewal_day || 1}
+                        lastPaymentDateString={primaryService ? (primaryService as any).last_payment_date : null}
+                        currency={primaryService?.currency}
+                        cost={primaryService?.cost}
                     />
                 </div>
             </div>
@@ -49,7 +97,7 @@ export const ClientDashboard = () => {
 
             {/* Bottom Row: Billing History */}
             <div>
-                <BillingHistory />
+                <BillingHistory payments={payments} />
             </div>
         </div>
     );

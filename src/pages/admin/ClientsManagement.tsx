@@ -17,6 +17,7 @@ export const ClientsManagement = () => {
     const [plans, setPlans] = useState<Plan[]>([]);
     const [editMode, setEditMode] = useState(false);
     const [currentClientId, setCurrentClientId] = useState<number | null>(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -129,7 +130,7 @@ export const ClientsManagement = () => {
             });
             setEditMode(false);
             setCurrentClientId(null);
-            window.location.reload(); // Refresh the page
+            setRefreshTrigger(prev => prev + 1); // Trigger table refresh
 
         } catch (error: any) {
             console.error('Error saving client:', error);
@@ -148,7 +149,7 @@ export const ClientsManagement = () => {
                 </div>
             </div>
 
-            <ClientsTable onAddClick={handleAddClick} onEditClick={handleEditClick} />
+            <ClientsTable onAddClick={handleAddClick} onEditClick={handleEditClick} refreshTrigger={refreshTrigger} />
 
             {/* Modal */}
             {isModalOpen && (

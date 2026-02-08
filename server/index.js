@@ -64,15 +64,23 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
         // Generate Token
         const secret = process.env.AUTH_SECRET || 'dev_secret';
         const token = jwt.sign(
-            { id: user.id, email: user.email, role: user.role },
+            {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                client_id: user.client_id
+            },
             secret,
             { expiresIn: '24h' }
         );
 
         // Fetch additional info if client?
-        let extraInfo = {};
-        if (user.role === 'CLIENT') {
-            // Future: fetch client details
+        let clientData = null;
+        if (user.client_id) {
+            const clientResult = await query('SELECT name FROM clients WHERE id = $1', [user.client_id]);
+            if (clientResult.rows.length > 0) {
+                clientData = clientResult.rows[0];
+            }
         }
 
         // Send warning message if applicable
@@ -82,7 +90,8 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
             user: {
                 id: user.id,
                 email: user.email,
-                name: user.email.split('@')[0], // Fallback name
+                name: clientData ? clientData.name : user.email.split('@')[0],
+                client_id: user.client_id
             }
         };
 
@@ -161,9 +170,15 @@ app.post('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, 
     }
 });
 
-// Get services for a specific client
+// Get services for a specific client (Secured)
 app.get('/api/clients/:id/services', authenticateToken, async (req, res) => {
     const { id } = req.params;
+
+    // Security check: Clients can only access their own services
+    if (req.user.role === 'CLIENT' && parseInt(req.user.client_id) !== parseInt(id)) {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+
     try {
         const result = await query('SELECT * FROM services WHERE client_id = $1', [id]);
         res.json(result.rows);
@@ -382,9 +397,14 @@ app.get('/api/payments/upcoming', authenticateToken, authorizeRole('ADMIN'), asy
     }
 });
 
-// Get payment history for a specific client
+// Get payment history for a specific client (Secured)
 app.get('/api/payments/client/:clientId', authenticateToken, async (req, res) => {
     const { clientId } = req.params;
+
+    // Security check: Clients can only access their own payments
+    if (req.user.role === 'CLIENT' && parseInt(req.user.client_id) !== parseInt(clientId)) {
+        return res.status(403).json({ message: 'Access denied' });
+    }
 
     try {
         const result = await query(`

@@ -10,8 +10,10 @@ const TOKEN_REFRESH_THRESHOLD = 60 * 60 * 1000; // Refresh if less than 1 hour r
 type UserRole = 'ADMIN' | 'CLIENT';
 
 interface User {
+    id: string;
     email: string;
     name: string;
+    client_id?: string;
 }
 
 interface AuthContextType {

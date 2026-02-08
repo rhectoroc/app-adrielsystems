@@ -1,14 +1,34 @@
-
 import { getPaymentStatus } from '../../../utils/paymentStatus';
 
 interface PaymentStatusCardProps {
     paymentDay: number;
     lastPaymentDateString: string | null;
+    currency?: string;
+    cost?: number;
 }
 
-export const PaymentStatusCard = ({ paymentDay, lastPaymentDateString }: PaymentStatusCardProps) => {
+export const PaymentStatusCard = ({
+    paymentDay,
+    lastPaymentDateString,
+    currency = 'USD',
+    cost = 0
+}: PaymentStatusCardProps) => {
     const lastPaymentDate = lastPaymentDateString ? new Date(lastPaymentDateString) : null;
     const status = getPaymentStatus(paymentDay, lastPaymentDate);
+    const today = new Date();
+
+    // Calculate next due date
+    let nextDueDate = new Date();
+    nextDueDate.setDate(paymentDay);
+    if (today.getDate() > paymentDay) {
+        nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+    }
+
+    // Adjust if last payment was recent (simple logic, should be robust in backend but good for visual)
+    if (status === 'Al día' && lastPaymentDate) {
+        // If paid, next due is next month from last payment? 
+        // Or simply the next occurrence of paymentDay.
+    }
 
     // Color Logic
     const getColor = () => {
@@ -28,12 +48,15 @@ export const PaymentStatusCard = ({ paymentDay, lastPaymentDateString }: Payment
             </div>
             <div className="text-center text-gray-400">
                 <p className="mb-1">Payment Day: <strong className="text-gray-200">{paymentDay}th of each month</strong></p>
-                {lastPaymentDate && (
+                {lastPaymentDate ? (
                     <p className="text-sm">Last Payment: {lastPaymentDate.toLocaleDateString()}</p>
-                )}
-                {!lastPaymentDate && (
+                ) : (
                     <p className="text-sm">Last Payment: Never</p>
                 )}
+                <div className="mt-4 pt-4 border-t border-white/10 w-full">
+                    <p className="text-sm text-gray-500">Subscription Amount</p>
+                    <p className="text-xl font-bold text-white">{currency} {cost}</p>
+                </div>
             </div>
             {status !== 'Al día' && (
                 <button className="px-6 py-2 mt-6 font-semibold text-white bg-primary rounded-md hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">

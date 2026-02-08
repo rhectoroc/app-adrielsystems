@@ -20,16 +20,17 @@ interface Client {
 interface ClientsTableProps {
     onAddClick: () => void;
     onEditClick: (client: Client) => void;
+    refreshTrigger?: number;
 }
 
-export const ClientsTable = ({ onAddClick, onEditClick }: ClientsTableProps) => {
+export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: ClientsTableProps) => {
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         fetchClients();
-    }, []);
+    }, [refreshTrigger]);
 
     const fetchClients = async () => {
         try {
