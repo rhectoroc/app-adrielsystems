@@ -8,6 +8,8 @@ export interface Service {
     cost: number;
     currency: string;
     renewal_day: number;
+    prepaid_until?: string; // ISO Date string
+    last_payment_date?: string; // ISO Date string
 }
 
 const StatusIcon = ({ status }: { status: Service['status'] }) => {

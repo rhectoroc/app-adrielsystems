@@ -83,7 +83,8 @@ export const ClientDashboard = () => {
                 <div className="lg:col-span-1">
                     <PaymentStatusCard
                         paymentDay={primaryService?.renewal_day || 1}
-                        lastPaymentDateString={primaryService ? (primaryService as any).last_payment_date : null}
+                        lastPaymentDateString={primaryService ? (primaryService.last_payment_date as string) : null}
+                        prepaidUntilString={primaryService ? primaryService.prepaid_until : null}
                         currency={primaryService?.currency}
                         cost={primaryService?.cost}
                     />

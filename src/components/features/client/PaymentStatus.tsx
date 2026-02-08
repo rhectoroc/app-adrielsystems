@@ -5,16 +5,21 @@ interface PaymentStatusCardProps {
     lastPaymentDateString: string | null;
     currency?: string;
     cost?: number;
+    prepaidUntilString?: string | null;
 }
 
 export const PaymentStatusCard = ({
     paymentDay,
     lastPaymentDateString,
     currency = 'USD',
-    cost = 0
+    cost = 0,
+    prepaidUntilString
 }: PaymentStatusCardProps) => {
     const lastPaymentDate = lastPaymentDateString ? new Date(lastPaymentDateString) : null;
-    const status = getPaymentStatus(paymentDay, lastPaymentDate);
+    const prepaidUntil = prepaidUntilString ? new Date(prepaidUntilString) : null;
+
+    // Status Calculation
+    const status = getPaymentStatus(paymentDay, lastPaymentDate, new Date(), prepaidUntil);
     const today = new Date();
 
     // Calculate next due date

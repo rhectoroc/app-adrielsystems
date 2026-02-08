@@ -9,6 +9,7 @@ export type PaymentStatus = 'Al día' | 'Pendiente' | 'Vencido';
  * @param paymentDay - The day of the month the client is expected to pay (1-31).
  * @param lastPaymentDate - The date of the last recorded successful payment. Can be null if never paid.
  * @param currentDate - The current date (defaults to now).
+ * @param prepaidUntil - Optional date until which the service is prepaid.
  * @returns PaymentStatus ('Al día', 'Pendiente', 'Vencido')
  */
 export const getPaymentStatus = (
@@ -24,7 +25,7 @@ export const getPaymentStatus = (
   // Handle edge cases where month doesn't have the payment day (e.g. Feb 30) by setting to last day of month
   const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const validPaymentDay = Math.min(paymentDay, lastDayOfMonth);
-  
+
   const paymentDeadline = new Date(currentYear, currentMonth, validPaymentDay);
   paymentDeadline.setHours(23, 59, 59, 999); // End of the payment day
 
