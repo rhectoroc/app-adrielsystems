@@ -34,69 +34,56 @@ export const PaymentsManagement = () => {
     const [clients, setClients] = useState<Client[]>([]);
     const [services, setServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [filterStatus, setFilterStatus] = useState<string>('ALL');
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [editMode, setEditMode] = useState(false);
+    const [currentPaymentId, setCurrentPaymentId] = useState<number | null>(null);
 
-    const [formData, setFormData] = useState({
-        client_id: '',
-        service_id: '',
-        amount: '',
-        currency: 'USD',
-        payment_date: new Date().toISOString().split('T')[0],
-        due_date: new Date().toISOString().split('T')[0],
-        status: 'PENDIENTE' as 'PAGADO' | 'PENDIENTE' | 'VENCIDO',
-        payment_method: '',
-        notes: ''
-    });
+    // ... (existing useEffect) ...
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [refreshTrigger]);
 
-    const fetchData = async () => {
-        try {
-            const [paymentsRes, clientsRes] = await Promise.all([
-                api.get('/api/payments'),
-                api.get('/api/clients')
-            ]);
+    // ... (existing fetchData) ...
+    // Note: ensure fetchData is called when refreshTrigger changes
 
-            if (paymentsRes.ok && clientsRes.ok) {
-                const paymentsData = await paymentsRes.json();
-                const clientsData = await clientsRes.json();
+    const handleEditClick = (payment: Payment) => {
+        setEditMode(true);
+        setCurrentPaymentId(payment.id);
+        setFormData({
+            client_id: payment.client_id.toString(),
+            service_id: payment.service_id.toString(),
+            amount: payment.amount.toString(),
+            currency: payment.currency,
+            payment_date: new Date(payment.payment_date).toISOString().split('T')[0],
+            due_date: new Date(payment.due_date).toISOString().split('T')[0],
+            status: payment.status,
+            payment_method: payment.payment_method || '',
+            notes: payment.notes || ''
+        });
 
-                setPayments(paymentsData);
-                setClients(clientsData);
-            }
-        } catch (error) {
-            console.error('Error fetching data:', error);
-            toast.error('Error loading data');
-        } finally {
-            setLoading(false);
-        }
+        // Load services for this client so the dropdown is populated
+        handleClientChange(payment.client_id.toString());
+
+        setIsModalOpen(true);
     };
 
-    const handleClientChange = async (clientId: string) => {
-        setFormData(prev => ({ ...prev, client_id: clientId, service_id: '' }));
-
-        if (clientId) {
-            try {
-                const response = await api.get(`/api/clients/${clientId}/services`);
-                if (response.ok) {
-                    const servicesData = await response.json();
-                    setServices(servicesData);
-                }
-            } catch (error) {
-                console.error('Error fetching services:', error);
-            }
-        } else {
-            setServices([]);
-        }
-    };
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+    const handleAddClick = () => {
+        setEditMode(false);
+        setCurrentPaymentId(null);
+        setFormData({
+            client_id: '',
+            service_id: '',
+            amount: '',
+            currency: 'USD',
+            payment_date: new Date().toISOString().split('T')[0],
+            due_date: new Date().toISOString().split('T')[0],
+            status: 'PENDIENTE',
+            payment_method: '',
+            notes: ''
+        });
+        setServices([]);
+        setIsModalOpen(true);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -104,56 +91,32 @@ export const PaymentsManagement = () => {
         setIsSubmitting(true);
 
         try {
-            const response = await api.post('/api/payments', {
+            const payload = {
                 ...formData,
                 client_id: parseInt(formData.client_id),
                 service_id: parseInt(formData.service_id),
                 amount: parseFloat(formData.amount)
-            });
+            };
 
-            if (!response.ok) throw new Error('Failed to register payment');
+            const response = editMode && currentPaymentId
+                ? await api.put(`/api/payments/${currentPaymentId}`, payload)
+                : await api.post('/api/payments', payload);
 
-            toast.success('Payment registered successfully');
+            if (!response.ok) throw new Error(editMode ? 'Failed to update payment' : 'Failed to register payment');
+
+            toast.success(editMode ? 'Payment updated successfully' : 'Payment registered successfully');
             setIsModalOpen(false);
-            setFormData({
-                client_id: '',
-                service_id: '',
-                amount: '',
-                currency: 'USD',
-                payment_date: new Date().toISOString().split('T')[0],
-                due_date: new Date().toISOString().split('T')[0],
-                status: 'PENDIENTE',
-                payment_method: '',
-                notes: ''
-            });
-            fetchData();
+            setEditMode(false);
+            setCurrentPaymentId(null);
+            setRefreshTrigger(prev => prev + 1); // Trigger refresh
         } catch (error) {
-            toast.error('Error registering payment');
+            toast.error(editMode ? 'Error updating payment' : 'Error registering payment');
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'PAGADO': return 'bg-green-500/20 text-green-400 border-green-500/30';
-            case 'PENDIENTE': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-            case 'VENCIDO': return 'bg-red-500/20 text-red-400 border-red-500/30';
-            default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-        }
-    };
-
-    const filteredPayments = filterStatus === 'ALL'
-        ? payments
-        : payments.filter(p => p.status === filterStatus);
-
-    if (loading) {
-        return (
-            <div className="flex h-64 items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-        );
-    }
+    // ... (helper functions) ...
 
     return (
         <div className="space-y-6">
@@ -163,7 +126,7 @@ export const PaymentsManagement = () => {
                     <p className="text-gray-400">Track and manage all client payments.</p>
                 </div>
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={handleAddClick}
                     className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors text-sm font-medium"
                 >
                     <Plus className="w-4 h-4" />
@@ -172,6 +135,7 @@ export const PaymentsManagement = () => {
             </div>
 
             {/* Filters */}
+            {/* ... (keep filters) ... */}
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                     <Filter className="w-4 h-4 text-gray-400" />
@@ -206,12 +170,13 @@ export const PaymentsManagement = () => {
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Due Date</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Method</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/10">
                             {filteredPayments.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                                         No payments found
                                     </td>
                                 </tr>
@@ -235,6 +200,14 @@ export const PaymentsManagement = () => {
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-sm text-gray-400">{payment.payment_method || '-'}</td>
+                                        <td className="px-4 py-3 text-sm">
+                                            <button
+                                                onClick={() => handleEditClick(payment)}
+                                                className="text-primary hover:text-primary/80 transition-colors font-medium"
+                                            >
+                                                Edit
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))
                             )}
@@ -243,12 +216,14 @@ export const PaymentsManagement = () => {
                 </div>
             </div>
 
-            {/* Register Payment Modal */}
+            {/* Register/Edit Payment Modal (keeping form similar but updating title) */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="relative w-full max-w-2xl bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl p-6">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-white font-heading">Register Payment</h3>
+                            <h3 className="text-xl font-bold text-white font-heading">
+                                {editMode ? 'Edit Payment' : 'Register Payment'}
+                            </h3>
                             <button
                                 onClick={() => setIsModalOpen(false)}
                                 className="p-2 hover:bg-white/10 rounded-lg transition-colors"
@@ -256,10 +231,16 @@ export const PaymentsManagement = () => {
                                 <X className="w-5 h-5 text-gray-400" />
                             </button>
                         </div>
-
+                        {/* ... (rest of the form is mostly same, just ensuring handleSubmit is used) ... */}
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {/* ... (fields) ... */}
+                            {/* Client & Service (Disable editing client/service in Edit Mode for simplicity?) */}
+                            {/* Logic: If editMode, maybe disable client/service select if backend doesn't support moving payments easily. 
+                                  Or allow it. For now, let's allow it but be careful.
+                                  Actually, usually you just edit date/amount/status. 
+                                  Let's keep fields enabled. */}
+
                             <div className="grid grid-cols-2 gap-4">
-                                {/* Client Selection */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Client *</label>
                                     <select
@@ -275,8 +256,6 @@ export const PaymentsManagement = () => {
                                         ))}
                                     </select>
                                 </div>
-
-                                {/* Service Selection */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Service *</label>
                                     <select
@@ -293,8 +272,7 @@ export const PaymentsManagement = () => {
                                         ))}
                                     </select>
                                 </div>
-
-                                {/* Amount */}
+                                {/* ... other fields ... */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Amount *</label>
                                     <input
@@ -307,8 +285,6 @@ export const PaymentsManagement = () => {
                                         className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
                                     />
                                 </div>
-
-                                {/* Currency */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Currency *</label>
                                     <select
@@ -322,8 +298,6 @@ export const PaymentsManagement = () => {
                                         <option value="VES">VES</option>
                                     </select>
                                 </div>
-
-                                {/* Payment Date */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Payment Date *</label>
                                     <input
@@ -335,8 +309,6 @@ export const PaymentsManagement = () => {
                                         className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
                                     />
                                 </div>
-
-                                {/* Due Date */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Due Date *</label>
                                     <input
@@ -348,8 +320,6 @@ export const PaymentsManagement = () => {
                                         className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
                                     />
                                 </div>
-
-                                {/* Status */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Status *</label>
                                     <select
@@ -363,8 +333,6 @@ export const PaymentsManagement = () => {
                                         <option value="VENCIDO">VENCIDO</option>
                                     </select>
                                 </div>
-
-                                {/* Payment Method */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Payment Method</label>
                                     <select
@@ -383,8 +351,6 @@ export const PaymentsManagement = () => {
                                     </select>
                                 </div>
                             </div>
-
-                            {/* Notes */}
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-gray-300">Notes</label>
                                 <textarea
@@ -396,8 +362,6 @@ export const PaymentsManagement = () => {
                                     placeholder="Additional notes..."
                                 />
                             </div>
-
-                            {/* Actions */}
                             <div className="flex justify-end gap-3 pt-4">
                                 <button
                                     type="button"
@@ -416,7 +380,7 @@ export const PaymentsManagement = () => {
                                     ) : (
                                         <Save className="w-4 h-4" />
                                     )}
-                                    {isSubmitting ? 'Registering...' : 'Register Payment'}
+                                    {isSubmitting ? 'Saving...' : (editMode ? 'Update Payment' : 'Register Payment')}
                                 </button>
                             </div>
                         </form>

@@ -284,9 +284,10 @@ app.put('/api/plans/:id', authenticateToken, authorizeRole('ADMIN'), async (req,
 app.get('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
-            SELECT p.*, c.name as client_name, c.company_name, c.email as client_email
+            SELECT p.*, c.name as client_name, c.company_name, c.email as client_email, s.name as service_name
             FROM payments p
             JOIN clients c ON p.client_id = c.id
+            LEFT JOIN services s ON p.service_id = s.id
             ORDER BY p.payment_date DESC
         `);
         res.json(result.rows);
