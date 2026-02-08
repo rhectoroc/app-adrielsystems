@@ -25,3 +25,9 @@ Este archivo sirve como memoria persistente para registrar los cambios, avances 
 - **Seguridad**:
   - El archivo `.env` está incluido en `.gitignore` para evitar subir credenciales al repositorio.
   - En producción (Easypanel), las variables de entorno (`DATABASE_URL`, `AUTH_SECRET`) se configuran directamente en el panel.
+- **Dashboard Cliente (Fase 4)**:
+  - Implementado `ServiceStatus` (Hosting, Web, n8n).
+  - Implementado `PaymentStatus` con lógica de semáforo (Verde/Amarillo/Rojo).
+  - Implementado `BillingHistory` (Tabla de pagos).
+  - Implementado `SupportWidget` (Botones de WhatsApp/Email).
+  - Integración completa en `ClientDashboard.tsx`.

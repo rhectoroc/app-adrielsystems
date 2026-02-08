@@ -1,24 +1,50 @@
 
+import { ServiceStatus } from '../../components/features/client/ServiceStatus';
+import { PaymentStatusCard } from '../../components/features/client/PaymentStatus';
+import { BillingHistory } from '../../components/features/client/BillingHistory';
+import { SupportWidget } from '../../components/features/client/SupportWidget';
+import { useAuth } from '../../context/AuthContext';
 
 export const ClientDashboard = () => {
+    const { user } = useAuth();
+    // Default or fetched data
+    const clientPaymentDay = 5;
+    const lastPaymentDate = '2026-01-05'; // Example: Paid last month
+
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-gray-900">My Dashboard</h1>
-            <div className="p-6 bg-white rounded-lg shadow-sm">
-                <h2 className="text-xl font-semibold text-gray-800">Welcome back, Client!</h2>
-                <p className="mt-2 text-gray-600">Here is an overview of your services and payments.</p>
+            <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold text-gray-800">
+                    Welcome back, {user?.name || 'Client'}!
+                </h1>
+                <span className="text-sm text-gray-500">
+                    {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </span>
             </div>
 
-            {/* Service Status Placeholder */}
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <div className="p-6 bg-white rounded-lg shadow-sm border-l-4 border-green-500">
-                    <h3 className="text-lg font-medium text-gray-900">Hosting Service</h3>
-                    <p className="mt-1 text-sm text-gray-500">Status: <span className="text-green-600 font-semibold">Active</span></p>
+            {/* Top Row: Service Status & Payment Status */}
+            <div className="grid gap-6 lg:grid-cols-3">
+                {/* Service Status takes 2/3 width */}
+                <div className="lg:col-span-2">
+                    <ServiceStatus />
                 </div>
-                <div className="p-6 bg-white rounded-lg shadow-sm border-l-4 border-yellow-500">
-                    <h3 className="text-lg font-medium text-gray-900">Next Payment</h3>
-                    <p className="mt-1 text-sm text-gray-500">Due: <span className="text-gray-900 font-semibold">Oct 15, 2023</span></p>
+                {/* Payment Status takes 1/3 width */}
+                <div className="lg:col-span-1">
+                    <PaymentStatusCard
+                        paymentDay={clientPaymentDay}
+                        lastPaymentDateString={lastPaymentDate}
+                    />
                 </div>
+            </div>
+
+            {/* Middle Row: Support Widget */}
+            <div>
+                <SupportWidget />
+            </div>
+
+            {/* Bottom Row: Billing History */}
+            <div>
+                <BillingHistory />
             </div>
         </div>
     );
