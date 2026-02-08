@@ -12,7 +12,7 @@ import { AuthLayout } from './components/layouts/AuthLayout';
 import { Login } from './pages/auth/Login';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { ClientsManagement } from './pages/admin/ClientsManagement';
-import { PaymentsOverview } from './pages/admin/PaymentsOverview';
+import { PaymentsManagement } from './pages/admin/PaymentsManagement';
 import { PlansManagement } from './pages/admin/PlansManagement';
 import { ClientDashboard } from './pages/client/ClientDashboard';
 
@@ -37,7 +37,7 @@ function App() {
                             <Route index element={<AdminDashboard />} />
                             {/* Add more admin routes here later */}
                             <Route path="clients" element={<ClientsManagement />} />
-                            <Route path="payments" element={<PaymentsOverview />} />
+                            <Route path="payments" element={<PaymentsManagement />} />
                             <Route path="plans" element={<PlansManagement />} />
                             <Route path="settings" element={<div>Settings Placeholder</div>} />
                         </Route>

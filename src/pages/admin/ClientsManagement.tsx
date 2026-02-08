@@ -108,18 +108,32 @@ export const ClientsManagement = () => {
                 ? await api.put(`/api/clients/${currentClientId}`, payload)
                 : await api.post('/api/clients', payload);
 
-            const data = await response.json();
-
             if (!response.ok) {
+                const data = await response.json();
                 throw new Error(data.message || 'Failed to save client');
             }
 
             toast.success(editMode ? 'Client updated successfully' : 'Client created successfully');
             setIsModalOpen(false);
-            window.location.reload(); // Simple refresh to show changes
+            setFormData({
+                name: '',
+                company_name: '',
+                email: '',
+                phone: '',
+                domain: '',
+                country: '',
+                notes: '',
+                contact_info: '',
+                password: '',
+                service_name: ''
+            });
+            setEditMode(false);
+            setCurrentClientId(null);
+            window.location.reload(); // Refresh the page
 
         } catch (error: any) {
-            toast.error(error.message);
+            console.error('Error saving client:', error);
+            toast.error(error.message || 'Error saving client');
         } finally {
             setIsSubmitting(false);
         }

@@ -161,6 +161,18 @@ app.post('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, 
     }
 });
 
+// Get services for a specific client
+app.get('/api/clients/:id/services', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await query('SELECT * FROM services WHERE client_id = $1', [id]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching client services:', err);
+        res.status(500).json({ message: 'Error fetching client services' });
+    }
+});
+
 app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     const { id } = req.params;
     const { name, company_name, email, phone, domain, country, notes, service_name, cost, currency } = req.body;
