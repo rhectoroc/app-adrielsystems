@@ -204,20 +204,117 @@ export const PaymentsManagement = () => {
         return statusMatch && clientMatch && monthMatch;
     });
 
+    const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+    const [generateMonth, setGenerateMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const handleGeneratePayments = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsGenerating(true);
+        try {
+            const [year, month] = generateMonth.split('-');
+            const response = await api.post('/api/payments/generate', {
+                year: parseInt(year),
+                month: parseInt(month)
+            });
+
+            if (!response.ok) throw new Error('Error generating payments');
+
+            const result = await response.json();
+            toast.success(result.message);
+            setIsGenerateModalOpen(false);
+            setRefreshTrigger(prev => prev + 1);
+        } catch (error) {
+            console.error(error);
+            toast.error('Error al generar pagos');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
+            {/* ... Existing header ... */}
+
+            {/* ... Existing Filters ... */}
+
+            {/* ... Existing Table ... */}
+
+            {/* Generate Payments Modal */}
+            {isGenerateModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="relative w-full max-w-md bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-white font-heading">
+                                Generar Pagos Mensuales
+                            </h3>
+                            <button
+                                onClick={() => setIsGenerateModalOpen(false)}
+                                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5 text-gray-400" />
+                            </button>
+                        </div>
+                        <p className="text-gray-400 mb-4 text-sm">
+                            Esto generará registros de pago "PENDIENTE" para todos los servicios activos que no tengan un pago registrado para el mes seleccionado.
+                        </p>
+                        <form onSubmit={handleGeneratePayments} className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-300">Seleccionar Mes y Año</label>
+                                <input
+                                    type="month"
+                                    value={generateMonth}
+                                    onChange={(e) => setGenerateMonth(e.target.value)}
+                                    required
+                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsGenerateModalOpen(false)}
+                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isGenerating}
+                                    className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                    {isGenerating ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Save className="w-4 h-4" />
+                                    )}
+                                    {isGenerating ? 'Generando...' : 'Generar'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-bold text-white font-heading">Payments Management</h2>
                     <p className="text-gray-400">Track and manage all client payments.</p>
                 </div>
-                <button
-                    onClick={handleAddClick}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors text-sm font-medium"
-                >
-                    <Plus className="w-4 h-4" />
-                    Register Payment
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setIsGenerateModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/90 text-black rounded-lg transition-colors text-sm font-medium"
+                    >
+                        <Save className="w-4 h-4" />
+                        Generar Pagos Mensuales
+                    </button>
+                    <button
+                        onClick={handleAddClick}
+                        className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors text-sm font-medium"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Register Payment
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}

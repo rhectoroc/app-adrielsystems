@@ -298,6 +298,88 @@ app.get('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req, 
 });
 
 // ============================================
+// PAYMENT GENERATION ROUTE (Protected)
+// ============================================
+
+app.post('/api/payments/generate', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { month, year } = req.body; // e.g., month = 1 (Jan), year = 2026
+
+    if (!month || !year) {
+        return res.status(400).json({ message: 'Month and Year are required' });
+    }
+
+    try {
+        await query('BEGIN');
+
+        // 1. Get all active services/plans
+        const servicesResult = await query(`
+            SELECT s.*, c.name as client_name 
+            FROM services s
+            JOIN clients c ON s.client_id = c.id
+            WHERE s.status = 'ACTIVE'
+        `);
+        const activeServices = servicesResult.rows;
+
+        let createdCount = 0;
+        let errors = [];
+
+        // 2. Iterate and create payments if not exists
+        for (const service of activeServices) {
+            // Calculate due date for this specific month/year
+            // Use renewal_day, default to 1st if not set or invalid
+            let day = service.renewal_day || 1;
+
+            // Handle edge cases (e.g., Feb 30)
+            const daysInMonth = new Date(year, month, 0).getDate();
+            day = Math.min(day, daysInMonth);
+
+            const dueDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+
+            // Check if payment already exists for this service in this month
+            // We check if a payment exists for this service with a due_date in this month
+            const existingPaymentFn = await query(`
+                SELECT id FROM payments 
+                WHERE service_id = $1 
+                AND EXTRACT(MONTH FROM due_date) = $2 
+                AND EXTRACT(YEAR FROM due_date) = $3
+            `, [service.id, month, year]);
+
+            if (existingPaymentFn.rows.length === 0) {
+                // Create PENDING payment
+                try {
+                    await query(`
+                        INSERT INTO payments (client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes)
+                        VALUES ($1, $2, $3, $4, $5, $6, 'PENDIENTE', '', 'Generado Automáticamente')
+                    `, [
+                        service.client_id,
+                        service.id,
+                        service.cost,
+                        service.currency,
+                        dueDate, // For generated payments, payment_date acts as "billing date" initially? Or better leave it same as due_date
+                        dueDate
+                    ]);
+                    createdCount++;
+                } catch (innerErr) {
+                    console.error(`Failed to create payment for service ${service.id}:`, innerErr);
+                    errors.push(`Servicio ${service.name}: ${innerErr.message}`);
+                }
+            }
+        }
+
+        await query('COMMIT');
+        res.json({
+            message: `Proceso completado. Se generaron ${createdCount} pagos nuevos.`,
+            details: errors.length > 0 ? errors : null
+        });
+
+    } catch (err) {
+        await query('ROLLBACK');
+        console.error('Error generating payments:', err);
+        res.status(500).json({ message: 'Error generating payments' });
+    }
+});
+
+// ============================================
 // PAYMENT TRACKING ROUTES (Protected)
 // ============================================
 
