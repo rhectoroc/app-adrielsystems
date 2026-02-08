@@ -31,7 +31,7 @@ export const ClientsTable = ({ onAddClick }: ClientsTableProps) => {
 
     const fetchClients = async () => {
         try {
-            const response = await fetch('http://localhost:3000/api/clients');
+            const response = await fetch('/api/clients');
             if (response.ok) {
                 const data = await response.json();
                 setClients(data);

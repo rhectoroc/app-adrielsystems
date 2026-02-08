@@ -14,11 +14,11 @@ export const AdminDashboard = () => {
         const fetchStats = async () => {
             try {
                 // Fetch Clients for count
-                const clientsRes = await fetch('http://localhost:3000/api/clients');
+                const clientsRes = await fetch('/api/clients');
                 const clients = await clientsRes.json();
 
                 // Fetch Payments for revenue/pending
-                const paymentsRes = await fetch('http://localhost:3000/api/payments');
+                const paymentsRes = await fetch('/api/payments');
                 const payments = await paymentsRes.json();
 
                 // Calculate stats
