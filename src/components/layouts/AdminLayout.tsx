@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
-import { Users, BarChart3, Settings, LogOut, Wallet, Menu, X } from 'lucide-react';
+import { Users, BarChart3, Settings, LogOut, Wallet, Menu, X, Tag } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const AdminLayout = () => {
@@ -50,6 +50,10 @@ export const AdminLayout = () => {
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/payments" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
                         <Wallet className="w-5 h-5 mr-3 group-hover:text-yellow-400 transition-colors" />
                         Payments
+                    </Link>
+                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/plans" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
+                        <Tag className="w-5 h-5 mr-3 group-hover:text-green-400 transition-colors" />
+                        Plans
                     </Link>
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/settings" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
                         <Settings className="w-5 h-5 mr-3 group-hover:text-gray-200 transition-colors" />
