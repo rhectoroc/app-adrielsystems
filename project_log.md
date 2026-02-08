@@ -22,3 +22,6 @@ Este archivo sirve como memoria persistente para registrar los cambios, avances 
 - **Correcciones (Build)**:
   - Se eliminaron importaciones `import React from 'react'` innecesarias que causaban errores en TypeScript (TS6133).
   - Se corrigió la ruta de importación en `ProtectedRoute.tsx` hacia `AuthContext`.
+- **Seguridad**:
+  - El archivo `.env` está incluido en `.gitignore` para evitar subir credenciales al repositorio.
+  - En producción (Easypanel), las variables de entorno (`DATABASE_URL`, `AUTH_SECRET`) se configuran directamente en el panel.
