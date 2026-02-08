@@ -3,11 +3,17 @@
 export const apiRequest = async (url: string, options: RequestInit = {}) => {
     const token = localStorage.getItem('auth_token');
 
-    const headers = {
+    const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...(options.headers || {}),
     };
 
+    // Merge existing headers
+    if (options.headers) {
+        const existingHeaders = options.headers as Record<string, string>;
+        Object.assign(headers, existingHeaders);
+    }
+
+    // Add authorization token if available
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }

@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import { query } from './db.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { authenticateToken, authorizeRole } from './middleware/auth.js';
+import { rateLimiter, loginRateLimiter, clearLoginAttempts } from './middleware/rateLimiter.js';
 
 // Configuration
 dotenv.config();
@@ -19,6 +21,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Apply general rate limiting to all routes
+app.use(rateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }));
+
 // API Routes
 app.get('/api/health', async (req, res) => {
     try {
@@ -31,7 +36,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Auth Routes (Real Implementation)
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
     const { email, password } = req.body;
     console.log(`Login attempt for: ${email}`);
 
@@ -52,8 +57,11 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
+        // Clear failed login attempts on successful login
+        const ip = req.ip || req.connection.remoteAddress;
+        clearLoginAttempts(email, ip);
+
         // Generate Token
-        // In production use process.env.AUTH_SECRET
         const secret = process.env.AUTH_SECRET || 'dev_secret';
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role },
@@ -67,7 +75,8 @@ app.post('/api/auth/login', async (req, res) => {
             // Future: fetch client details
         }
 
-        res.json({
+        // Send warning message if applicable
+        const response = {
             token,
             role: user.role,
             user: {
@@ -75,7 +84,13 @@ app.post('/api/auth/login', async (req, res) => {
                 email: user.email,
                 name: user.email.split('@')[0], // Fallback name
             }
-        });
+        };
+
+        if (res.locals.warningMessage) {
+            response.warning = res.locals.warningMessage;
+        }
+
+        res.json(response);
 
     } catch (err) {
         console.error('Login error:', err);
@@ -83,8 +98,8 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// Client Management Routes
-app.get('/api/clients', async (req, res) => {
+// Client Management Routes (Protected)
+app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
             SELECT c.*, u.email as user_email, u.role, 
@@ -101,7 +116,7 @@ app.get('/api/clients', async (req, res) => {
     }
 });
 
-app.post('/api/clients', async (req, res) => {
+app.post('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     const { name, company_name, email, phone, domain, country, notes, password, service_name, cost, currency } = req.body;
 
     try {
