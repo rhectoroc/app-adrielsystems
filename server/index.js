@@ -307,6 +307,20 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
 
         // Update or create services from array
         const services = req.body.services || [];
+
+        // 1. Get existing service IDs
+        const existingServicesResult = await query('SELECT id FROM services WHERE client_id = $1', [id]);
+        const existingServiceIds = existingServicesResult.rows.map(row => row.id);
+
+        // 2. Identify services to delete (present in DB but not in request)
+        const incomingServiceIds = services.filter(s => s.id).map(s => s.id);
+        const servicesToDelete = existingServiceIds.filter(id => !incomingServiceIds.includes(id));
+
+        if (servicesToDelete.length > 0) {
+            await query('DELETE FROM services WHERE id = ANY($1)', [servicesToDelete]);
+        }
+
+        // 3. Update or Insert services
         if (services.length > 0) {
             for (const service of services) {
                 if (service.id) {
@@ -325,27 +339,6 @@ VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, (DATE_TRUNC('month', CURRENT_DATE) + (L
                         [id, service.name, service.cost || 0, service.currency || 'USD', service.special_price || null]
                     );
                 }
-            }
-        } else if (service_name) {
-            // Backward compatibility for single service
-            const existingService = await query(
-                'SELECT id FROM services WHERE client_id = $1',
-                [id]
-            );
-
-            if (existingService.rows.length > 0) {
-                await query(
-                    `UPDATE services 
-                     SET name = $1, cost = $2, currency = $3, special_price = $4
-                     WHERE client_id = $5`,
-                    [service_name, cost || 0, currency || 'USD', req.body.special_price || null, id]
-                );
-            } else {
-                await query(
-                    `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed)
-VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, (DATE_TRUNC('month', CURRENT_DATE) + (LEAST(30, EXTRACT(DAY FROM(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')):: int) - 1) * INTERVAL '1 day'):: DATE, 30)`,
-                    [id, service_name, cost || 0, currency || 'USD', req.body.special_price || null]
-                );
             }
         }
 

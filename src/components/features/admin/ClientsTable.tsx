@@ -82,125 +82,121 @@ export const ClientsTable = ({ onAddClick, onEditClick, onDeleteClick, refreshTr
             </div>
 
             <div className="glass-card overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                <div className="w-full">
+                    <table className="w-full text-left table-fixed">
                         <thead>
-                            <tr className="border-b border-white/10 text-gray-400 text-sm">
-                                <th className="p-4 font-medium">Nombre/Empresa</th>
-                                <th className="p-4 font-medium">Contacto</th>
-                                <th className="p-4 font-medium">Ubicación/Dominio</th>
-                                <th className="p-4 font-medium">Servicio(s)</th>
-                                <th className="p-4 font-medium text-right">Mensualidad</th>
-                                <th className="p-4 font-medium">Estado</th>
-                                <th className="p-4 font-medium">Registrado</th>
-                                <th className="p-4 font-medium w-10"></th>
+                            <tr className="border-b border-white/10 text-gray-400 text-xs uppercase tracking-wider">
+                                <th className="p-4 font-medium w-[25%]">Nombre/Empresa</th>
+                                <th className="p-4 font-medium w-[20%]">Contacto</th>
+                                <th className="p-4 font-medium w-[20%]">Ubicación/Dominio</th>
+                                <th className="p-4 font-medium w-[20%]">Servicio(s)</th>
+                                <th className="p-4 font-medium text-right w-[15%]">Estado / Mensualidad</th>
+                                <th className="p-4 font-medium w-[15%]">Servicio(s)</th>
+                                <th className="p-4 font-medium text-right w-[15%]">Mensualidad / Estado</th>
+                                <th className="p-4 font-medium w-[5%]"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={5} className="p-8 text-center text-gray-400">
+                                    <td colSpan={6} className="p-8 text-center text-gray-400">
                                         <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                                         Cargando clientes...
                                     </td>
                                 </tr>
                             ) : filteredClients.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="p-8 text-center text-gray-400">
+                                    <td colSpan={6} className="p-8 text-center text-gray-400">
                                         No se encontraron clientes.
                                     </td>
                                 </tr>
                             ) : (
                                 filteredClients.map((client) => (
-                                    <tr key={client.id} className="hover:bg-white/5 transition-colors group">
-                                        <td className="p-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0">
+                                    <tr key={client.id} className="hover:bg-white/5 transition-colors group border-b border-white/5 last:border-0">
+                                        <td className="p-4 align-top w-[25%]">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0 mt-1">
                                                     <User className="w-5 h-5" />
                                                 </div>
-                                                <div>
-                                                    <div className="font-medium text-white">{client.name}</div>
-                                                    <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                                                        <Building className="w-3 h-3" />
-                                                        {client.company_name || 'Individual'}
+                                                <div className="min-w-0">
+                                                    <div className="font-medium text-white truncate" title={client.name}>{client.name}</div>
+                                                    <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5 truncate">
+                                                        <Building className="w-3 h-3 shrink-0" />
+                                                        <span className="truncate" title={client.company_name || 'Individual'}>
+                                                            {client.company_name || 'Individual'}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-4">
+                                        <td className="p-4 align-top w-[20%]">
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2 text-sm text-gray-300">
-                                                    <Mail className="w-3 h-3 text-gray-500" />
-                                                    {client.email || '-'}
+                                                    <Mail className="w-3 h-3 text-gray-500 shrink-0" />
+                                                    <span className="truncate max-w-[180px]" title={client.email || ''}>{client.email || '-'}</span>
                                                 </div>
                                                 <div className="flex items-center gap-2 text-sm text-gray-300">
-                                                    <Phone className="w-3 h-3 text-gray-500" />
-                                                    {client.phone || client.contact_info || '-'}
+                                                    <Phone className="w-3 h-3 text-gray-500 shrink-0" />
+                                                    <span className="truncate max-w-[180px]" title={client.phone || client.contact_info || ''}>{client.phone || client.contact_info || '-'}</span>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-4">
+                                        <td className="p-4 align-top w-[20%]">
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2 text-sm text-gray-300">
-                                                    <Globe className="w-3 h-3 text-gray-500" />
-                                                    {client.domain || '-'}
+                                                    <Globe className="w-3 h-3 text-gray-500 shrink-0" />
+                                                    <span className="truncate max-w-[150px]" title={client.domain || ''}>{client.domain || '-'}</span>
                                                 </div>
                                                 <div className="flex items-center gap-2 text-sm text-gray-300">
-                                                    <MapPin className="w-3 h-3 text-gray-500" />
-                                                    {client.country || '-'}
+                                                    <MapPin className="w-3 h-3 text-gray-500 shrink-0" />
+                                                    <span className="truncate max-w-[150px]" title={client.country || ''}>{client.country || '-'}</span>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-4">
-                                            <div className="flex flex-col">
+                                        <td className="p-4 align-top w-[15%]">
+                                            <div className="flex flex-col gap-1">
                                                 <span className="text-sm text-white font-medium">{client.service_name || 'Sin Servicio'}</span>
                                                 {client.services && client.services.length > 1 && (
-                                                    <span className="text-[10px] text-primary">+{client.services.length - 1} plan(es) más</span>
+                                                    <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded w-fit">
+                                                        +{client.services.length - 1} plan(es) más
+                                                    </span>
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="p-4 text-right">
-                                            <div className="text-sm font-bold text-white">
-                                                ${(client.total_monthly || 0).toLocaleString()}
+                                        <td className="p-4 align-top text-right w-[15%]">
+                                            <div className="flex flex-col items-end gap-1">
+                                                <div className="text-sm font-bold text-white">
+                                                    ${(client.total_monthly || 0).toLocaleString()}
+                                                </div>
+                                                {client.payment_status === 'OVERDUE' && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-red-500/20 text-red-300 border border-red-500/20 uppercase tracking-wide">
+                                                        Vencido
+                                                    </span>
+                                                )}
+                                                {client.payment_status === 'UPCOMING' && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/20 uppercase tracking-wide">
+                                                        Próximo
+                                                    </span>
+                                                )}
+                                                {client.payment_status === 'PAID' && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-green-500/20 text-green-300 border border-green-500/20 uppercase tracking-wide">
+                                                        Al día
+                                                    </span>
+                                                )}
                                             </div>
                                         </td>
-                                        <td className="p-4">
-                                            {client.payment_status === 'OVERDUE' && (
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
-                                                    Vencido
-                                                </span>
-                                            )}
-                                            {client.payment_status === 'UPCOMING' && (
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                                                    Próximo
-                                                </span>
-                                            )}
-                                            {client.payment_status === 'PAID' && (
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
-                                                    Al día
-                                                </span>
-                                            )}
-                                            {!client.payment_status && (
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                                                    -
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="p-4 text-gray-400 text-sm">
-                                            {new Date(client.created_at).toLocaleDateString()}
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex items-center gap-2">
+                                        <td className="p-4 align-top text-right w-[5%]">
+                                            <div className="flex flex-col items-end gap-2">
                                                 <button
                                                     onClick={() => onEditClick(client)}
-                                                    className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                                    className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                                                     title="Editar Cliente"
                                                 >
                                                     <Edit className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => onDeleteClick(client)}
-                                                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                    className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                                                     title="Eliminar Cliente"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
