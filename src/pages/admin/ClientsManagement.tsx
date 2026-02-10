@@ -87,7 +87,8 @@ export const ClientsManagement = () => {
             notes: '',
             contact_info: '',
             password: '',
-            service_name: ''
+            service_name: '',
+            special_price: ''
         });
         setIsModalOpen(true);
     }
@@ -128,7 +129,8 @@ export const ClientsManagement = () => {
                 notes: '',
                 contact_info: '',
                 password: '',
-                service_name: ''
+                service_name: '',
+                special_price: ''
             });
             setEditMode(false);
             setCurrentClientId(null);
