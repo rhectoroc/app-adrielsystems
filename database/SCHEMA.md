@@ -36,6 +36,7 @@
   - `idx_payments_service_id` on `service_id`
   - `idx_payments_due_date` on `due_date`
   - `idx_payments_status` on `status`
+- **Note**: The `currency` column stores the payment currency (USD, EUR, VES, etc.)
 
 ### `conversations`
 - **Primary Key**: `id`
