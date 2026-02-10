@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, X, Save } from 'lucide-react';
+import { Plus, Loader2, X, Save, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
 
@@ -27,6 +27,8 @@ interface Service {
     id: number;
     name: string;
     client_id: number;
+    special_price?: number;
+    cost: number;
 }
 
 export const PaymentsManagement = () => {
@@ -49,7 +51,8 @@ export const PaymentsManagement = () => {
         due_date: new Date().toISOString().split('T')[0],
         status: 'PENDIENTE' as 'PAGADO' | 'PENDIENTE' | 'VENCIDO',
         payment_method: '',
-        notes: ''
+        notes: '',
+        months_covered: 1
     });
 
     useEffect(() => {
@@ -97,6 +100,18 @@ export const PaymentsManagement = () => {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+
+        // Auto-fill amount if service changes
+        if (name === 'service_id') {
+            const selectedService = services.find(s => s.id.toString() === value);
+            if (selectedService) {
+                setFormData(prev => ({
+                    ...prev,
+                    amount: (selectedService.special_price || selectedService.cost || '').toString(),
+                    service_id: value // Ensure service_id is updated
+                }));
+            }
+        }
     };
 
     const handleEditClick = async (payment: Payment) => {
@@ -131,7 +146,8 @@ export const PaymentsManagement = () => {
             due_date: new Date(payment.due_date).toISOString().split('T')[0],
             status: translateStatus(payment.status) as 'PAGADO' | 'PENDIENTE' | 'VENCIDO',
             payment_method: payment.payment_method || '',
-            notes: payment.notes || ''
+            notes: payment.notes || '',
+            months_covered: 1
         });
 
         setIsModalOpen(true);
@@ -149,7 +165,8 @@ export const PaymentsManagement = () => {
             due_date: new Date().toISOString().split('T')[0],
             status: 'PENDIENTE',
             payment_method: '',
-            notes: ''
+            notes: '',
+            months_covered: 1
         });
         setServices([]);
         setIsModalOpen(true);
@@ -507,6 +524,29 @@ export const PaymentsManagement = () => {
                                         required
                                         className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
                                     />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Meses a cubrir</label>
+                                    <select
+                                        name="months_covered"
+                                        value={(formData as any).months_covered}
+                                        onChange={handleInputChange}
+                                        required
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    >
+                                        <option value="1">1 mes</option>
+                                        <option value="3">3 meses</option>
+                                        <option value="6">6 meses</option>
+                                        <option value="12">12 meses (1 año)</option>
+                                    </select>
+                                    {parseInt((formData as any).months_covered) === 12 && (
+                                        <div className="flex items-start gap-2 p-3 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                            <p className="text-xs text-amber-200">
+                                                Al seleccionar 12 meses, la fecha de expiración del servicio se extenderá un año completo a partir de su vencimiento actual.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">Moneda *</label>

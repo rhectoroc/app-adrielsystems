@@ -31,6 +31,7 @@ export const ClientsManagement = () => {
         contact_info: '',
         password: '',
         service_name: '', // Selected Plan ID or Name
+        special_price: ''
     });
 
     useEffect(() => {
@@ -67,7 +68,8 @@ export const ClientsManagement = () => {
             notes: client.notes || '',
             contact_info: client.contact_info || '',
             password: '', // Keep empty
-            service_name: client.service_name || ''
+            service_name: client.service_name || '',
+            special_price: client.special_price || ''
         });
         setIsModalOpen(true);
     };
@@ -271,6 +273,19 @@ export const ClientsManagement = () => {
                                         </option>
                                     ))}
                                 </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-300">Precio Especial (Opcional)</label>
+                                <input
+                                    type="number"
+                                    name="special_price"
+                                    value={(formData as any).special_price || ''}
+                                    onChange={handleInputChange}
+                                    step="0.01"
+                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    placeholder="Dejar vacío para usar precio del plan"
+                                />
                             </div>
 
                             <div className="space-y-2">

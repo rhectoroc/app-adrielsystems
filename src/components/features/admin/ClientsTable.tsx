@@ -15,6 +15,7 @@ interface Client {
     // joined fields
     service_name?: string;
     service_status?: string;
+    payment_status?: 'OVERDUE' | 'UPCOMING' | 'PAID';
 }
 
 interface ClientsTableProps {
@@ -86,7 +87,7 @@ export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: Cl
                                 <th className="p-4 font-medium">Contacto</th>
                                 <th className="p-4 font-medium">Ubicación/Dominio</th>
                                 <th className="p-4 font-medium">Servicio</th>
-                                <th className="p-4 font-medium">Estado</th>
+                                <th className="p-4 font-medium">Estado Servicio</th>
                                 <th className="p-4 font-medium">Registrado</th>
                                 <th className="p-4 font-medium w-10"></th>
                             </tr>
@@ -149,13 +150,29 @@ export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: Cl
                                         <td className="p-4">
                                             <div className="flex flex-col">
                                                 <span className="text-sm text-white">{client.service_name || 'Sin Servicio'}</span>
-                                                {client.service_status && (
-                                                    <span className={`text-xs mt-1 w-fit px-2 py-0.5 rounded-full ${client.service_status === 'ACTIVE' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                                                        }`}>
-                                                        {client.service_status}
-                                                    </span>
-                                                )}
                                             </div>
+                                        </td>
+                                        <td className="p-4">
+                                            {client.payment_status === 'OVERDUE' && (
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                                                    Vencido
+                                                </span>
+                                            )}
+                                            {client.payment_status === 'UPCOMING' && (
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                                    Próximo
+                                                </span>
+                                            )}
+                                            {client.payment_status === 'PAID' && (
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                                                    Al día
+                                                </span>
+                                            )}
+                                            {!client.payment_status && (
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                                                    -
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="p-4 text-gray-400 text-sm">
                                             {new Date(client.created_at).toLocaleDateString()}
