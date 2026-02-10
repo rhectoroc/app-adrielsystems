@@ -20,6 +20,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Apply general rate limiting to all routes
 app.use(rateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }));
@@ -36,7 +37,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Auth Routes (Real Implementation)
-app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
+const loginHandler = async (req, res) => {
     const { email, password } = req.body;
     console.log(`Login attempt for: ${email}`);
 
@@ -83,8 +84,8 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
             }
         }
 
-        // Send warning message if applicable
-        const response = {
+        // Send response
+        const responseData = {
             token,
             role: user.role,
             user: {
@@ -96,15 +97,23 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
         };
 
         if (res.locals.warningMessage) {
-            response.warning = res.locals.warningMessage;
+            responseData.warning = res.locals.warningMessage;
         }
 
-        res.json(response);
+        res.json(responseData);
 
     } catch (err) {
         console.error('Login error:', err);
-        res.status(500).json({ message: 'Server error during login' });
+        res.status(500).json({ message: 'Internal server error' });
     }
+};
+
+app.post('/api/auth/login', loginRateLimiter, loginHandler);
+app.post('/api/login', loginRateLimiter, loginHandler);
+
+// Debug route to check if endpoint is reachable via GET
+app.get('/api/login', (req, res) => {
+    res.json({ message: 'Login endpoint active. Please use POST to authenticate.' });
 });
 
 // Dashboard Stats Route
