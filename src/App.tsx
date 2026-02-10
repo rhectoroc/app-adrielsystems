@@ -30,46 +30,50 @@ function RootRedirect() {
     return <Navigate to={role === 'ADMIN' ? '/admin' : '/client'} replace />;
 }
 
+import { ConfirmProvider } from './context/ConfirmContext';
+
 function App() {
     return (
         <AuthProvider>
-            <Router>
-                <Routes>
-                    {/* Default Route */}
-                    <Route path="/" element={<RootRedirect />} />
+            <ConfirmProvider>
+                <Router>
+                    <Routes>
+                        {/* Default Route */}
+                        <Route path="/" element={<RootRedirect />} />
 
-                    {/* Auth Routes */}
-                    <Route element={<AuthLayout />}>
-                        <Route path="/login" element={<Login />} />
-                    </Route>
-
-                    {/* Admin Routes (Protected) */}
-                    <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-                        <Route path="/admin" element={<AdminLayout />}>
-                            <Route index element={<AdminDashboard />} />
-                            {/* Add more admin routes here later */}
-                            <Route path="clients" element={<ClientsManagement />} />
-                            <Route path="payments" element={<PaymentsManagement />} />
-                            <Route path="plans" element={<PlansManagement />} />
-                            <Route path="settings" element={<div>Settings Placeholder</div>} />
+                        {/* Auth Routes */}
+                        <Route element={<AuthLayout />}>
+                            <Route path="/login" element={<Login />} />
                         </Route>
-                    </Route>
 
-                    {/* Client Routes (Protected) */}
-                    <Route element={<ProtectedRoute allowedRoles={['CLIENT']} />}>
-                        <Route path="/client" element={<ClientLayout />}>
-                            <Route index element={<ClientDashboard />} />
-                            {/* Add more client routes here later */}
-                            <Route path="payments" element={<div>My Payments Placeholder</div>} />
-                            <Route path="support" element={<div>Support Placeholder</div>} />
+                        {/* Admin Routes (Protected) */}
+                        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                            <Route path="/admin" element={<AdminLayout />}>
+                                <Route index element={<AdminDashboard />} />
+                                {/* Add more admin routes here later */}
+                                <Route path="clients" element={<ClientsManagement />} />
+                                <Route path="payments" element={<PaymentsManagement />} />
+                                <Route path="plans" element={<PlansManagement />} />
+                                <Route path="settings" element={<div>Settings Placeholder</div>} />
+                            </Route>
                         </Route>
-                    </Route>
 
-                    {/* Fallback */}
-                    <Route path="*" element={<Navigate to="/login" replace />} />
-                </Routes>
-            </Router>
-            <Toaster />
+                        {/* Client Routes (Protected) */}
+                        <Route element={<ProtectedRoute allowedRoles={['CLIENT']} />}>
+                            <Route path="/client" element={<ClientLayout />}>
+                                <Route index element={<ClientDashboard />} />
+                                {/* Add more client routes here later */}
+                                <Route path="payments" element={<div>My Payments Placeholder</div>} />
+                                <Route path="support" element={<div>Support Placeholder</div>} />
+                            </Route>
+                        </Route>
+
+                        {/* Fallback */}
+                        <Route path="*" element={<Navigate to="/login" replace />} />
+                    </Routes>
+                </Router>
+                <Toaster />
+            </ConfirmProvider>
         </AuthProvider>
     );
 }

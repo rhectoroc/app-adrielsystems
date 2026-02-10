@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, User, Building, Mail, Phone, Loader2, Globe, MapPin, Edit, Trash2, Ban, CheckCircle } from 'lucide-react';
 import { api } from '../../../utils/api';
+import { useConfirm } from '../../../context/ConfirmContext';
+import { toast } from 'sonner';
 
 interface Client {
     id: number;
@@ -29,6 +31,7 @@ interface ClientsTableProps {
 }
 
 export const ClientsTable = ({ onAddClick, onEditClick, onDeleteClick, refreshTrigger = 0 }: ClientsTableProps) => {
+    const { confirm } = useConfirm();
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -54,7 +57,15 @@ export const ClientsTable = ({ onAddClick, onEditClick, onDeleteClick, refreshTr
     };
 
     const handleToggleStatus = async (client: Client) => {
-        if (!confirm(`¿Estás seguro de que deseas ${client.is_active ? 'inhabilitar' : 'habilitar'} a ${client.name}?`)) return;
+        const isActivating = !client.is_active;
+        const confirmed = await confirm({
+            title: isActivating ? 'Habilitar Cliente' : 'Inhabilitar Cliente',
+            message: `¿Estás seguro de que deseas ${isActivating ? 'habilitar' : 'inhabilitar'} a ${client.name}? ${!isActivating ? 'El cliente dejará de recibir notificaciones de cobro.' : ''}`,
+            confirmText: isActivating ? 'Habilitar' : 'Inhabilitar',
+            type: isActivating ? 'info' : 'danger'
+        });
+
+        if (!confirmed) return;
 
         try {
             const response = await api.put(`/api/clients/${client.id}/status`, {
@@ -66,10 +77,11 @@ export const ClientsTable = ({ onAddClick, onEditClick, onDeleteClick, refreshTr
                 setClients(prev => prev.map(c =>
                     c.id === client.id ? { ...c, is_active: !c.is_active } : c
                 ));
+                toast.success(`Cliente ${isActivating ? 'habilitado' : 'inhabilitado'} exitosamente`);
             }
         } catch (error) {
             console.error('Error toggling client status:', error);
-            alert('Error al cambiar el estado del cliente');
+            toast.error('Error al cambiar el estado del cliente');
         }
     };
 

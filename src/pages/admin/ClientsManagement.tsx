@@ -3,6 +3,7 @@ import { ClientsTable } from '../../components/features/admin/ClientsTable';
 import { X, Loader2, Save, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
+import { useConfirm } from '../../context/ConfirmContext';
 
 interface Plan {
     id: number;
@@ -12,6 +13,7 @@ interface Plan {
 }
 
 export const ClientsManagement = () => {
+    const { confirm } = useConfirm();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [plans, setPlans] = useState<Plan[]>([]);
@@ -161,9 +163,14 @@ export const ClientsManagement = () => {
     };
 
     const handleDeleteClick = async (client: any) => {
-        if (!window.confirm(`¿Estás seguro de que deseas eliminar a ${client.name}? Esta acción eliminará todos sus servicios, pagos y usuarios asociados y NO se puede deshacer.`)) {
-            return;
-        }
+        const confirmed = await confirm({
+            title: 'Eliminar Cliente',
+            message: `¿Estás seguro de que deseas eliminar a ${client.name}? Esta acción eliminará todos sus servicios, pagos y usuarios asociados y NO se puede deshacer.`,
+            confirmText: 'Eliminar Cliente',
+            type: 'danger'
+        });
+
+        if (!confirmed) return;
 
         try {
             const response = await api.delete(`/api/clients/${client.id}`);
