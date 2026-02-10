@@ -914,6 +914,54 @@ END as notification_type
 });
 
 // Notification Logging Endpoint
+// GET /api/notifications/log - Get notification history
+app.get('/api/notifications/log', authenticateToken, async (req, res) => {
+    const { limit = 50, date, client_id } = req.query;
+
+    try {
+        let queryText = `
+            SELECT 
+                nl.id,
+                nl.type,
+                nl.channel,
+                nl.status,
+                nl.sent_at,
+                c.id as client_id,
+                c.name as client_name,
+                c.email as client_email,
+                c.phone as client_phone
+            FROM notification_logs nl
+            JOIN clients c ON nl.client_id = c.id
+            WHERE 1=1
+        `;
+
+        const queryParams = [];
+        let paramCount = 1;
+
+        if (date) {
+            queryText += ` AND DATE(nl.sent_at) = $${paramCount}`;
+            queryParams.push(date);
+            paramCount++;
+        }
+
+        if (client_id) {
+            queryText += ` AND nl.client_id = $${paramCount}`;
+            queryParams.push(client_id);
+            paramCount++;
+        }
+
+        queryText += ` ORDER BY nl.sent_at DESC LIMIT $${paramCount}`;
+        queryParams.push(limit);
+
+        const result = await query(queryText, queryParams);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching notification logs:', err);
+        res.status(500).json({ message: 'Error fetching notification logs' });
+    }
+});
+
+// POST /api/notifications/log - Log a new notification
 app.post('/api/notifications/log', authenticateToken, async (req, res) => {
     const { client_id, type, channel, status } = req.body;
 
