@@ -131,22 +131,37 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
         const clientsRes = await query('SELECT COUNT(*) FROM clients');
         stats.totalClients = parseInt(clientsRes.rows[0].count);
 
-        // 2. Overdue Amount (Actual Morosos: Expiration + 7 days < Today)
+        // 2. Overdue Amount (Actual Morosos)
+        // Includes:
+        // - Services expired > 7 days ago
+        // - OR services expired AND not covered by the "Pending" logic (to fill gaps)
         const overdueRes = await query(`
             SELECT COALESCE(SUM(COALESCE(special_price, cost)), 0) as total 
             FROM services 
             WHERE status = 'ACTIVE' 
-            AND (expiration_date IS NULL OR (expiration_date + INTERVAL '7 days') < CURRENT_DATE)
+            AND (
+                expiration_date IS NULL 
+                OR 
+                (expiration_date + INTERVAL '7 days') < CURRENT_DATE
+            )
         `);
         stats.overdueAmount = parseFloat(overdueRes.rows[0].total);
 
-        // 3. Pending Amount (Within Grace: Expiration < Today but Expiration + 7 >= Today)
+        // 3. Pending Amount (Upcoming + Grace Period)
+        // Includes:
+        // - Services expired but within grace period (Expiration < Today <= Expiration + 7)
+        // - Services expiring soon (Today <= Expiration <= Today + 3 days)
         const pendingRes = await query(`
             SELECT COALESCE(SUM(COALESCE(special_price, cost)), 0) as total 
             FROM services 
             WHERE status = 'ACTIVE' 
-            AND expiration_date < CURRENT_DATE 
-            AND (expiration_date + INTERVAL '7 days') >= CURRENT_DATE
+            AND (
+                -- Grace period case
+                (expiration_date < CURRENT_DATE AND (expiration_date + INTERVAL '7 days') >= CURRENT_DATE)
+                OR
+                -- Upcoming case (next 3 days)
+                (expiration_date >= CURRENT_DATE AND expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
+            )
         `);
         stats.pendingAmount = parseFloat(pendingRes.rows[0].total);
 
@@ -181,10 +196,14 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
                         'currency', s.currency,
                         'status', s.status,
                         'expiration_date', s.expiration_date,
-                        'payment_status', CASE 
-                                   --Grace period: 5 business days ≈ 7 calendar days
-                                   WHEN s.expiration_date IS NULL OR(s.expiration_date + INTERVAL '7 days') < CURRENT_DATE THEN 'OVERDUE'
-                                   WHEN(s.expiration_date + INTERVAL '7 days') <= CURRENT_DATE + INTERVAL '7 days' AND(s.expiration_date + INTERVAL '7 days') >= CURRENT_DATE THEN 'UPCOMING'
+                                   -- OVERDUE: Expired and past grace period (7 days)
+                                   WHEN s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '7 days') < CURRENT_DATE THEN 'OVERDUE'
+                                   -- UPCOMING: Expired within grace period OR expiring in next 3 days
+                                   WHEN (
+                                       ((s.expiration_date + INTERVAL '7 days') >= CURRENT_DATE AND s.expiration_date < CURRENT_DATE)
+                                       OR
+                                       (s.expiration_date >= CURRENT_DATE AND s.expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
+                                   ) THEN 'UPCOMING'
                                    ELSE 'PAID'
                                END
                     )
@@ -198,8 +217,14 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
         COALESCE(
             (SELECT 
                            CASE 
-                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND(s2.expiration_date IS NULL OR(s2.expiration_date + INTERVAL '7 days') < CURRENT_DATE)) THEN 'OVERDUE'
-                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND(s2.expiration_date + INTERVAL '7 days') <= CURRENT_DATE + INTERVAL '7 days' AND(s2.expiration_date + INTERVAL '7 days') >= CURRENT_DATE) THEN 'UPCOMING'
+                               -- OVERDUE check
+                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND (s2.expiration_date IS NULL OR (s2.expiration_date + INTERVAL '7 days') < CURRENT_DATE)) THEN 'OVERDUE'
+                               -- UPCOMING check (Grace period OR Next 3 days)
+                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND (
+                                   ((s2.expiration_date + INTERVAL '7 days') >= CURRENT_DATE AND s2.expiration_date < CURRENT_DATE)
+                                   OR
+                                   (s2.expiration_date >= CURRENT_DATE AND s2.expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
+                               )) THEN 'UPCOMING'
                                ELSE 'PAID'
                            END
         ), 'PAID'
