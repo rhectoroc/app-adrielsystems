@@ -27,10 +27,20 @@ interface Client {
     email: string;
     phone: string;
     service_name?: string;
-    service_status?: string;
     payment_status?: 'OVERDUE' | 'UPCOMING' | 'PAID';
     expiration_date?: string;
-    service_id?: number;
+    total_monthly?: number;
+    service_id?: number; // Back for convenience
+    services?: Array<{
+        id: number;
+        name: string;
+        cost: number;
+        special_price?: number;
+        currency: string;
+        status: string;
+        expiration_date: string;
+        payment_status: 'OVERDUE' | 'UPCOMING' | 'PAID';
+    }>;
 }
 
 interface Service {
@@ -195,8 +205,11 @@ export const PaymentsManagement = () => {
             months_covered: 1
         });
 
-        if (fromHistory && selectedClient?.service_id) {
-            handleClientChange(selectedClient.id.toString());
+        if (isFromHistory && selectedClient) {
+            const firstServiceId = selectedClient.service_id || selectedClient.services?.[0]?.id;
+            if (firstServiceId) {
+                handleClientChange(selectedClient.id.toString());
+            }
         } else if (!fromHistory) {
             setServices([]);
         }
@@ -303,10 +316,11 @@ export const PaymentsManagement = () => {
     };
 
     const handleUpdateExpiration = async () => {
-        if (!selectedClient?.service_id || !newExpirationDate) return;
+        const serviceId = selectedClient?.service_id || selectedClient?.services?.[0]?.id;
+        if (!serviceId || !newExpirationDate) return;
 
         try {
-            const response = await api.put(`/api/services/${selectedClient.service_id}/expiration`, {
+            const response = await api.put(`/api/services/${serviceId}/expiration`, {
                 expiration_date: newExpirationDate
             });
 
@@ -393,7 +407,8 @@ export const PaymentsManagement = () => {
                                     <thead className="bg-white/5 border-b border-white/10">
                                         <tr>
                                             <th className="p-5 font-bold text-gray-400 text-xs uppercase tracking-wider">Cliente / Empresa</th>
-                                            <th className="p-5 font-bold text-gray-400 text-xs uppercase tracking-wider">Servicio Activo</th>
+                                            <th className="p-5 font-bold text-gray-400 text-xs uppercase tracking-wider">Servicios Activos</th>
+                                            <th className="p-5 font-bold text-gray-400 text-xs uppercase tracking-wider text-right">Mensualidad Total</th>
                                             <th className="p-5 font-bold text-gray-400 text-xs uppercase tracking-wider text-center">Estado</th>
                                             <th className="p-5 font-bold text-gray-400 text-xs uppercase tracking-wider text-right">Acciones</th>
                                         </tr>
@@ -422,10 +437,23 @@ export const PaymentsManagement = () => {
                                                         <div className="text-xs text-gray-500 mt-0.5">{client.company_name || 'Particular'}</div>
                                                     </td>
                                                     <td className="p-5">
-                                                        <div className="inline-flex items-center gap-2 text-sm text-gray-300 bg-white/5 px-3 py-1 rounded-lg border border-white/5">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                                                            {client.service_name || 'Sin suscripción'}
+                                                        <div className="flex flex-col gap-1">
+                                                            <div className="inline-flex items-center gap-2 text-sm text-gray-300 bg-white/5 px-3 py-1 rounded-lg border border-white/5">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                                                                <span className="truncate max-w-[150px]">{client.service_name || 'Sin suscripción'}</span>
+                                                            </div>
+                                                            {client.services && client.services.length > 1 && (
+                                                                <div className="text-[10px] text-primary/70 font-bold ml-1">
+                                                                    +{client.services.length - 1} plan(es) adicional(es)
+                                                                </div>
+                                                            )}
                                                         </div>
+                                                    </td>
+                                                    <td className="p-5 text-right">
+                                                        <div className="font-bold text-white text-lg">
+                                                            ${(client.total_monthly || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-500 uppercase tracking-tighter">Total Mensual</div>
                                                     </td>
                                                     <td className="p-5 text-center">
                                                         {client.payment_status === 'OVERDUE' ? (
@@ -503,11 +531,17 @@ export const PaymentsManagement = () => {
                                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                                     <TrendingUp className="w-24 h-24 text-white" />
                                 </div>
-                                <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Servicio Contratado</div>
-                                <div className="text-2xl font-bold text-white">{selectedClient?.service_name || 'Ninguno'}</div>
-                                <div className="mt-4 flex items-center gap-2 text-primary font-bold text-sm">
-                                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                                    Activo desde el primer pago
+                                <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Mensualidad Total</div>
+                                <div className="text-3xl font-black text-white">
+                                    ${(selectedClient?.total_monthly || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                </div>
+                                <div className="mt-4 space-y-2 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {selectedClient?.services?.map((service: any, idx: number) => (
+                                        <div key={idx} className="flex items-center justify-between text-[11px] py-1.5 border-b border-white/5 last:border-0 hover:bg-white/5 px-1 rounded transition-colors">
+                                            <span className="text-gray-400 font-medium truncate max-w-[150px]">{service.name}</span>
+                                            <span className="text-primary font-black">${(service.special_price || service.cost).toLocaleString()}</span>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
 

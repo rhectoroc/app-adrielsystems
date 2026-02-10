@@ -16,6 +16,8 @@ interface Client {
     service_name?: string;
     service_status?: string;
     payment_status?: 'OVERDUE' | 'UPCOMING' | 'PAID';
+    total_monthly?: number;
+    services?: any[];
 }
 
 interface ClientsTableProps {
@@ -86,8 +88,9 @@ export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: Cl
                                 <th className="p-4 font-medium">Nombre/Empresa</th>
                                 <th className="p-4 font-medium">Contacto</th>
                                 <th className="p-4 font-medium">Ubicación/Dominio</th>
-                                <th className="p-4 font-medium">Servicio</th>
-                                <th className="p-4 font-medium">Estado Servicio</th>
+                                <th className="p-4 font-medium">Servicio(s)</th>
+                                <th className="p-4 font-medium text-right">Mensualidad</th>
+                                <th className="p-4 font-medium">Estado</th>
                                 <th className="p-4 font-medium">Registrado</th>
                                 <th className="p-4 font-medium w-10"></th>
                             </tr>
@@ -149,7 +152,15 @@ export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: Cl
                                         </td>
                                         <td className="p-4">
                                             <div className="flex flex-col">
-                                                <span className="text-sm text-white">{client.service_name || 'Sin Servicio'}</span>
+                                                <span className="text-sm text-white font-medium">{client.service_name || 'Sin Servicio'}</span>
+                                                {client.services && client.services.length > 1 && (
+                                                    <span className="text-[10px] text-primary">+{client.services.length - 1} plan(es) más</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            <div className="text-sm font-bold text-white">
+                                                ${(client.total_monthly || 0).toLocaleString()}
                                             </div>
                                         </td>
                                         <td className="p-4">

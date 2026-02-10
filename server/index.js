@@ -158,21 +158,42 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
     try {
         const result = await query(`
             SELECT c.*, u.email as user_email, u.role, 
-                   s.id as service_id,
-                   s.name as service_name, 
-                   s.cost, 
-                   s.special_price,
-                   s.currency, 
-                   s.status as service_status,
-                   s.expiration_date,
-                   CASE 
-                       WHEN s.expiration_date IS NULL OR s.expiration_date < CURRENT_DATE THEN 'OVERDUE'
-                       WHEN s.expiration_date <= CURRENT_DATE + INTERVAL '7 days' THEN 'UPCOMING'
-                       ELSE 'PAID'
-                   END as payment_status
+                   COALESCE(
+                       json_agg(
+                           json_build_object(
+                               'id', s.id,
+                               'name', s.name,
+                               'cost', s.cost,
+                               'special_price', s.special_price,
+                               'currency', s.currency,
+                               'status', s.status,
+                               'expiration_date', s.expiration_date,
+                               'payment_status', CASE 
+                                   WHEN s.expiration_date IS NULL OR s.expiration_date < CURRENT_DATE THEN 'OVERDUE'
+                                   WHEN s.expiration_date <= CURRENT_DATE + INTERVAL '7 days' THEN 'UPCOMING'
+                                   ELSE 'PAID'
+                               END
+                           )
+                       ) FILTER (WHERE s.id IS NOT NULL),
+                       '[]'
+                   ) as services,
+                   COALESCE(SUM(COALESCE(s.special_price, s.cost)) FILTER (WHERE s.status = 'ACTIVE'), 0) as total_monthly,
+                   -- Backward compatibility: string of service names
+                   COALESCE(string_agg(s.name, ', ') FILTER (WHERE s.status = 'ACTIVE'), 'Sin Servicio') as service_name,
+                   -- General status: worst status among services (OVERDUE > UPCOMING > PAID)
+                   COALESCE(
+                       (SELECT 
+                           CASE 
+                               WHEN EXISTS (SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND (s2.expiration_date IS NULL OR s2.expiration_date < CURRENT_DATE)) THEN 'OVERDUE'
+                               WHEN EXISTS (SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND s2.expiration_date <= CURRENT_DATE + INTERVAL '7 days') THEN 'UPCOMING'
+                               ELSE 'PAID'
+                           END
+                       ), 'PAID'
+                   ) as payment_status
             FROM clients c
             LEFT JOIN users u ON u.client_id = c.id
             LEFT JOIN services s ON s.client_id = c.id
+            GROUP BY c.id, u.email, u.role
             ORDER BY c.created_at DESC
         `);
         res.json(result.rows);
