@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Loader2 } from 'lucide-react';
+import { Calendar, Loader2, CheckCircle2 } from 'lucide-react';
 import { api } from '../../../utils/api';
 
 interface UpcomingPayment {
@@ -11,6 +11,7 @@ interface UpcomingPayment {
     currency: string;
     due_date: string;
     days_until_due: number;
+    last_notification_date?: string | null;
 }
 
 export const UpcomingPaymentsWidget = () => {
@@ -80,9 +81,17 @@ export const UpcomingPaymentsWidget = () => {
                                     <p className="font-bold text-white text-sm">
                                         {payment.currency} {payment.amount}
                                     </p>
-                                    <p className="text-xs text-blue-400">
-                                        {payment.days_until_due === 0 ? 'Hoy' : `${payment.days_until_due}d`} • {formatDate(payment.due_date)}
-                                    </p>
+                                    <div className="flex items-center justify-end gap-2">
+                                        {payment.last_notification_date && (
+                                            <div className="flex items-center gap-1 text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded text-[10px]" title="Notificación enviada hoy">
+                                                <CheckCircle2 className="w-3 h-3" />
+                                                <span className="hidden sm:inline">Enviado</span>
+                                            </div>
+                                        )}
+                                        <p className="text-xs text-blue-400">
+                                            {payment.days_until_due === 0 ? 'Hoy' : `${payment.days_until_due}d`} • {formatDate(payment.due_date)}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>

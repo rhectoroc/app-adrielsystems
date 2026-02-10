@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AlertTriangle, Loader2, Phone, Mail } from 'lucide-react';
+import { AlertTriangle, Loader2, Phone, Mail, CheckCircle2 } from 'lucide-react';
 import { api } from '../../../utils/api';
 
 interface OverdueClient {
@@ -12,7 +12,9 @@ interface OverdueClient {
     amount: number;
     currency: string;
     due_date: string;
+
     days_overdue: number;
+    last_notification_date?: string | null;
 }
 
 export const OverdueClientsWidget = () => {
@@ -91,6 +93,12 @@ export const OverdueClientsWidget = () => {
                                     <div className="flex items-center gap-1">
                                         <Phone className="w-3 h-3" />
                                         <span>{client.client_phone}</span>
+                                    </div>
+                                )}
+                                {client.last_notification_date && (
+                                    <div className="flex items-center gap-1 ml-auto text-green-400 bg-green-500/10 px-2 py-0.5 rounded text-[10px]" title="Notificación enviada hoy">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        <span>Enviado</span>
                                     </div>
                                 )}
                             </div>

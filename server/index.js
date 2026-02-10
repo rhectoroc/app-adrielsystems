@@ -173,6 +173,27 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
             AND DATE_TRUNC('month', payment_date) = DATE_TRUNC('month', CURRENT_DATE)
         `);
         stats.monthlyIncome = parseFloat(incomeRes.rows[0].total);
+        stats.monthlyIncome = parseFloat(incomeRes.rows[0].total);
+
+        // 5. Notifications Sent Today
+        const notificationsRes = await query(`
+            SELECT type, COUNT(*) as count
+            FROM notification_logs
+            WHERE DATE(sent_at) = CURRENT_DATE
+            GROUP BY type
+        `);
+
+        stats.notificationsToday = {
+            overdue: 0,
+            upcoming: 0,
+            total: 0
+        };
+
+        notificationsRes.rows.forEach(row => {
+            if (row.type === 'overdue' || row.type === 'vencido') stats.notificationsToday.overdue += parseInt(row.count);
+            if (row.type === 'upcoming' || row.type === 'por_vencer') stats.notificationsToday.upcoming += parseInt(row.count);
+            stats.notificationsToday.total += parseInt(row.count);
+        });
 
         res.json(stats);
     } catch (err) {
@@ -538,10 +559,24 @@ p.id as payment_id,
             JOIN clients c ON p.client_id = c.id
             LEFT JOIN services s ON p.service_id = s.id
             WHERE p.status = 'VENCIDO'
-            ORDER BY p.due_date ASC
+            ORDER BY p.due_date ASC, p.id ASC
     `);
 
-        res.json(result.rows);
+        // Fetch notification status for each client
+        const clientsWithNotifications = await Promise.all(result.rows.map(async (row) => {
+            const notifRes = await query(`
+                SELECT sent_at FROM notification_logs 
+                WHERE client_id = $1 
+                AND DATE(sent_at) = CURRENT_DATE
+                ORDER BY sent_at DESC LIMIT 1
+            `, [row.client_id]);
+            return {
+                ...row,
+                last_notification_date: notifRes.rows.length > 0 ? notifRes.rows[0].sent_at : null
+            };
+        }));
+
+        res.json(clientsWithNotifications);
     } catch (err) {
         console.error('Error fetching overdue payments:', err);
         res.status(500).json({ message: 'Error fetching overdue payments' });
@@ -571,10 +606,24 @@ p.id as payment_id,
             LEFT JOIN services s ON p.service_id = s.id
             WHERE p.status = 'PENDIENTE' 
             AND p.due_date <= CURRENT_DATE + INTERVAL '${days} days'
-            ORDER BY p.due_date ASC
+            ORDER BY p.due_date ASC, p.id ASC
     `);
 
-        res.json(result.rows);
+        // Fetch notification status for each client
+        const clientsWithNotifications = await Promise.all(result.rows.map(async (row) => {
+            const notifRes = await query(`
+                SELECT sent_at FROM notification_logs 
+                WHERE client_id = $1 
+                AND DATE(sent_at) = CURRENT_DATE
+                ORDER BY sent_at DESC LIMIT 1
+            `, [row.client_id]);
+            return {
+                ...row,
+                last_notification_date: notifRes.rows.length > 0 ? notifRes.rows[0].sent_at : null
+            };
+        }));
+
+        res.json(clientsWithNotifications);
     } catch (err) {
         console.error('Error fetching upcoming payments:', err);
         res.status(500).json({ message: 'Error fetching upcoming payments' });
@@ -813,6 +862,22 @@ AND(
     } catch (err) {
         console.error('Error fetching notifications:', err);
         res.status(500).json({ message: 'Error fetching notifications' });
+    }
+});
+
+// Notification Logging Endpoint
+app.post('/api/notifications/log', authenticateToken, async (req, res) => {
+    const { client_id, type, channel, status } = req.body;
+
+    try {
+        await query(
+            `INSERT INTO notification_logs (client_id, type, channel, status) VALUES ($1, $2, $3, $4)`,
+            [client_id, type, channel, status || 'SENT']
+        );
+        res.json({ message: 'Notification logged successfully' });
+    } catch (err) {
+        console.error('Error logging notification:', err);
+        res.status(500).json({ message: 'Error logging notification' });
     }
 });
 
