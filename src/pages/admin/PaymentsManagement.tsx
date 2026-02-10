@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, X, Save, Eye, DollarSign, Calendar, CreditCard, AlertTriangle, Edit2 } from 'lucide-react';
+import { Plus, Loader2, X, Save, Eye, DollarSign, Calendar, CreditCard, AlertTriangle, Edit2, TrendingUp, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
 
@@ -498,63 +498,114 @@ export const PaymentsManagement = () => {
                                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
                                 </div>
                             ) : (
-                                <div className="space-y-4">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-white/5 border-b border-white/10 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                                            <tr>
-                                                <th className="p-3">Fecha Op.</th>
-                                                <th className="p-3">Monto</th>
-                                                <th className="p-3">Método</th>
-                                                <th className="p-3">Periodo Cubierto</th>
-                                                <th className="p-3">Referencia/Notas</th>
-                                                <th className="p-3 w-10"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/5 text-sm">
-                                            {clientPayments.length === 0 ? (
+                                <div className="space-y-6">
+                                    {/* Payment Summary Cards */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-6 border-b border-white/5">
+                                        <div className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-colors">
+                                            <div className="flex items-center gap-2 text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-1">
+                                                <TrendingUp className="w-3 h-3 text-primary" />
+                                                INICIO DE SERVICIO
+                                            </div>
+                                            <div className="text-white font-medium text-lg">
+                                                {clientPayments.length > 0
+                                                    ? new Date(Math.min(...clientPayments.map(p => new Date(p.payment_date).getTime()))).toLocaleDateString()
+                                                    : 'Sin pagos'}
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-colors">
+                                            <div className="flex items-center gap-2 text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-1">
+                                                <DollarSign className="w-3 h-3 text-green-400" />
+                                                ÚLTIMO PAGO
+                                            </div>
+                                            <div className="text-white font-medium text-lg">
+                                                {clientPayments.length > 0
+                                                    ? `${clientPayments[0].currency} ${clientPayments[0].amount} (${new Date(clientPayments[0].payment_date).toLocaleDateString()})`
+                                                    : 'N/A'}
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-colors cursor-pointer"
+                                            onClick={() => {
+                                                setNewExpirationDate(selectedClient.expiration_date ? new Date(selectedClient.expiration_date).toISOString().split('T')[0] : '');
+                                                setIsEditingExpiration(true);
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-2 text-primary text-[10px] uppercase font-bold tracking-wider mb-1">
+                                                <Calendar className="w-3 h-3" />
+                                                PRÓXIMO VENCIMIENTO
+                                            </div>
+                                            <div className="text-white font-bold text-xl">
+                                                {selectedClient.expiration_date ? new Date(selectedClient.expiration_date).toLocaleDateString() : 'Pendiente'}
+                                            </div>
+                                            <div className="text-[10px] text-primary/70 mt-1 flex items-center gap-1">
+                                                <Edit2 className="w-2.5 h-2.5" /> HACER CLIC PARA EDITAR
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-2 text-white font-medium">
+                                            <History className="w-4 h-4 text-primary" />
+                                            Historial Detallado
+                                        </div>
+                                        <table className="w-full text-left">
+                                            <thead className="bg-white/5 border-b border-white/10 text-xs font-medium text-gray-400 uppercase tracking-wider">
                                                 <tr>
-                                                    <td colSpan={6} className="p-6 text-center text-gray-500">
-                                                        No hay pagos registrados.
-                                                    </td>
+                                                    <th className="p-3">Fecha Op.</th>
+                                                    <th className="p-3">Monto</th>
+                                                    <th className="p-3">Método</th>
+                                                    <th className="p-3">Periodo Cubierto</th>
+                                                    <th className="p-3">Referencia/Notas</th>
+                                                    <th className="p-3 w-10"></th>
                                                 </tr>
-                                            ) : (
-                                                clientPayments.map(payment => (
-                                                    <tr key={payment.id} className="hover:bg-white/5 transition-colors">
-                                                        <td className="p-3 text-white">
-                                                            <div className="flex items-center gap-2">
-                                                                <Calendar className="w-3 h-3 text-gray-500" />
-                                                                {new Date(payment.payment_date).toLocaleDateString()}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-3 font-medium text-white">
-                                                            {payment.currency} {payment.amount}
-                                                        </td>
-                                                        <td className="p-3 text-gray-300">
-                                                            <div className="flex items-center gap-2">
-                                                                <CreditCard className="w-3 h-3 text-gray-500" />
-                                                                {payment.payment_method || '-'}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-3 text-gray-300">
-                                                            {calculatePeriod(payment.payment_date, payment.months_covered || 1)}
-                                                        </td>
-                                                        <td className="p-3 text-gray-400 italic">
-                                                            {payment.notes || '-'}
-                                                        </td>
-                                                        <td className="p-3">
-                                                            <button
-                                                                onClick={() => handleEditPayment(payment)}
-                                                                className="text-gray-500 hover:text-white transition-colors"
-                                                                title="Editar detalles"
-                                                            >
-                                                                <Edit2 className="w-4 h-4" />
-                                                            </button>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5 text-sm">
+                                                {clientPayments.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={6} className="p-6 text-center text-gray-500">
+                                                            No hay pagos registrados.
                                                         </td>
                                                     </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
+                                                ) : (
+                                                    clientPayments.map(payment => (
+                                                        <tr key={payment.id} className="hover:bg-white/5 transition-colors">
+                                                            <td className="p-3 text-white">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Calendar className="w-3 h-3 text-gray-500" />
+                                                                    {new Date(payment.payment_date).toLocaleDateString()}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-3 font-medium text-white">
+                                                                {payment.currency} {payment.amount}
+                                                            </td>
+                                                            <td className="p-3 text-gray-300">
+                                                                <div className="flex items-center gap-2">
+                                                                    <CreditCard className="w-3 h-3 text-gray-500" />
+                                                                    {payment.payment_method || '-'}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-3 text-gray-300">
+                                                                {calculatePeriod(payment.payment_date, payment.months_covered || 1)}
+                                                            </td>
+                                                            <td className="p-3 text-gray-400 italic">
+                                                                {payment.notes || '-'}
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <button
+                                                                    onClick={() => handleEditPayment(payment)}
+                                                                    className="text-gray-500 hover:text-white transition-colors"
+                                                                    title="Editar detalles"
+                                                                >
+                                                                    <Edit2 className="w-4 h-4" />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             )}
                         </div>
