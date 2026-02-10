@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, X, Save, Eye, DollarSign, Calendar, CreditCard, AlertTriangle } from 'lucide-react';
+import { Plus, Loader2, X, Save, Eye, DollarSign, Calendar, CreditCard, AlertTriangle, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
 
@@ -29,6 +29,7 @@ interface Client {
     service_status?: string;
     payment_status?: 'OVERDUE' | 'UPCOMING' | 'PAID';
     expiration_date?: string;
+    service_id?: number;
 }
 
 interface Service {
@@ -53,6 +54,10 @@ export const PaymentsManagement = () => {
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [clientPayments, setClientPayments] = useState<Payment[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
+
+    // Manual Expiration Edit State
+    const [isEditingExpiration, setIsEditingExpiration] = useState(false);
+    const [newExpirationDate, setNewExpirationDate] = useState('');
 
     // Edit/Create Payment Modal State
     const [editMode, setEditMode] = useState(false);
@@ -267,12 +272,33 @@ export const PaymentsManagement = () => {
         return statusMap[status] || status;
     };
 
-    // Helper to calculate Period
     const calculatePeriod = (startDate: string, months: number) => {
         const start = new Date(startDate);
         const end = new Date(start);
         end.setMonth(end.getMonth() + months);
         return `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+    };
+
+    const handleUpdateExpiration = async () => {
+        if (!selectedClient?.service_id || !newExpirationDate) return;
+
+        try {
+            const response = await api.put(`/api/services/${selectedClient.service_id}/expiration`, {
+                expiration_date: newExpirationDate
+            });
+
+            if (response.ok) {
+                toast.success('Fecha de vencimiento actualizada');
+                setIsEditingExpiration(false);
+                setSelectedClient(prev => prev ? { ...prev, expiration_date: newExpirationDate } : null);
+                setRefreshTrigger(prev => prev + 1);
+            } else {
+                throw new Error('Error al actualizar fecha');
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error('Error al actualizar fecha');
+        }
     };
 
     return (
@@ -403,9 +429,53 @@ export const PaymentsManagement = () => {
                                 <h3 className="text-xl font-bold text-white font-heading">
                                     Historial de Pagos: {selectedClient.name}
                                 </h3>
-                                <p className="text-sm text-gray-400 mt-1">
-                                    Servicio: {selectedClient.service_name} | Vence: {selectedClient.expiration_date ? new Date(selectedClient.expiration_date).toLocaleDateString() : 'N/A'}
-                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-sm text-gray-400">Servicio: {selectedClient.service_name}</span>
+                                    <span className="text-gray-600">|</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-400">Vence:</span>
+                                        {isEditingExpiration ? (
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="date"
+                                                    value={newExpirationDate}
+                                                    onChange={(e) => setNewExpirationDate(e.target.value)}
+                                                    className="bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-primary"
+                                                />
+                                                <button
+                                                    onClick={handleUpdateExpiration}
+                                                    className="p-1 text-green-400 hover:bg-green-500/10 rounded transition-colors"
+                                                    title="Guardar"
+                                                >
+                                                    <Save className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setIsEditingExpiration(false)}
+                                                    className="p-1 text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                                    title="Cancelar"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2 group">
+                                                <span className={`text-sm font-medium ${selectedClient.payment_status === 'OVERDUE' ? 'text-red-400' : 'text-white'}`}>
+                                                    {selectedClient.expiration_date ? new Date(selectedClient.expiration_date).toLocaleDateString() : 'N/A'}
+                                                </span>
+                                                <button
+                                                    onClick={() => {
+                                                        setNewExpirationDate(selectedClient.expiration_date ? new Date(selectedClient.expiration_date).toISOString().split('T')[0] : '');
+                                                        setIsEditingExpiration(true);
+                                                    }}
+                                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded transition-all text-gray-400 hover:text-white"
+                                                    title="Editar fecha de vencimiento"
+                                                >
+                                                    <Edit2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                             <button
                                 onClick={() => setIsHistoryModalOpen(false)}

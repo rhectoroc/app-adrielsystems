@@ -550,25 +550,78 @@ app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req,
 // Update payment
 app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     const { id } = req.params;
-    const { amount, currency, payment_date, due_date, status, payment_method, notes } = req.body;
+    const { amount, currency, payment_date, due_date, status, payment_method, notes, months_covered } = req.body;
 
     try {
+        await query('BEGIN');
+
+        // Update payment
         const result = await query(`
             UPDATE payments 
             SET amount = $1, currency = $2, payment_date = $3, due_date = $4, 
-                status = $5, payment_method = $6, notes = $7
-            WHERE id = $8
+                status = $5, payment_method = $6, notes = $7, months_covered = $8
+            WHERE id = $9
             RETURNING *
-        `, [amount, currency, payment_date, due_date, status, payment_method, notes, id]);
+        `, [amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, id]);
 
         if (result.rows.length === 0) {
+            await query('ROLLBACK');
             return res.status(404).json({ message: 'Payment not found' });
+        }
+
+        const payment = result.rows[0];
+
+        // Auto-recalculate Service Expiration if linked
+        if (payment.service_id && (status === 'PAGADO' || status === 'PAID')) {
+            // "Smart" Heuristic: The service expires at the latest date covered by ANY valid payment
+            const expResult = await query(`
+                SELECT MAX(payment_date + (COALESCE(months_covered, 1) || ' months')::INTERVAL) as max_expiration
+                FROM payments
+                WHERE service_id = $1 AND status IN ('PAGADO', 'PAID')
+            `, [payment.service_id]);
+
+            const newExpiration = expResult.rows[0].max_expiration;
+
+            if (newExpiration) {
+                await query(`
+                    UPDATE services 
+                    SET expiration_date = $1,
+                        last_payment_date = (SELECT MAX(payment_date) FROM payments WHERE service_id = $2 AND status IN ('PAGADO', 'PAID'))
+                    WHERE id = $2
+                `, [newExpiration, payment.service_id]);
+            }
+        }
+
+        await query('COMMIT');
+        res.json(payment);
+    } catch (err) {
+        await query('ROLLBACK');
+        console.error('Error updating payment:', err);
+        res.status(500).json({ message: 'Error updating payment' });
+    }
+});
+
+// Manual Service Expiration Override
+app.put('/api/services/:id/expiration', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { id } = req.params;
+    const { expiration_date } = req.body; // Expects YYYY-MM-DD or ISO string
+
+    try {
+        const result = await query(`
+            UPDATE services 
+            SET expiration_date = $1
+            WHERE id = $2
+            RETURNING *
+        `, [expiration_date, id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Service not found' });
         }
 
         res.json(result.rows[0]);
     } catch (err) {
-        console.error('Error updating payment:', err);
-        res.status(500).json({ message: 'Error updating payment' });
+        console.error('Error updating service expiration:', err);
+        res.status(500).json({ message: 'Error updating service expiration' });
     }
 });
 
