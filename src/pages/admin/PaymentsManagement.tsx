@@ -59,10 +59,10 @@ export const PaymentsManagement = () => {
     const [isEditingExpiration, setIsEditingExpiration] = useState(false);
     const [newExpirationDate, setNewExpirationDate] = useState('');
 
-    // Edit/Create Payment Modal State
+    // Integrated Form State
+    const [showEditForm, setShowEditForm] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [currentPaymentId, setCurrentPaymentId] = useState<number | null>(null);
-    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Form State
@@ -116,6 +116,7 @@ export const PaymentsManagement = () => {
     const handleViewHistory = (client: Client) => {
         setSelectedClient(client);
         setIsHistoryModalOpen(true);
+        setShowEditForm(false);
         fetchClientPayments(client.id);
     };
 
@@ -167,27 +168,47 @@ export const PaymentsManagement = () => {
         }
     };
 
-    const handleAddClick = () => {
+    const handleAddClick = (fromHistory = false) => {
         setEditMode(false);
         setCurrentPaymentId(null);
         setFormData({
-            client_id: '',
-            service_id: '',
+            client_id: fromHistory ? (selectedClient?.id.toString() || '') : '',
+            service_id: fromHistory ? (selectedClient?.service_id?.toString() || '') : '',
             amount: '',
             currency: 'USD',
             payment_date: new Date().toISOString().split('T')[0],
             due_date: new Date().toISOString().split('T')[0],
-            status: 'PAGADO', // Default is PAID for manual entry mostly
+            status: 'PAGADO',
             payment_method: '',
             notes: '',
             months_covered: 1
         });
-        setServices([]);
-        setIsPaymentModalOpen(true);
+
+        if (fromHistory && selectedClient?.service_id) {
+            handleClientChange(selectedClient.id.toString());
+        } else if (!fromHistory) {
+            setServices([]);
+        }
+
+        if (fromHistory) {
+            setShowEditForm(true);
+        } else {
+            // This is for the "Registrar Nuevo Pago" button in main view
+            setIsHistoryModalOpen(false); // Close if open
+            // We'll keep a minimal way to open the full form if needed, 
+            // but the user wants integrated. Let's make it so even the "Register New" 
+            // opens a "Quick Entry" or selects a client.
+            // For now, let's keep the isPaymentModalOpen logic for the main button
+            // but we'll use showEditForm for the integrated view.
+            setIsPaymentModalOpen(true);
+        }
     };
 
+    // Need to keep this for the standalone modal if we still use it, 
+    // but the goal is integration. Let's add the flag.
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
     const handleEditPayment = async (payment: Payment) => {
-        // Can edit payment from history modal
         setEditMode(true);
         setCurrentPaymentId(payment.id);
 
@@ -217,11 +238,7 @@ export const PaymentsManagement = () => {
             months_covered: payment.months_covered || 1
         });
 
-        setIsPaymentModalOpen(true);
-        // Maybe close history modal or keep it open behind? 
-        // Better UX: Close history modal to focus on edit, then reopen?
-        // Let's keep history open underneath if z-index allows, or close it.
-        // For simplicity, let's keep it open. Tailwind z-index handles stacking.
+        setShowEditForm(true);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -243,13 +260,16 @@ export const PaymentsManagement = () => {
             if (!response.ok) throw new Error(editMode ? 'Error al actualizar el pago' : 'Error al registrar el pago');
 
             toast.success(editMode ? 'Pago actualizado exitosamente' : 'Pago registrado exitosamente');
+
+            // Integrated View: Close form and refresh list
+            setShowEditForm(false);
             setIsPaymentModalOpen(false);
+
             setEditMode(false);
             setCurrentPaymentId(null);
-            setRefreshTrigger(prev => prev + 1); // Refresh clients list
+            setRefreshTrigger(prev => prev + 1);
 
-            // If history modal is open (editing from history), refresh it too
-            if (isHistoryModalOpen && selectedClient) {
+            if (selectedClient) {
                 fetchClientPayments(selectedClient.id);
             }
 
@@ -492,13 +512,28 @@ export const PaymentsManagement = () => {
                             </button>
                         </div>
 
-                        <div className="p-6 overflow-y-auto flex-1">
+                        <div className={`p-6 overflow-y-auto w-full transition-all duration-300 ${showEditForm ? 'md:w-[60%] border-r border-white/5' : 'w-full'}`}>
                             {loadingHistory ? (
                                 <div className="flex justify-center py-10">
                                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
                                 </div>
                             ) : (
                                 <div className="space-y-6">
+                                    {/* Action Header in Modal */}
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-2 text-white font-medium">
+                                            <History className="w-4 h-4 text-primary" />
+                                            Historial Detallado
+                                        </div>
+                                        <button
+                                            onClick={() => handleAddClick(true)}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-primary/20 hover:bg-primary/30 text-primary rounded-lg transition-colors text-xs font-bold border border-primary/20"
+                                        >
+                                            <Plus className="w-3 h-3" />
+                                            NUEVO PAGO
+                                        </button>
+                                    </div>
+
                                     {/* Payment Summary Cards */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-6 border-b border-white/5">
                                         <div className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-colors">
@@ -545,10 +580,6 @@ export const PaymentsManagement = () => {
                                     </div>
 
                                     <div className="space-y-4">
-                                        <div className="flex items-center gap-2 text-white font-medium">
-                                            <History className="w-4 h-4 text-primary" />
-                                            Historial Detallado
-                                        </div>
                                         <table className="w-full text-left">
                                             <thead className="bg-white/5 border-b border-white/10 text-xs font-medium text-gray-400 uppercase tracking-wider">
                                                 <tr>
@@ -569,7 +600,7 @@ export const PaymentsManagement = () => {
                                                     </tr>
                                                 ) : (
                                                     clientPayments.map(payment => (
-                                                        <tr key={payment.id} className="hover:bg-white/5 transition-colors">
+                                                        <tr key={payment.id} className={`hover:bg-white/5 transition-colors ${currentPaymentId === payment.id ? 'bg-primary/10' : ''}`}>
                                                             <td className="p-3 text-white">
                                                                 <div className="flex items-center gap-2">
                                                                     <Calendar className="w-3 h-3 text-gray-500" />
@@ -591,10 +622,10 @@ export const PaymentsManagement = () => {
                                                             <td className="p-3 text-gray-400 italic">
                                                                 {payment.notes || '-'}
                                                             </td>
-                                                            <td className="p-3">
+                                                            <td className="p-3 text-right">
                                                                 <button
                                                                     onClick={() => handleEditPayment(payment)}
-                                                                    className="text-gray-500 hover:text-white transition-colors"
+                                                                    className={`p-1.5 rounded transition-colors ${currentPaymentId === payment.id ? 'text-primary bg-primary/10' : 'text-gray-500 hover:text-white hover:bg-white/10'}`}
                                                                     title="Editar detalles"
                                                                 >
                                                                     <Edit2 className="w-4 h-4" />
@@ -609,187 +640,155 @@ export const PaymentsManagement = () => {
                                 </div>
                             )}
                         </div>
+
+                        {/* Integrated Side panel for Register/Edit Form */}
+                        {showEditForm && (
+                            <div className="w-full md:w-[40%] bg-black/20 flex flex-col h-full border-l border-white/5 animate-in slide-in-from-right duration-300">
+                                <div className="p-6 border-b border-white/10 bg-white/5">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-lg font-bold text-white font-heading">
+                                            {editMode ? 'Editar Pago' : 'Registrar Nuevo Pago'}
+                                        </h3>
+                                        <button
+                                            onClick={() => setShowEditForm(false)}
+                                            className="text-gray-500 hover:text-white transition-colors"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="p-6 overflow-y-auto flex-1">
+                                    <form onSubmit={handleSubmit} className="space-y-4">
+                                        <div className="grid grid-cols-1 gap-4">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium text-gray-300">Servicio *</label>
+                                                <select
+                                                    name="service_id"
+                                                    value={formData.service_id}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                                >
+                                                    <option value="">Seleccionar servicio</option>
+                                                    {services.map(service => (
+                                                        <option key={service.id} value={service.id}>{service.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-2">
+                                                    <label className="text-sm font-medium text-gray-300">Moneda *</label>
+                                                    <select
+                                                        name="currency"
+                                                        value={formData.currency}
+                                                        onChange={handleInputChange}
+                                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none text-xs"
+                                                    >
+                                                        <option value="USD">USD</option>
+                                                        <option value="EUR">EUR</option>
+                                                        <option value="VES">VES</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-sm font-medium text-gray-300">Monto *</label>
+                                                    <div className="relative">
+                                                        <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                                                        <input
+                                                            type="number"
+                                                            name="amount"
+                                                            value={formData.amount}
+                                                            onChange={handleInputChange}
+                                                            step="0.01"
+                                                            required
+                                                            className="w-full pl-8 pr-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none text-xs"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium text-gray-300">Meses a cubrir</label>
+                                                <select
+                                                    name="months_covered"
+                                                    value={(formData as any).months_covered}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none text-sm"
+                                                >
+                                                    <option value="1">1 mes</option>
+                                                    <option value="3">3 meses</option>
+                                                    <option value="6">6 meses</option>
+                                                    <option value="12">12 meses (1 año)</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium text-gray-300">Fecha de Pago *</label>
+                                                <input
+                                                    type="date"
+                                                    name="payment_date"
+                                                    value={formData.payment_date}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none text-sm"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium text-gray-300">Método de Pago</label>
+                                                <select
+                                                    name="payment_method"
+                                                    value={formData.payment_method}
+                                                    onChange={handleInputChange}
+                                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none text-sm"
+                                                >
+                                                    <option value="">Seleccionar método</option>
+                                                    <option value="PayPal">PayPal</option>
+                                                    <option value="Zelle">Zelle</option>
+                                                    <option value="Pago Movil">Pago Móvil</option>
+                                                    <option value="Bank Transfer">Transferencia Bancaria</option>
+                                                    <option value="Cash">Efectivo</option>
+                                                    <option value="Other">Otro</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium text-gray-300">Notas / Referencia</label>
+                                                <textarea
+                                                    name="notes"
+                                                    value={formData.notes}
+                                                    onChange={handleInputChange}
+                                                    rows={3}
+                                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none resize-none text-xs"
+                                                    placeholder="Referencia, número de comprobante, etc..."
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col gap-2 pt-4">
+                                            <button
+                                                type="submit"
+                                                disabled={isSubmitting}
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl transition-colors font-bold disabled:opacity-50 shadow-lg shadow-primary/20"
+                                            >
+                                                {isSubmitting ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <Save className="w-4 h-4" />
+                                                )}
+                                                {isSubmitting ? 'Guardando...' : (editMode ? 'Actualizar Pago' : 'Registrar Pago')}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowEditForm(false)}
+                                                className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl transition-colors text-sm"
+                                            >
+                                                Descartar
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
 
-            {/* Register/Edit Payment Modal (Reused) */}
-            {isPaymentModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="relative w-full max-w-2xl bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl p-6 overflow-hidden max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-white font-heading">
-                                {editMode ? 'Editar Pago' : 'Registrar Pago'}
-                            </h3>
-                            <button
-                                onClick={() => setIsPaymentModalOpen(false)}
-                                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                            >
-                                <X className="w-5 h-5 text-gray-400" />
-                            </button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Cliente *</label>
-                                    <select
-                                        name="client_id"
-                                        value={formData.client_id}
-                                        onChange={(e) => handleClientChange(e.target.value)}
-                                        required
-                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                    >
-                                        <option value="">Seleccionar cliente</option>
-                                        {clients.map(client => (
-                                            <option key={client.id} value={client.id}>{client.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Servicio *</label>
-                                    <select
-                                        name="service_id"
-                                        value={formData.service_id}
-                                        onChange={handleInputChange}
-                                        required
-                                        disabled={!formData.client_id}
-                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none disabled:opacity-50"
-                                    >
-                                        <option value="">Seleccionar servicio</option>
-                                        {services.map(service => (
-                                            <option key={service.id} value={service.id}>{service.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Monto *</label>
-                                    <div className="relative">
-                                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                                        <input
-                                            type="number"
-                                            name="amount"
-                                            value={formData.amount}
-                                            onChange={handleInputChange}
-                                            step="0.01"
-                                            required
-                                            className="w-full pl-9 pr-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Meses a cubrir</label>
-                                    <select
-                                        name="months_covered"
-                                        value={(formData as any).months_covered}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                    >
-                                        <option value="1">1 mes</option>
-                                        <option value="3">3 meses</option>
-                                        <option value="6">6 meses</option>
-                                        <option value="12">12 meses (1 año)</option>
-                                    </select>
-                                    {parseInt((formData as any).months_covered) === 12 && (
-                                        <div className="flex items-start gap-2 p-3 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                                            <p className="text-xs text-amber-200">
-                                                Al seleccionar 12 meses, la fecha de expiración del servicio se extenderá un año completo.
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Moneda *</label>
-                                    <select
-                                        name="currency"
-                                        value={formData.currency}
-                                        onChange={handleInputChange}
-                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                    >
-                                        <option value="USD">USD</option>
-                                        <option value="EUR">EUR</option>
-                                        <option value="VES">VES</option>
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Fecha de Pago *</label>
-                                    <input
-                                        type="date"
-                                        name="payment_date"
-                                        value={formData.payment_date}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Método de Pago</label>
-                                    <select
-                                        name="payment_method"
-                                        value={formData.payment_method}
-                                        onChange={handleInputChange}
-                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                    >
-                                        <option value="">Seleccionar método</option>
-                                        <option value="PayPal">PayPal</option>
-                                        <option value="Zelle">Zelle</option>
-                                        <option value="Pago Movil">Pago Móvil</option>
-                                        <option value="Bank Transfer">Transferencia Bancaria</option>
-                                        <option value="Cash">Efectivo</option>
-                                        <option value="Other">Otro</option>
-                                    </select>
-                                </div>
-                                <div className="space-y-2 hidden"> {/* Hidden status, auto-set based on context usually */}
-                                    <label className="text-sm font-medium text-gray-300">Estado</label>
-                                    <select
-                                        name="status"
-                                        value={formData.status}
-                                        onChange={handleInputChange}
-                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                    >
-                                        <option value="PAGADO">PAGADO</option>
-                                        <option value="PENDIENTE">PENDIENTE</option>
-                                        <option value="VENCIDO">VENCIDO</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Notas / Referencia</label>
-                                <textarea
-                                    name="notes"
-                                    value={formData.notes}
-                                    onChange={handleInputChange}
-                                    rows={3}
-                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none resize-none"
-                                    placeholder="Referencia, número de comprobante, etc..."
-                                />
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsPaymentModalOpen(false)}
-                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSubmitting}
-                                    className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors disabled:opacity-50"
-                                >
-                                    {isSubmitting ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <Save className="w-4 h-4" />
-                                    )}
-                                    {isSubmitting ? 'Guardando...' : (editMode ? 'Actualizar Pago' : 'Registrar Pago')}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
