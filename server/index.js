@@ -289,9 +289,9 @@ app.get('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req, 
                 c.name as client_name, 
                 c.company_name, 
                 c.email as client_email, 
-                s.name as service_name,
-                s.cost as service_cost,
-                s.currency as service_currency
+                COALESCE(s.name, (SELECT name FROM services WHERE client_id = p.client_id ORDER BY id DESC LIMIT 1)) as service_name,
+                COALESCE(s.cost, (SELECT cost FROM services WHERE client_id = p.client_id ORDER BY id DESC LIMIT 1)) as service_cost,
+                COALESCE(s.currency, (SELECT currency FROM services WHERE client_id = p.client_id ORDER BY id DESC LIMIT 1)) as service_currency
             FROM payments p
             JOIN clients c ON p.client_id = c.id
             LEFT JOIN services s ON p.service_id = s.id

@@ -129,7 +129,7 @@ export const PaymentsManagement = () => {
             currency: payment.currency,
             payment_date: new Date(payment.payment_date).toISOString().split('T')[0],
             due_date: new Date(payment.due_date).toISOString().split('T')[0],
-            status: payment.status,
+            status: translateStatus(payment.status) as 'PAGADO' | 'PENDIENTE' | 'VENCIDO',
             payment_method: payment.payment_method || '',
             notes: payment.notes || ''
         });
@@ -185,8 +185,21 @@ export const PaymentsManagement = () => {
         }
     };
 
+    const translateStatus = (status: string) => {
+        const statusMap: { [key: string]: string } = {
+            'PAID': 'PAGADO',
+            'PENDING': 'PENDIENTE',
+            'OVERDUE': 'VENCIDO',
+            'PAGADO': 'PAGADO',
+            'PENDIENTE': 'PENDIENTE',
+            'VENCIDO': 'VENCIDO'
+        };
+        return statusMap[status] || status;
+    };
+
     const getStatusColor = (status: string) => {
-        switch (status) {
+        const normalizedStatus = translateStatus(status);
+        switch (normalizedStatus) {
             case 'PAGADO': return 'bg-green-500/20 text-green-400 border-green-500/30';
             case 'PENDIENTE': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
             case 'VENCIDO': return 'bg-red-500/20 text-red-400 border-red-500/30';
@@ -415,7 +428,7 @@ export const PaymentsManagement = () => {
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(payment.status)}`}>
-                                                {payment.status}
+                                                {translateStatus(payment.status)}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-sm text-gray-400">{payment.payment_method || '-'}</td>
