@@ -357,6 +357,41 @@ VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, (DATE_TRUNC('month', CURRENT_DATE) + (L
         res.status(500).json({ message: 'Error updating client' });
     }
 });
+// DELETE /api/clients/:id - Delete client and all related data
+app.delete('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        await query('BEGIN');
+
+        // 1. Delete associated payments
+        await query('DELETE FROM payments WHERE client_id = $1', [id]);
+
+        // 2. Delete associated services
+        await query('DELETE FROM services WHERE client_id = $1', [id]);
+
+        // 3. Delete associated users (login credentials)
+        await query('DELETE FROM users WHERE client_id = $1', [id]);
+
+        // 4. Delete the client record
+        const result = await query('DELETE FROM clients WHERE id = $1 RETURNING id', [id]);
+
+        if (result.rowCount === 0) {
+            await query('ROLLBACK');
+            return res.status(404).json({ message: 'Client not found' });
+        }
+
+        await query('COMMIT');
+
+        console.log(`Client ${id} and all related data deleted successfully`);
+        res.json({ message: 'Client deleted successfully' });
+
+    } catch (err) {
+        await query('ROLLBACK');
+        console.error('Error deleting client:', err);
+        res.status(500).json({ message: 'Error deleting client' });
+    }
+});
 
 // Plans Management Routes (Protected)
 app.get('/api/plans', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
@@ -733,7 +768,7 @@ c.id as client_id,
     s.name as service_name,
     p.amount as amount_due,
     p.currency,
-    p.due_date,
+    TO_CHAR(p.due_date, 'DD/MM/YYYY') as due_date,
     p.status,
     CASE 
                     WHEN p.status = 'VENCIDO' OR p.due_date < CURRENT_DATE THEN CURRENT_DATE - p.due_date

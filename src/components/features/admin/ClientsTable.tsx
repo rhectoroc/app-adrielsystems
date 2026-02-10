@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, User, Building, Mail, Phone, Loader2, Globe, MapPin, Edit } from 'lucide-react';
+import { Search, Plus, User, Building, Mail, Phone, Loader2, Globe, MapPin, Edit, Trash2 } from 'lucide-react';
 import { api } from '../../../utils/api';
 
 interface Client {
@@ -23,10 +23,11 @@ interface Client {
 interface ClientsTableProps {
     onAddClick: () => void;
     onEditClick: (client: Client) => void;
+    onDeleteClick: (client: Client) => void;
     refreshTrigger?: number;
 }
 
-export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: ClientsTableProps) => {
+export const ClientsTable = ({ onAddClick, onEditClick, onDeleteClick, refreshTrigger = 0 }: ClientsTableProps) => {
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -189,12 +190,22 @@ export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: Cl
                                             {new Date(client.created_at).toLocaleDateString()}
                                         </td>
                                         <td className="p-4">
-                                            <button
-                                                onClick={() => onEditClick(client)}
-                                                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                                            >
-                                                <Edit className="w-4 h-4" />
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => onEditClick(client)}
+                                                    className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                                    title="Editar Cliente"
+                                                >
+                                                    <Edit className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => onDeleteClick(client)}
+                                                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                    title="Eliminar Cliente"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

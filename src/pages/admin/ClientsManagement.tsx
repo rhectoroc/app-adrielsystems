@@ -160,6 +160,27 @@ export const ClientsManagement = () => {
         }
     };
 
+    const handleDeleteClick = async (client: any) => {
+        if (!window.confirm(`¿Estás seguro de que deseas eliminar a ${client.name}? Esta acción eliminará todos sus servicios, pagos y usuarios asociados y NO se puede deshacer.`)) {
+            return;
+        }
+
+        try {
+            const response = await api.delete(`/api/clients/${client.id}`);
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message || 'Error al eliminar cliente');
+            }
+
+            toast.success('Cliente eliminado exitosamente');
+            setRefreshTrigger(prev => prev + 1);
+        } catch (error: any) {
+            console.error('Error deleting client:', error);
+            toast.error(error.message || 'Error al eliminar cliente');
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -169,7 +190,12 @@ export const ClientsManagement = () => {
                 </div>
             </div>
 
-            <ClientsTable onAddClick={handleAddClick} onEditClick={handleEditClick} refreshTrigger={refreshTrigger} />
+            <ClientsTable
+                onAddClick={handleAddClick}
+                onEditClick={handleEditClick}
+                onDeleteClick={handleDeleteClick}
+                refreshTrigger={refreshTrigger}
+            />
 
             {/* Modal */}
             {isModalOpen && (
