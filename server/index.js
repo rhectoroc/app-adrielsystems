@@ -107,6 +107,52 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
     }
 });
 
+// Dashboard Stats Route
+app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const stats = {
+            totalClients: 0,
+            activeServices: 0,
+            pendingPayments: 0,
+            pendingAmount: 0,
+            monthlyIncome: 0
+        };
+
+        // 1. Total Clients
+        const clientsRes = await query('SELECT COUNT(*) FROM clients');
+        stats.totalClients = parseInt(clientsRes.rows[0].count);
+
+        // 2. Active Services
+        const servicesRes = await query("SELECT COUNT(*) FROM services WHERE status = 'ACTIVE'");
+        stats.activeServices = parseInt(servicesRes.rows[0].count);
+
+        // 3. Pending Payments (Count & Amount)
+        // Check for both 'PENDIENTE' and 'PENDING' to be safe, though we standardized on 'PENDIENTE'
+        const pendingRes = await query(`
+            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
+            FROM payments 
+            WHERE status IN ('PENDIENTE', 'PENDING', 'VENCIDO', 'OVERDUE')
+        `);
+        stats.pendingPayments = parseInt(pendingRes.rows[0].count);
+        stats.pendingAmount = parseFloat(pendingRes.rows[0].total);
+
+        // 4. Monthly Income (Paid payments in current month)
+        const incomeRes = await query(`
+            SELECT COALESCE(SUM(amount), 0) as total 
+            FROM payments 
+            WHERE status IN ('PAGADO', 'PAID') 
+            AND EXTRACT(MONTH FROM payment_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM payment_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+        `);
+        stats.monthlyIncome = parseFloat(incomeRes.rows[0].total);
+
+        res.json(stats);
+    } catch (err) {
+        console.error('Error fetching dashboard stats:', err);
+        res.status(500).json({ message: 'Error fetching stats' });
+    }
+});
+
 // Client Management Routes (Protected)
 app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
