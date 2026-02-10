@@ -18,13 +18,25 @@ import { ClientDashboard } from './pages/client/ClientDashboard';
 
 import { Toaster } from './components/ui/sonner';
 
+import { useAuth } from './context/AuthContext';
+
+function RootRedirect() {
+    const { isAuthenticated, role, isLoading } = useAuth();
+
+    if (isLoading) return null;
+
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+    return <Navigate to={role === 'ADMIN' ? '/admin' : '/client'} replace />;
+}
+
 function App() {
     return (
         <AuthProvider>
             <Router>
                 <Routes>
                     {/* Default Route */}
-                    <Route path="/" element={<Navigate to="/login" replace />} />
+                    <Route path="/" element={<RootRedirect />} />
 
                     {/* Auth Routes */}
                     <Route element={<AuthLayout />}>

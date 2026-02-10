@@ -12,8 +12,19 @@ export const Login = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const { login } = useAuth();
+    const { login, isAuthenticated, role, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
+
+    // Redirect if already authenticated
+    React.useEffect(() => {
+        if (!authLoading && isAuthenticated) {
+            if (role === 'ADMIN') {
+                navigate('/admin');
+            } else {
+                navigate('/client');
+            }
+        }
+    }, [isAuthenticated, role, authLoading, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

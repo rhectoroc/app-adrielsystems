@@ -23,6 +23,7 @@ interface AuthContextType {
     login: (token: string, role: UserRole, user: User) => void;
     logout: () => void;
     isAuthenticated: boolean;
+    isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -51,6 +52,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [role, setRole] = useState<UserRole | null>(null);
     const [token, setToken] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [showWarning, setShowWarning] = useState(false);
 
     const inactivityTimerRef = useRef<number | null>(null);
@@ -169,37 +171,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Restore session from localStorage on mount
     useEffect(() => {
-        const storedToken = localStorage.getItem('auth_token');
-        const storedRole = localStorage.getItem('auth_role') as UserRole | null;
-        const storedUser = localStorage.getItem('auth_user');
-        const lastActivity = localStorage.getItem('last_activity');
+        const restoreSession = () => {
+            const storedToken = localStorage.getItem('auth_token');
+            const storedRole = localStorage.getItem('auth_role') as UserRole | null;
+            const storedUser = localStorage.getItem('auth_user');
+            const lastActivity = localStorage.getItem('last_activity');
 
-        if (storedToken && storedRole && storedUser) {
-            // Check if token is expired
-            if (isTokenExpired(storedToken)) {
-                toast.error('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
-                logout();
-                return;
-            }
-
-            // Check if session expired due to inactivity
-            if (lastActivity) {
-                const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
-                if (timeSinceLastActivity > INACTIVITY_TIMEOUT) {
-                    toast.error('Tu sesión expiró por inactividad');
+            if (storedToken && storedRole && storedUser) {
+                // Check if token is expired
+                if (isTokenExpired(storedToken)) {
                     logout();
+                    setIsLoading(false);
                     return;
                 }
+
+                // Check if session expired due to inactivity
+                if (lastActivity) {
+                    const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
+                    if (timeSinceLastActivity > INACTIVITY_TIMEOUT) {
+                        logout();
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+
+                // Restore session
+                setToken(storedToken);
+                setRole(storedRole);
+                setUser(JSON.parse(storedUser));
+
+                // Restart inactivity timer
+                resetInactivityTimer();
             }
+            setIsLoading(false);
+        };
 
-            // Restore session
-            setToken(storedToken);
-            setRole(storedRole);
-            setUser(JSON.parse(storedUser));
-
-            // Restart inactivity timer
-            resetInactivityTimer();
-        }
+        restoreSession();
     }, [logout, resetInactivityTimer]);
 
     const value = {
@@ -209,6 +216,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         logout,
         isAuthenticated: !!token,
+        isLoading,
     };
 
     return (
