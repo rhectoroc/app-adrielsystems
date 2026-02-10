@@ -1,45 +1,78 @@
--- Revised Smart Recalculation Script
--- Handles:
--- 1. Payments missing service_id (links them to client's active service)
--- 2. Recalculates expiration date for services based on last valid payment.
+-- Recursive Expiration Calculation (Pure SQL)
+-- This approach avoids PL/pgSQL loops and reconstructs the expiration date logic fully.
+-- 1. Identify valid payments.
+-- 2. Calculate logical 'months covered' based on Amount/Cost if needed.
+-- 3. Iterate chronologically to accumulate expiration date.
+--    Logic: New_Expiration = MAX(Previous_Expiration, Payment_Date) + Months_Covered
 
--- Step 1: Link orphaned payments to client's ACTIVE service (fallback)
--- If a payment has NULL service_id, link it to the first ACTIVE service found for that client.
-UPDATE payments p
-SET service_id = (
-    SELECT id 
-    FROM services s 
-    WHERE s.client_id = p.client_id 
-    AND s.status = 'ACTIVE' 
-    LIMIT 1
-)
-WHERE p.service_id IS NULL;
+WITH RECURSIVE 
+PaymentChain AS (
+    -- Base Data: Get all valid payments, ordered by date
+    SELECT 
+        p.id as payment_id,
+        p.service_id,
+        p.payment_date,
+        s.cost as service_cost,
+        p.amount as payment_amount,
+        COALESCE(p.months_covered, 
+            CASE 
+                WHEN s.cost > 0 THEN ROUND(p.amount / s.cost)
+                ELSE 1 
+            END
+        ) as months_covered,
+        ROW_NUMBER() OVER (PARTITION BY p.service_id ORDER BY p.payment_date, p.id) as rn
+    FROM payments p
+    JOIN services s ON p.service_id = s.id -- Only consider linked payments (Assuming orphans fixed)
+    WHERE p.status IN ('PAGADO', 'PAID')
+),
+ExpirationCalc AS (
+    -- Anchor: First payment for each service
+    SELECT 
+        service_id,
+        payment_date,
+        months_covered,
+        rn,
+        (payment_date + (months_covered || ' months')::INTERVAL)::DATE as expiration_date
+    FROM PaymentChain
+    WHERE rn = 1
 
--- Step 2: Recalculate Expiration Dates for Services with VALID Payments
-WITH LastPayments AS (
+    UNION ALL
+
+    -- Recursive Step: Next payment
+    SELECT 
+        pc.service_id,
+        pc.payment_date,
+        pc.months_covered,
+        pc.rn,
+        -- Logic: If payment is BEFORE current expiration, extend from expiration.
+        --        If payment IS AFTER (gap), start from new payment date.
+        CASE 
+            WHEN pc.payment_date <= ec.expiration_date THEN 
+                (ec.expiration_date + (pc.months_covered || ' months')::INTERVAL)::DATE
+            ELSE 
+                (pc.payment_date + (pc.months_covered || ' months')::INTERVAL)::DATE
+        END as expiration_date
+    FROM PaymentChain pc
+    JOIN ExpirationCalc ec ON pc.service_id = ec.service_id AND pc.rn = ec.rn + 1
+),
+FinalExpiration AS (
+    -- Get the last calculated expiration date per service
     SELECT DISTINCT ON (service_id) 
         service_id, 
-        payment_date, 
-        COALESCE(months_covered, 1) as months_covered
-    FROM payments
-    WHERE 
-        status IN ('PAGADO', 'PAID') 
-        AND service_id IS NOT NULL
-    ORDER BY service_id, payment_date DESC
+        payment_date as last_payment_date,
+        expiration_date
+    FROM ExpirationCalc
+    ORDER BY service_id, rn DESC
 )
+-- Update Services with the final calculated date
 UPDATE services s
 SET 
-    last_payment_date = lp.payment_date,
-    expiration_date = (lp.payment_date + (lp.months_covered || ' months')::INTERVAL)::DATE
-FROM LastPayments lp
-WHERE s.id = lp.service_id;
+    last_payment_date = fe.last_payment_date,
+    expiration_date = fe.expiration_date
+FROM FinalExpiration fe
+WHERE s.id = fe.service_id;
 
--- Step 3: Ensure services with NO valid payments have NULL expiration
+-- Ensure services with NO valid payments have NULL expiration
 UPDATE services
 SET expiration_date = NULL
-WHERE id NOT IN (
-    SELECT DISTINCT service_id 
-    FROM payments 
-    WHERE status IN ('PAGADO', 'PAID') 
-    AND service_id IS NOT NULL
-);
+WHERE id NOT IN (SELECT service_id FROM FinalExpiration);
