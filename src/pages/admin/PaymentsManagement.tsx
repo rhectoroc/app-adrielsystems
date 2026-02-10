@@ -63,6 +63,7 @@ export const PaymentsManagement = () => {
     const [showEditForm, setShowEditForm] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [currentPaymentId, setCurrentPaymentId] = useState<number | null>(null);
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Form State
@@ -168,12 +169,13 @@ export const PaymentsManagement = () => {
         }
     };
 
-    const handleAddClick = (fromHistory = false) => {
+    const handleAddClick = (fromHistory: any = false) => {
+        const isFromHistory = fromHistory === true;
         setEditMode(false);
         setCurrentPaymentId(null);
         setFormData({
-            client_id: fromHistory ? (selectedClient?.id.toString() || '') : '',
-            service_id: fromHistory ? (selectedClient?.service_id?.toString() || '') : '',
+            client_id: isFromHistory ? (selectedClient?.id.toString() || '') : '',
+            service_id: isFromHistory ? (selectedClient?.service_id?.toString() || '') : '',
             amount: '',
             currency: 'USD',
             payment_date: new Date().toISOString().split('T')[0],
@@ -190,23 +192,14 @@ export const PaymentsManagement = () => {
             setServices([]);
         }
 
-        if (fromHistory) {
+        if (isFromHistory) {
             setShowEditForm(true);
         } else {
-            // This is for the "Registrar Nuevo Pago" button in main view
-            setIsHistoryModalOpen(false); // Close if open
-            // We'll keep a minimal way to open the full form if needed, 
-            // but the user wants integrated. Let's make it so even the "Register New" 
-            // opens a "Quick Entry" or selects a client.
-            // For now, let's keep the isPaymentModalOpen logic for the main button
-            // but we'll use showEditForm for the integrated view.
             setIsPaymentModalOpen(true);
         }
     };
 
-    // Need to keep this for the standalone modal if we still use it, 
-    // but the goal is integration. Let's add the flag.
-    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
 
     const handleEditPayment = async (payment: Payment) => {
         setEditMode(true);
@@ -329,7 +322,7 @@ export const PaymentsManagement = () => {
                     <p className="text-gray-400">Administra pagos y visualiza el historial por cliente.</p>
                 </div>
                 <button
-                    onClick={handleAddClick}
+                    onClick={() => handleAddClick(false)}
                     className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors text-sm font-medium"
                 >
                     <Plus className="w-4 h-4" />
@@ -719,6 +712,14 @@ export const PaymentsManagement = () => {
                                                     <option value="6">6 meses</option>
                                                     <option value="12">12 meses (1 año)</option>
                                                 </select>
+                                                {parseInt((formData as any).months_covered) === 12 && (
+                                                    <div className="flex items-start gap-2 p-3 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                                                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                                        <p className="text-xs text-amber-200">
+                                                            Al seleccionar 12 meses, la fecha de expiración se extenderá un año.
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-sm font-medium text-gray-300">Fecha de Pago *</label>
@@ -789,6 +790,184 @@ export const PaymentsManagement = () => {
                 </div>
             )}
 
+
+            {/* Register/Edit Payment Modal (Reused for main dashboard button) */}
+            {isPaymentModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="relative w-full max-w-2xl bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl p-6 overflow-hidden max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-white font-heading">
+                                {editMode ? 'Editar Pago' : 'Registrar Pago'}
+                            </h3>
+                            <button
+                                onClick={() => setIsPaymentModalOpen(false)}
+                                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5 text-gray-400" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Cliente *</label>
+                                    <select
+                                        name="client_id"
+                                        value={formData.client_id}
+                                        onChange={(e) => handleClientChange(e.target.value)}
+                                        required
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    >
+                                        <option value="">Seleccionar cliente</option>
+                                        {clients.map(client => (
+                                            <option key={client.id} value={client.id}>{client.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Servicio *</label>
+                                    <select
+                                        name="service_id"
+                                        value={formData.service_id}
+                                        onChange={handleInputChange}
+                                        required
+                                        disabled={!formData.client_id}
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none disabled:opacity-50"
+                                    >
+                                        <option value="">Seleccionar servicio</option>
+                                        {services.map(service => (
+                                            <option key={service.id} value={service.id}>{service.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Monto *</label>
+                                    <div className="relative">
+                                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                        <input
+                                            type="number"
+                                            name="amount"
+                                            value={formData.amount}
+                                            onChange={handleInputChange}
+                                            step="0.01"
+                                            required
+                                            className="w-full pl-9 pr-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Meses a cubrir</label>
+                                    <select
+                                        name="months_covered"
+                                        value={(formData as any).months_covered}
+                                        onChange={handleInputChange}
+                                        required
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    >
+                                        <option value="1">1 mes</option>
+                                        <option value="3">3 meses</option>
+                                        <option value="6">6 meses</option>
+                                        <option value="12">12 meses (1 año)</option>
+                                    </select>
+                                    {parseInt((formData as any).months_covered) === 12 && (
+                                        <div className="flex items-start gap-2 p-3 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                            <p className="text-xs text-amber-200">
+                                                Al seleccionar 12 meses, la fecha de expiración se extenderá un año.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Moneda *</label>
+                                    <select
+                                        name="currency"
+                                        value={formData.currency}
+                                        onChange={handleInputChange}
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    >
+                                        <option value="USD">USD</option>
+                                        <option value="EUR">EUR</option>
+                                        <option value="VES">VES</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Fecha de Pago *</label>
+                                    <input
+                                        type="date"
+                                        name="payment_date"
+                                        value={formData.payment_date}
+                                        onChange={handleInputChange}
+                                        required
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Método de Pago</label>
+                                    <select
+                                        name="payment_method"
+                                        value={formData.payment_method}
+                                        onChange={handleInputChange}
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    >
+                                        <option value="">Seleccionar método</option>
+                                        <option value="PayPal">PayPal</option>
+                                        <option value="Zelle">Zelle</option>
+                                        <option value="Pago Movil">Pago Móvil</option>
+                                        <option value="Bank Transfer">Transferencia Bancaria</option>
+                                        <option value="Cash">Efectivo</option>
+                                        <option value="Other">Otro</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2 hidden"> {/* Hidden status */}
+                                    <select
+                                        name="status"
+                                        value={formData.status}
+                                        onChange={handleInputChange}
+                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    >
+                                        <option value="PAGADO">PAGADO</option>
+                                        <option value="PENDIENTE">PENDIENTE</option>
+                                        <option value="VENCIDO">VENCIDO</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-300">Notas / Referencia</label>
+                                <textarea
+                                    name="notes"
+                                    value={formData.notes}
+                                    onChange={handleInputChange}
+                                    rows={3}
+                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none resize-none"
+                                    placeholder="Referencia, número de comprobante, etc..."
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPaymentModalOpen(false)}
+                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                    {isSubmitting ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Save className="w-4 h-4" />
+                                    )}
+                                    {isSubmitting ? 'Guardando...' : (editMode ? 'Actualizar Pago' : 'Registrar Pago')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
+
