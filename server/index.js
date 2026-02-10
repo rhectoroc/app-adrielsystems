@@ -227,8 +227,18 @@ app.post('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, 
             );
         }
 
-        // 3. Create Service from Plan Schema
-        if (service_name) {
+        // 3. Create Services
+        const services = req.body.services || [];
+        if (services.length > 0) {
+            for (const service of services) {
+                await query(
+                    `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price) 
+                     VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5)`,
+                    [clientId, service.name, service.cost || 0, service.currency || 'USD', service.special_price || null]
+                );
+            }
+        } else if (service_name) {
+            // Backward compatibility for single service
             await query(
                 `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price) 
                  VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5)`,
@@ -281,16 +291,35 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
             [name, company_name, email, phone, domain, country, notes, id]
         );
 
-        // Update or create service if plan is provided
-        if (service_name) {
-            // Check if service exists for this client
+        // Update or create services from array
+        const services = req.body.services || [];
+        if (services.length > 0) {
+            for (const service of services) {
+                if (service.id) {
+                    // Update existing service
+                    await query(
+                        `UPDATE services 
+                         SET name = $1, cost = $2, currency = $3, special_price = $4
+                         WHERE id = $5 AND client_id = $6`,
+                        [service.name, service.cost || 0, service.currency || 'USD', service.special_price || null, service.id, id]
+                    );
+                } else {
+                    // Create new service
+                    await query(
+                        `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price) 
+                         VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5)`,
+                        [id, service.name, service.cost || 0, service.currency || 'USD', service.special_price || null]
+                    );
+                }
+            }
+        } else if (service_name) {
+            // Backward compatibility for single service
             const existingService = await query(
                 'SELECT id FROM services WHERE client_id = $1',
                 [id]
             );
 
             if (existingService.rows.length > 0) {
-                // Update existing service
                 await query(
                     `UPDATE services 
                      SET name = $1, cost = $2, currency = $3, special_price = $4
@@ -298,7 +327,6 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
                     [service_name, cost || 0, currency || 'USD', req.body.special_price || null, id]
                 );
             } else {
-                // Create new service
                 await query(
                     `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price) 
                      VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5)`,

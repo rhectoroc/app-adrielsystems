@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ClientsTable } from '../../components/features/admin/ClientsTable';
-import { X, Loader2, Save } from 'lucide-react';
+import { X, Loader2, Save, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
 
@@ -30,8 +30,7 @@ export const ClientsManagement = () => {
         notes: '',
         contact_info: '',
         password: '',
-        service_name: '', // Selected Plan ID or Name
-        special_price: ''
+        services: [] as any[]
     });
 
     useEffect(() => {
@@ -68,10 +67,39 @@ export const ClientsManagement = () => {
             notes: client.notes || '',
             contact_info: client.contact_info || '',
             password: '', // Keep empty
-            service_name: client.service_name || '',
-            special_price: client.special_price || ''
+            services: client.services || []
         });
         setIsModalOpen(true);
+    };
+
+    const handleAddServiceField = () => {
+        setFormData(prev => ({
+            ...prev,
+            services: [...prev.services, { name: '', cost: 0, special_price: '', currency: 'USD' }]
+        }));
+    };
+
+    const handleRemoveServiceField = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            services: prev.services.filter((_, i) => i !== index)
+        }));
+    };
+
+    const handleServiceChange = (index: number, field: string, value: any) => {
+        const newServices = [...formData.services];
+        newServices[index] = { ...newServices[index], [field]: value };
+
+        // If plan name is selected, automatically fill cost/currency
+        if (field === 'name') {
+            const plan = plans.find(p => p.name === value);
+            if (plan) {
+                newServices[index].cost = plan.cost;
+                newServices[index].currency = plan.currency;
+            }
+        }
+
+        setFormData(prev => ({ ...prev, services: newServices }));
     };
 
     const handleAddClick = () => {
@@ -87,8 +115,7 @@ export const ClientsManagement = () => {
             notes: '',
             contact_info: '',
             password: '',
-            service_name: '',
-            special_price: ''
+            services: []
         });
         setIsModalOpen(true);
     }
@@ -98,19 +125,9 @@ export const ClientsManagement = () => {
         setIsSubmitting(true);
 
         try {
-            // If taking a plan, we need to find its details to send
-            let payload: any = { ...formData };
-            if (formData.service_name) {
-                const selectedPlan = plans.find(p => p.name === formData.service_name);
-                if (selectedPlan) {
-                    payload.cost = selectedPlan.cost;
-                    payload.currency = selectedPlan.currency;
-                }
-            }
-
             const response = editMode && currentClientId
-                ? await api.put(`/api/clients/${currentClientId}`, payload)
-                : await api.post('/api/clients', payload);
+                ? await api.put(`/api/clients/${currentClientId}`, formData)
+                : await api.post('/api/clients', formData);
 
             if (!response.ok) {
                 const data = await response.json();
@@ -129,8 +146,7 @@ export const ClientsManagement = () => {
                 notes: '',
                 contact_info: '',
                 password: '',
-                service_name: '',
-                special_price: ''
+                services: []
             });
             setEditMode(false);
             setCurrentClientId(null);
@@ -260,44 +276,81 @@ export const ClientsManagement = () => {
                                 </div>
                             )}
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Plan / Servicio</label>
-                                <select
-                                    name="service_name"
-                                    value={formData.service_name}
-                                    onChange={handleInputChange}
-                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                >
-                                    <option value="">Seleccionar un Plan</option>
-                                    {plans.map(plan => (
-                                        <option key={plan.id} value={plan.name}>
-                                            {plan.name} ({plan.cost} {plan.currency})
-                                        </option>
-                                    ))}
-                                </select>
+                            {/* Dynamic Services Section */}
+                            <div className="space-y-4 pt-4 border-t border-white/10">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-bold text-primary uppercase tracking-widest">Planes / Servicios</h4>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddServiceField}
+                                        className="inline-flex items-center gap-1 text-xs font-bold text-white bg-primary px-3 py-1.5 rounded-lg hover:bg-primary/80 transition-all active:scale-95 shadow-lg shadow-primary/20"
+                                    >
+                                        <Plus className="w-3 h-3" /> Agregar Servicio
+                                    </button>
+                                </div>
+
+                                {formData.services.map((service, index) => (
+                                    <div key={index} className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-4 relative group animate-in fade-in slide-in-from-top-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveServiceField(index)}
+                                            className="absolute top-2 right-2 p-1.5 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-400/10 rounded-lg"
+                                            title="Eliminar Servicio"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-medium text-gray-400">Plan Seleccionado</label>
+                                                <select
+                                                    value={service.name}
+                                                    onChange={(e) => handleServiceChange(index, 'name', e.target.value)}
+                                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white text-sm focus:border-primary focus:outline-none transition-colors"
+                                                    required
+                                                >
+                                                    <option value="">Seleccionar un Plan</option>
+                                                    {plans.map(plan => (
+                                                        <option key={plan.id} value={plan.name}>
+                                                            {plan.name} (${plan.cost} {plan.currency})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-medium text-gray-400">Precio Especial (Opcional)</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                                                    <input
+                                                        type="number"
+                                                        value={service.special_price || ''}
+                                                        onChange={(e) => handleServiceChange(index, 'special_price', e.target.value)}
+                                                        className="w-full pl-7 pr-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white text-sm focus:border-primary focus:outline-none transition-colors"
+                                                        placeholder={service.cost ? `Base: ${service.cost}` : '0.00'}
+                                                        step="0.01"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {formData.services.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center py-8 px-4 border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
+                                        <Plus className="w-8 h-8 text-gray-600 mb-2 opacity-20" />
+                                        <p className="text-xs text-gray-500 italic text-center">No hay servicios asociados aún.<br />Usa el botón "+" para agregar el primero.</p>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Precio Especial (Opcional)</label>
-                                <input
-                                    type="number"
-                                    name="special_price"
-                                    value={(formData as any).special_price || ''}
-                                    onChange={handleInputChange}
-                                    step="0.01"
-                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                    placeholder="Dejar vacío para usar precio del plan"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Notas</label>
+                                <label className="text-sm font-medium text-gray-300">Notas Adicionales</label>
                                 <textarea
                                     name="notes"
                                     value={formData.notes}
                                     onChange={handleInputChange}
-                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                    rows={3}
+                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none min-h-[100px]"
+                                    placeholder="Información relevante sobre el cliente..."
                                 />
                             </div>
 
