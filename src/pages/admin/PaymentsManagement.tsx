@@ -710,6 +710,9 @@ export const PaymentsManagement = () => {
                                                         className="w-full px-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
                                                     >
                                                         <option value="">Seleccionar el servicio...</option>
+                                                        {services.length > 1 && (
+                                                            <option value="all" className="font-bold text-primary italic">⭐ TODOS LOS SERVICIOS (Global / Prepago)</option>
+                                                        )}
                                                         {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                                     </select>
                                                 </div>

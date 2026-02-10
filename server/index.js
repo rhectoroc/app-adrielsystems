@@ -232,16 +232,16 @@ app.post('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, 
         if (services.length > 0) {
             for (const service of services) {
                 await query(
-                    `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price) 
-                     VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5)`,
+                    `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price, expiration_date) 
+                     VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5, CURRENT_DATE + interval '1 month')`,
                     [clientId, service.name, service.cost || 0, service.currency || 'USD', service.special_price || null]
                 );
             }
         } else if (service_name) {
             // Backward compatibility for single service
             await query(
-                `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price) 
-                 VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5)`,
+                `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price, expiration_date) 
+                 VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5, CURRENT_DATE + interval '1 month')`,
                 [clientId, service_name, cost || 0, currency || 'USD', req.body.special_price || null]
             );
         }
@@ -306,8 +306,8 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
                 } else {
                     // Create new service
                     await query(
-                        `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price) 
-                         VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5)`,
+                        `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price, expiration_date) 
+                         VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5, CURRENT_DATE + interval '1 month')`,
                         [id, service.name, service.cost || 0, service.currency || 'USD', service.special_price || null]
                     );
                 }
@@ -555,37 +555,45 @@ app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req,
         `, [client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered]);
 
         // Logic for Prepaid Services
-        if ((status === 'PAGADO' || status === 'PAID') && service_id) {
-            // Fetch current service info
-            const serviceRes = await query('SELECT expiration_date FROM services WHERE id = $1', [service_id]);
-            const service = serviceRes.rows[0];
+        if ((status === 'PAGADO' || status === 'PAID')) {
+            const months = parseInt(months_covered) || 1;
+            const targetServices = [];
 
-            let newExpirationDate;
-            const currentExpiration = service.expiration_date ? new Date(service.expiration_date) : null;
-            const paymentDateObj = new Date(payment_date);
-            const now = new Date(); // Use payment date effectively or today? Logic says "starting today" if expired.
-
-            // normalize dates to remove time part for comparison
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            if (currentExpiration && currentExpiration > today) {
-                // Not expired, add to current expiration
-                newExpirationDate = new Date(currentExpiration);
-                newExpirationDate.setMonth(newExpirationDate.getMonth() + parseInt(months_covered));
+            if (service_id && service_id !== 'all') {
+                targetServices.push(service_id);
             } else {
-                // Expired or null, start from payment date (or today)
-                newExpirationDate = new Date(paymentDateObj);
-                newExpirationDate.setMonth(newExpirationDate.getMonth() + parseInt(months_covered));
+                // Apply to all active services for this client
+                const activeServices = await query('SELECT id FROM services WHERE client_id = $1 AND status = $2', [client_id, 'ACTIVE']);
+                activeServices.rows.forEach(s => targetServices.push(s.id));
             }
 
-            // Update service
-            await query(`
-                UPDATE services 
-                SET last_payment_date = $1,
-                    expiration_date = $2
-                WHERE id = $3
-            `, [payment_date, newExpirationDate.toISOString().split('T')[0], service_id]);
+            for (const sId of targetServices) {
+                const serviceRes = await query('SELECT expiration_date FROM services WHERE id = $1', [sId]);
+                const service = serviceRes.rows[0];
+
+                if (!service) continue;
+
+                let newExpirationDate;
+                const currentExpiration = service.expiration_date ? new Date(service.expiration_date) : null;
+                const paymentDateObj = new Date(payment_date);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                if (currentExpiration && currentExpiration > today) {
+                    newExpirationDate = new Date(currentExpiration);
+                    newExpirationDate.setMonth(newExpirationDate.getMonth() + months);
+                } else {
+                    newExpirationDate = new Date(paymentDateObj);
+                    newExpirationDate.setMonth(newExpirationDate.getMonth() + months);
+                }
+
+                await query(`
+                    UPDATE services 
+                    SET last_payment_date = $1,
+                        expiration_date = $2
+                    WHERE id = $3
+                `, [payment_date, newExpirationDate.toISOString().split('T')[0], sId]);
+            }
         }
 
         await query('COMMIT');
