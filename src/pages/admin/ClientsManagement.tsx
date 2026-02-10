@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ClientsTable } from '../../components/features/admin/ClientsTable';
-import { X, Loader2, Save } from 'lucide-react';
+import { X, Loader2, Save, Calendar, DollarSign, History, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
 
@@ -11,6 +11,16 @@ interface Plan {
     currency: string;
 }
 
+interface Payment {
+    id: number;
+    amount: number;
+    currency: string;
+    payment_date: string;
+    payment_method: string;
+    notes: string;
+    months_covered: number;
+}
+
 export const ClientsManagement = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -18,6 +28,10 @@ export const ClientsManagement = () => {
     const [editMode, setEditMode] = useState(false);
     const [currentClientId, setCurrentClientId] = useState<number | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+    // Payment History State
+    const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -31,7 +45,8 @@ export const ClientsManagement = () => {
         contact_info: '',
         password: '',
         service_name: '', // Selected Plan ID or Name
-        special_price: ''
+        special_price: '',
+        expiration_date: '' // To display next payment
     });
 
     useEffect(() => {
@@ -67,16 +82,34 @@ export const ClientsManagement = () => {
             country: client.country || '',
             notes: client.notes || '',
             contact_info: client.contact_info || '',
-            password: '', // Keep empty
+            password: '',
             service_name: client.service_name || '',
-            special_price: client.special_price || ''
+            special_price: client.special_price || '',
+            expiration_date: client.expiration_date || ''
         });
+        fetchHistory(client.id);
         setIsModalOpen(true);
+    };
+
+    const fetchHistory = async (clientId: number) => {
+        setLoadingHistory(true);
+        try {
+            const response = await api.get(`/api/payments/client/${clientId}`);
+            if (response.ok) {
+                const data = await response.json();
+                setPaymentHistory(data);
+            }
+        } catch (error) {
+            console.error('Error fetching history:', error);
+        } finally {
+            setLoadingHistory(false);
+        }
     };
 
     const handleAddClick = () => {
         setEditMode(false);
         setCurrentClientId(null);
+        setPaymentHistory([]);
         setFormData({
             name: '',
             company_name: '',
@@ -88,7 +121,8 @@ export const ClientsManagement = () => {
             contact_info: '',
             password: '',
             service_name: '',
-            special_price: ''
+            special_price: '',
+            expiration_date: ''
         });
         setIsModalOpen(true);
     }
@@ -130,8 +164,10 @@ export const ClientsManagement = () => {
                 contact_info: '',
                 password: '',
                 service_name: '',
-                special_price: ''
+                special_price: '',
+                expiration_date: ''
             });
+            setPaymentHistory([]);
             setEditMode(false);
             setCurrentClientId(null);
             setRefreshTrigger(prev => prev + 1); // Trigger table refresh
@@ -300,6 +336,84 @@ export const ClientsManagement = () => {
                                     rows={3}
                                 />
                             </div>
+
+                            {/* Payment History Section */}
+                            {editMode && (
+                                <div className="mt-8 pt-8 border-t border-white/10 space-y-6">
+                                    <div className="flex items-center gap-2 text-white font-bold text-lg">
+                                        <History className="w-5 h-5 text-primary" />
+                                        <h3>Resumen de Pagos</h3>
+                                    </div>
+
+                                    {/* Summary Cards */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                                            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                                                <TrendingUp className="w-3 h-3" />
+                                                INICIO DE SERVICIO
+                                            </div>
+                                            <div className="text-white font-medium">
+                                                {paymentHistory.length > 0
+                                                    ? new Date(Math.min(...paymentHistory.map(p => new Date(p.payment_date).getTime()))).toLocaleDateString()
+                                                    : 'Sin pagos'}
+                                            </div>
+                                        </div>
+                                        <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                                            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                                                <DollarSign className="w-3 h-3" />
+                                                ÚLTIMO PAGO
+                                            </div>
+                                            <div className="text-white font-medium">
+                                                {paymentHistory.length > 0
+                                                    ? `${paymentHistory[0].currency} ${paymentHistory[0].amount} (${new Date(paymentHistory[0].payment_date).toLocaleDateString()})`
+                                                    : 'N/A'}
+                                            </div>
+                                        </div>
+                                        <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
+                                            <div className="flex items-center gap-2 text-primary text-xs mb-1 font-bold">
+                                                <Calendar className="w-3 h-3" />
+                                                PRÓXIMO VENCIMIENTO
+                                            </div>
+                                            <div className="text-white font-bold text-lg">
+                                                {formData.expiration_date ? new Date(formData.expiration_date).toLocaleDateString() : 'Pendiente'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Detailed Table */}
+                                    <div className="space-y-3">
+                                        <h4 className="text-sm font-semibold text-gray-300">Historial Detallado</h4>
+                                        <div className="rounded-xl border border-white/5 overflow-hidden">
+                                            <table className="w-full text-left text-xs">
+                                                <thead className="bg-white/5 text-gray-400">
+                                                    <tr>
+                                                        <th className="p-2">Fecha</th>
+                                                        <th className="p-2">Monto</th>
+                                                        <th className="p-2">Método</th>
+                                                        <th className="p-2">Periodo</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-white/5">
+                                                    {loadingHistory ? (
+                                                        <tr><td colSpan={4} className="p-4 text-center text-gray-500">Cargando...</td></tr>
+                                                    ) : paymentHistory.length === 0 ? (
+                                                        <tr><td colSpan={4} className="p-4 text-center text-gray-500">No hay pagos registrados</td></tr>
+                                                    ) : (
+                                                        paymentHistory.map(p => (
+                                                            <tr key={p.id}>
+                                                                <td className="p-2 text-white">{new Date(p.payment_date).toLocaleDateString()}</td>
+                                                                <td className="p-2 text-white font-medium">{p.currency} {p.amount}</td>
+                                                                <td className="p-2 text-gray-400">{p.payment_method || '-'}</td>
+                                                                <td className="p-2 text-gray-400">{p.months_covered} mes(es)</td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="flex justify-end pt-4 mt-4 border-t border-white/10 gap-3">
                                 <button
