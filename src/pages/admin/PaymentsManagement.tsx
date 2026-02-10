@@ -489,10 +489,10 @@ export const PaymentsManagement = () => {
                             <div className="flex items-center gap-3">
                                 <button
                                     onClick={() => handleAddClick(true)}
-                                    className="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all flex items-center gap-2"
+                                    className="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all flex items-center gap-2 group active:scale-95"
                                 >
-                                    <Plus className="w-5 h-5" />
-                                    Nuevo Pago
+                                    <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+                                    Registrar Pago
                                 </button>
                             </div>
                         </div>
@@ -525,9 +525,10 @@ export const PaymentsManagement = () => {
                                             setNewExpirationDate(selectedClient?.expiration_date ? new Date(selectedClient.expiration_date).toISOString().split('T')[0] : '');
                                             setIsEditingExpiration(true);
                                         }}
-                                        className="p-1.5 hover:bg-white/10 rounded-lg text-primary transition-colors"
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded-xl text-primary transition-all border border-primary/20 group hover:scale-105 active:scale-95"
                                     >
-                                        <Edit2 className="w-4 h-4" />
+                                        <Edit2 className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                                        <span className="text-xs font-bold uppercase tracking-wider">Modificar Vencimiento</span>
                                     </button>
                                 </div>
                                 {isEditingExpiration && (
@@ -556,218 +557,220 @@ export const PaymentsManagement = () => {
                             </div>
                         </div>
 
-                        {/* Main Detail Layout: History & Form */}
-                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 h-full">
-                            {/* History Column */}
-                            <div className="lg:col-span-3 space-y-4">
-                                <div className="flex items-center justify-between px-2">
-                                    <h3 className="text-xl font-bold text-white flex items-center gap-3">
-                                        <History className="w-5 h-5 text-primary" />
-                                        Historial de Operaciones
-                                    </h3>
-                                </div>
-
-                                <div className="glass-card overflow-hidden">
-                                    {loadingHistory ? (
-                                        <div className="flex flex-col items-center justify-center py-24 gap-4">
-                                            <Loader2 className="w-12 h-12 text-primary animate-spin" />
-                                            <p className="text-gray-500 font-bold animate-pulse">Sincronizando historial...</p>
-                                        </div>
-                                    ) : (
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-left">
-                                                <thead className="bg-white/5 border-b border-white/10">
-                                                    <tr>
-                                                        <th className="p-4 font-bold text-gray-500 text-[10px] uppercase tracking-widest">F. Pago</th>
-                                                        <th className="p-4 font-bold text-gray-500 text-[10px] uppercase tracking-widest">Periodo</th>
-                                                        <th className="p-4 font-bold text-gray-500 text-[10px] uppercase tracking-widest">Monto</th>
-                                                        <th className="p-4 font-bold text-gray-500 text-[10px] uppercase tracking-widest">Método</th>
-                                                        <th className="p-4 font-bold text-gray-500 text-[10px] uppercase tracking-widest text-right">Acciones</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-white/5">
-                                                    {clientPayments.length === 0 ? (
-                                                        <tr>
-                                                            <td colSpan={5} className="p-12 text-center text-gray-600 font-medium">No hay registros de pago para este cliente</td>
-                                                        </tr>
-                                                    ) : (
-                                                        clientPayments.map(payment => (
-                                                            <tr key={payment.id} className={`hover:bg-white/[0.03] transition-colors ${currentPaymentId === payment.id ? 'bg-primary/10 border-l-2 border-l-primary' : ''}`}>
-                                                                <td className="p-4">
-                                                                    <div className="text-white font-bold">{new Date(payment.payment_date).toLocaleDateString()}</div>
-                                                                    <div className="text-[10px] text-gray-500 italic mt-1 max-w-[150px] truncate">{payment.notes || 'Sin notas'}</div>
-                                                                </td>
-                                                                <td className="p-4">
-                                                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-lg border border-white/5 text-xs text-gray-300">
-                                                                        {calculatePeriod(payment.payment_date, payment.months_covered || 1)}
-                                                                        <span className="text-[10px] font-black text-primary ml-1">({payment.months_covered}m)</span>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="p-4">
-                                                                    <div className="text-lg font-black text-white">{payment.currency} {payment.amount}</div>
-                                                                </td>
-                                                                <td className="p-4">
-                                                                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                                                                        <CreditCard className="w-4 h-4 opacity-50" />
-                                                                        {payment.payment_method || 'N/A'}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="p-4 text-right">
-                                                                    <button
-                                                                        onClick={() => handleEditPayment(payment)}
-                                                                        className={`p-2 rounded-xl transition-all ${currentPaymentId === payment.id ? 'bg-primary text-white' : 'hover:bg-white/10 text-gray-500 hover:text-white'}`}
-                                                                    >
-                                                                        <Edit2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        ))
-                                                    )}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-                                </div>
+                        {/* Full Width History Table */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between px-2">
+                                <h3 className="text-xl font-bold text-white flex items-center gap-3 font-heading tracking-tight">
+                                    <History className="w-5 h-5 text-primary" />
+                                    Historial de Operaciones
+                                </h3>
                             </div>
 
-                            {/* Form Column - Sticky for Desktop */}
-                            <div className="lg:col-span-1 space-y-4">
-                                <AnimatePresence mode="wait">
-                                    {showEditForm ? (
-                                        <motion.div
-                                            key="form"
-                                            initial={{ opacity: 0, scale: 0.95 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            exit={{ opacity: 0, scale: 0.95 }}
-                                            className="glass-card border-primary/20 sticky top-24"
-                                        >
-                                            <div className="p-6 border-b border-white/10 flex items-center justify-between">
-                                                <h3 className="font-bold text-white flex items-center gap-2">
-                                                    {editMode ? <Edit2 className="w-4 h-4 text-primary" /> : <Plus className="w-4 h-4 text-primary" />}
-                                                    {editMode ? 'Editar Pago' : 'Nuevo Pago'}
-                                                </h3>
-                                                <button onClick={() => setShowEditForm(false)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-500 transition-colors">
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                            <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                                                <div className="space-y-4">
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Servicio *</label>
+                            <div className="glass-card overflow-hidden">
+                                {loadingHistory ? (
+                                    <div className="flex flex-col items-center justify-center py-24 gap-4">
+                                        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                                        <p className="text-gray-500 font-bold animate-pulse">Sincronizando historial...</p>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-white/5 border-b border-white/10">
+                                                <tr>
+                                                    <th className="p-5 font-bold text-gray-500 text-[10px] uppercase tracking-widest">Fecha de Pago (Reciente)</th>
+                                                    <th className="p-5 font-bold text-gray-500 text-[10px] uppercase tracking-widest text-center">Periodo Cubierto</th>
+                                                    <th className="p-5 font-bold text-gray-500 text-[10px] uppercase tracking-widest text-center">Monto</th>
+                                                    <th className="p-5 font-bold text-gray-500 text-[10px] uppercase tracking-widest">Método</th>
+                                                    <th className="p-5 font-bold text-gray-500 text-[10px] uppercase tracking-widest text-right">Administración</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5">
+                                                {clientPayments.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={5} className="p-12 text-center text-gray-600 font-medium">No hay registros de pago para este cliente</td>
+                                                    </tr>
+                                                ) : (
+                                                    clientPayments.map(payment => (
+                                                        <tr key={payment.id} className="hover:bg-white/[0.03] transition-colors group">
+                                                            <td className="p-5">
+                                                                <div className="text-white font-bold">{new Date(payment.payment_date).toLocaleDateString()}</div>
+                                                                <div className="text-[10px] text-gray-500 italic mt-1 max-w-[200px] truncate">{payment.notes || 'Sin notas'}</div>
+                                                            </td>
+                                                            <td className="p-5 text-center">
+                                                                <div className="inline-flex flex-col items-center px-4 py-2 bg-white/5 rounded-xl border border-white/5">
+                                                                    <div className="text-xs text-gray-300 font-medium">
+                                                                        {calculatePeriod(payment.payment_date, payment.months_covered || 1)}
+                                                                    </div>
+                                                                    <div className="text-[10px] font-black text-primary mt-0.5 uppercase tracking-tighter">
+                                                                        {payment.months_covered} {payment.months_covered === 1 ? 'Mes Pago' : 'Meses Adelantados'}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-5 text-center">
+                                                                <div className="text-xl font-black text-white">{payment.currency} {payment.amount.toLocaleString()}</div>
+                                                            </td>
+                                                            <td className="p-5">
+                                                                <div className="flex items-center gap-2 text-sm text-gray-400">
+                                                                    <div className="p-2 bg-white/5 rounded-lg">
+                                                                        <CreditCard className="w-4 h-4 opacity-70" />
+                                                                    </div>
+                                                                    {payment.payment_method || 'Sin método'}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-5 text-right">
+                                                                <button
+                                                                    onClick={() => handleEditPayment(payment)}
+                                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-primary/20 text-gray-400 hover:text-primary rounded-xl transition-all border border-white/5 group-hover:border-primary/30"
+                                                                >
+                                                                    <Edit2 className="w-4 h-4" />
+                                                                    <span className="text-xs font-bold uppercase">Modificar Pago</span>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Payment Form Modal (Re-implemented Centered) */}
+                        <AnimatePresence>
+                            {showEditForm && (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        onClick={() => setShowEditForm(false)}
+                                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                                    />
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                                        className="glass-card w-full max-w-lg border-primary/20 relative z-50 overflow-hidden"
+                                    >
+                                        <div className="p-6 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-primary/10 to-transparent">
+                                            <h3 className="font-bold text-xl text-white flex items-center gap-3">
+                                                <div className="p-2 bg-primary rounded-lg text-white">
+                                                    {editMode ? <Edit2 className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                                                </div>
+                                                {editMode ? 'Modificar Registro de Pago' : 'Registrar Nuevo Pago'}
+                                            </h3>
+                                            <button onClick={() => setShowEditForm(false)} className="p-2 hover:bg-white/10 rounded-xl text-gray-400 transition-colors active:scale-95">
+                                                <X className="w-6 h-6" />
+                                            </button>
+                                        </div>
+                                        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                                            <div className="space-y-5">
+                                                <div className="space-y-2">
+                                                    <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Servicio Contratado *</label>
+                                                    <select
+                                                        name="service_id"
+                                                        value={formData.service_id}
+                                                        onChange={handleInputChange}
+                                                        required
+                                                        className="w-full px-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
+                                                    >
+                                                        <option value="">Seleccionar el servicio...</option>
+                                                        {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                    </select>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Monto Pagado *</label>
+                                                        <div className="relative group">
+                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-black">$</span>
+                                                            <input
+                                                                type="number"
+                                                                name="amount"
+                                                                value={formData.amount}
+                                                                onChange={handleInputChange}
+                                                                step="0.01"
+                                                                required
+                                                                className="w-full pl-8 pr-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white font-bold focus:border-primary/50 focus:outline-none transition-all"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Meses Cubiertos *</label>
                                                         <select
-                                                            name="service_id"
-                                                            value={formData.service_id}
+                                                            name="months_covered"
+                                                            value={formData.months_covered}
                                                             onChange={handleInputChange}
-                                                            required
-                                                            className="w-full px-4 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20"
+                                                            className="w-full px-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none transition-all cursor-pointer"
                                                         >
-                                                            <option value="">Seleccionar...</option>
-                                                            {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                            {[1, 2, 3, 4, 6, 12].map(m => (
+                                                                <option key={m} value={m}>{m} {m === 1 ? 'Mes' : 'Meses'}</option>
+                                                            ))}
                                                         </select>
                                                     </div>
+                                                </div>
 
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <div className="space-y-1.5">
-                                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Monto *</label>
-                                                            <div className="relative">
-                                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
-                                                                <input
-                                                                    type="number"
-                                                                    name="amount"
-                                                                    value={formData.amount}
-                                                                    onChange={handleInputChange}
-                                                                    step="0.01"
-                                                                    required
-                                                                    className="w-full pl-7 pr-4 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:border-primary/50 focus:outline-none"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-1.5">
-                                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Meses *</label>
-                                                            <select
-                                                                name="months_covered"
-                                                                value={formData.months_covered}
-                                                                onChange={handleInputChange}
-                                                                className="w-full px-4 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:border-primary/50 focus:outline-none"
-                                                            >
-                                                                {[1, 3, 6, 12].map(m => <option key={m} value={m}>{m} {m === 1 ? 'Mes' : 'Meses'}</option>)}
-                                                            </select>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Fecha de Operación *</label>
+                                                <div className="space-y-2">
+                                                    <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Fecha de Operación (Último Pago) *</label>
+                                                    <div className="relative">
                                                         <input
                                                             type="date"
                                                             name="payment_date"
                                                             value={formData.payment_date}
                                                             onChange={handleInputChange}
                                                             required
-                                                            className="w-full px-4 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:border-primary/50 focus:outline-none"
+                                                            className="w-full px-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none transition-all"
                                                         />
-                                                    </div>
-
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Método de Pago</label>
-                                                        <select
-                                                            name="payment_method"
-                                                            value={formData.payment_method}
-                                                            onChange={handleInputChange}
-                                                            className="w-full px-4 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:border-primary/50 focus:outline-none"
-                                                        >
-                                                            <option value="">Seleccionar...</option>
-                                                            {['PayPal', 'Zelle', 'Pago Movil', 'Bank Transfer', 'Cash', 'Other'].map(m => (
-                                                                <option key={m} value={m}>{m}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Notas</label>
-                                                        <textarea
-                                                            name="notes"
-                                                            value={formData.notes}
-                                                            onChange={handleInputChange}
-                                                            rows={2}
-                                                            placeholder="Referencia o detalles..."
-                                                            className="w-full px-4 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:border-primary/50 focus:outline-none resize-none"
-                                                        />
+                                                        <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
                                                     </div>
                                                 </div>
 
-                                                <button
-                                                    type="submit"
-                                                    disabled={isSubmitting}
-                                                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white rounded-xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-primary/20 active:scale-95 disabled:opacity-50"
-                                                >
-                                                    {isSubmitting ? (
-                                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                                    ) : (
-                                                        <Save className="w-5 h-5" />
-                                                    )}
-                                                    {isSubmitting ? 'Guardando...' : 'Confirmar Registro'}
-                                                </button>
-                                            </form>
-                                        </motion.div>
-                                    ) : (
-                                        <motion.div
-                                            key="placeholder"
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            className="h-[400px] border-2 border-dashed border-white/5 rounded-3xl flex flex-col items-center justify-center text-center p-8 gap-4"
-                                        >
-                                            <div className="p-5 bg-white/5 rounded-full">
-                                                <DollarSign className="w-10 h-10 text-gray-700" />
+                                                <div className="space-y-2">
+                                                    <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Método de Pago</label>
+                                                    <select
+                                                        name="payment_method"
+                                                        value={formData.payment_method}
+                                                        onChange={handleInputChange}
+                                                        className="w-full px-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none transition-all cursor-pointer"
+                                                    >
+                                                        <option value="">Seleccionar método...</option>
+                                                        {['PayPal', 'Zelle', 'Pago Movil', 'Bank Transfer', 'Cash', 'Other'].map(m => (
+                                                            <option key={m} value={m}>{m}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Notas del Pago</label>
+                                                    <textarea
+                                                        name="notes"
+                                                        value={formData.notes}
+                                                        onChange={handleInputChange}
+                                                        rows={2}
+                                                        placeholder="Nro de referencia, detalles adicionales..."
+                                                        className="w-full px-5 py-3 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none resize-none transition-all"
+                                                    />
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-gray-500 font-bold">Sin acciones activas</p>
-                                                <p className="text-[10px] text-gray-600 mt-1 uppercase tracking-widest font-black">Haz clic en NUEVO PAGO o EDITAR para comenzar</p>
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
-                        </div>
+
+                                            <button
+                                                type="submit"
+                                                disabled={isSubmitting}
+                                                className="w-full flex items-center justify-center gap-3 py-4 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-primary/30 active:scale-[0.98] disabled:opacity-50"
+                                            >
+                                                {isSubmitting ? (
+                                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                                ) : (
+                                                    <CheckCircle2 className="w-5 h-5" />
+                                                )}
+                                                {isSubmitting ? 'Guardando cambios...' : (editMode ? 'Guardar Cambios' : 'Confirmar Registro')}
+                                            </button>
+                                        </form>
+                                    </motion.div>
+                                </div>
+                            )}
+                        </AnimatePresence>
                     </motion.div>
                 )}
             </AnimatePresence>
