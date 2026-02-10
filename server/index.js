@@ -869,6 +869,8 @@ AND(
 app.post('/api/notifications/log', authenticateToken, async (req, res) => {
     const { client_id, type, channel, status } = req.body;
 
+    console.log('Received notification log request:', { client_id, type, channel, status });
+
     try {
         await query(
             `INSERT INTO notification_logs (client_id, type, channel, status) VALUES ($1, $2, $3, $4)`,
@@ -877,7 +879,8 @@ app.post('/api/notifications/log', authenticateToken, async (req, res) => {
         res.json({ message: 'Notification logged successfully' });
     } catch (err) {
         console.error('Error logging notification:', err);
-        res.status(500).json({ message: 'Error logging notification' });
+        console.error('Request body was:', req.body);
+        res.status(500).json({ message: 'Error logging notification', error: err.message });
     }
 });
 
