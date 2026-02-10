@@ -31,11 +31,11 @@ export const Login = () => {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || 'Invalid credentials');
+                throw new Error(data.message || 'Credenciales inválidas');
             }
 
             login(data.token, data.role, data.user);
-            toast.success(`Welcome back, ${data.user.name || 'User'}!`);
+            toast.success(`¡Bienvenido de nuevo, ${data.user.name || 'Usuario'}!`);
 
             if (data.role === 'ADMIN') {
                 navigate('/admin');
@@ -43,7 +43,7 @@ export const Login = () => {
                 navigate('/client');
             }
         } catch (err: any) {
-            toast.error(err.message || 'Failed to login');
+            toast.error(err.message || 'Error al iniciar sesión');
         } finally {
             setIsLoading(false);
         }
@@ -76,7 +76,7 @@ export const Login = () => {
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-6">
                     <div className="flex flex-col gap-2">
-                        <label htmlFor="email" className="text-sm text-[#eee]">Email</label>
+                        <label htmlFor="email" className="text-sm text-[#eee]">Correo Electrónico</label>
                         <input
                             type="email"
                             id="email"

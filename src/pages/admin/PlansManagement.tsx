@@ -42,7 +42,7 @@ export const PlansManagement = () => {
             }
         } catch (error) {
             console.error('Error fetching plans:', error);
-            toast.error('Failed to load plans');
+            toast.error('Error al cargar planes');
         } finally {
             setLoading(false);
         }
@@ -75,16 +75,16 @@ export const PlansManagement = () => {
                 ? await api.put(`/api/plans/${currentPlanId}`, formData)
                 : await api.post('/api/plans', formData);
 
-            if (!response.ok) throw new Error(editMode ? 'Failed to update plan' : 'Failed to create plan');
+            if (!response.ok) throw new Error(editMode ? 'Error al actualizar plan' : 'Error al crear plan');
 
-            toast.success(editMode ? 'Plan updated successfully' : 'Plan created successfully');
+            toast.success(editMode ? 'Plan actualizado exitosamente' : 'Plan creado exitosamente');
             setIsModalOpen(false);
             setEditMode(false);
             setCurrentPlanId(null);
             setFormData({ name: '', description: '', cost: '', currency: 'USD', billing_cycle: 'MONTHLY' });
             fetchPlans();
         } catch (error) {
-            toast.error(editMode ? 'Error updating plan' : 'Error creating plan');
+            toast.error(editMode ? 'Error al actualizar plan' : 'Error al crear plan');
         } finally {
             setIsSubmitting(false);
         }
@@ -94,15 +94,15 @@ export const PlansManagement = () => {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-white font-heading">Plans & Tariffs</h2>
-                    <p className="text-gray-400">Manage service plans and pricing.</p>
+                    <h2 className="text-2xl font-bold text-white font-heading">Planes y Tarifas</h2>
+                    <p className="text-gray-400">Gestionar planes de servicio y precios.</p>
                 </div>
                 <button
                     onClick={() => setIsModalOpen(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors text-sm font-medium"
                 >
                     <Plus className="w-4 h-4" />
-                    Create Plan
+                    Crear Plan
                 </button>
             </div>
 
@@ -120,7 +120,7 @@ export const PlansManagement = () => {
                                         <Tag className="w-6 h-6" />
                                     </div>
                                     <span className="text-xs font-medium px-2 py-1 rounded-full bg-white/5 text-gray-400 border border-white/10 uppercase tracking-wider">
-                                        {plan.billing_cycle}
+                                        {plan.billing_cycle === 'MONTHLY' ? 'MENSUAL' : 'ANUAL'}
                                     </span>
                                 </div>
                                 <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
@@ -147,7 +147,7 @@ export const PlansManagement = () => {
 
                     {plans.length === 0 && (
                         <div className="col-span-full py-12 text-center text-gray-500 border border-dashed border-white/10 rounded-xl">
-                            No plans found. Create one to get started.
+                            No se encontraron planes. Crea uno para comenzar.
                         </div>
                     )}
                 </div>
@@ -158,11 +158,11 @@ export const PlansManagement = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="relative w-full max-w-md bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl p-6">
                         <h3 className="text-xl font-bold text-white font-heading mb-4">
-                            {editMode ? 'Edit Plan' : 'New Plan'}
+                            {editMode ? 'Editar Plan' : 'Nuevo Plan'}
                         </h3>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Plan Name</label>
+                                <label className="text-sm font-medium text-gray-300">Nombre del Plan</label>
                                 <input
                                     name="name"
                                     required
@@ -174,7 +174,7 @@ export const PlansManagement = () => {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Description</label>
+                                <label className="text-sm font-medium text-gray-300">Descripción</label>
                                 <textarea
                                     name="description"
                                     value={formData.description}
@@ -187,7 +187,7 @@ export const PlansManagement = () => {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Cost</label>
+                                    <label className="text-sm font-medium text-gray-300">Costo</label>
                                     <div className="relative">
                                         <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                                         <input
@@ -202,7 +202,7 @@ export const PlansManagement = () => {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Currency</label>
+                                    <label className="text-sm font-medium text-gray-300">Moneda</label>
                                     <select
                                         name="currency"
                                         value={formData.currency}
@@ -217,15 +217,15 @@ export const PlansManagement = () => {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Billing Cycle</label>
+                                <label className="text-sm font-medium text-gray-300">Ciclo de Facturación</label>
                                 <select
                                     name="billing_cycle"
                                     value={formData.billing_cycle}
                                     onChange={handleInputChange}
                                     className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
                                 >
-                                    <option value="MONTHLY">Monthly</option>
-                                    <option value="YEARLY">Yearly</option>
+                                    <option value="MONTHLY">Mensual</option>
+                                    <option value="YEARLY">Anual</option>
                                 </select>
                             </div>
 
@@ -235,7 +235,7 @@ export const PlansManagement = () => {
                                     onClick={() => setIsModalOpen(false)}
                                     className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
                                 >
-                                    Cancel
+                                    Cancelar
                                 </button>
                                 <button
                                     type="submit"
@@ -243,7 +243,7 @@ export const PlansManagement = () => {
                                     className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg flex items-center gap-2"
                                 >
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                    Save Plan
+                                    Guardar Plan
                                 </button>
                             </div>
                         </form>

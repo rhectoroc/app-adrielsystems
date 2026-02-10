@@ -41,15 +41,15 @@ export const ClientLayout = () => {
                 <nav className="mt-6 flex-1 px-4 space-y-2">
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/client" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
                         <LayoutDashboard className="w-5 h-5 mr-3 text-gray-500 group-hover:text-primary transition-colors" />
-                        Dashboard
+                        Panel
                     </Link>
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/client/payments" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
                         <CreditCard className="w-5 h-5 mr-3 text-gray-500 group-hover:text-secondary transition-colors" />
-                        Payments
+                        Pagos
                     </Link>
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/client/support" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
                         <LifeBuoy className="w-5 h-5 mr-3 text-gray-500 group-hover:text-blue-400 transition-colors" />
-                        Support
+                        Soporte
                     </Link>
                 </nav>
                 <div className="p-4 border-t border-white/10">
@@ -58,7 +58,7 @@ export const ClientLayout = () => {
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
                     >
                         <LogOut className="w-4 h-4 mr-2" />
-                        Sign Out
+                        Cerrar Sesión
                     </button>
                 </div>
             </aside>

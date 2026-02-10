@@ -72,7 +72,7 @@ export const PaymentsManagement = () => {
             }
         } catch (error) {
             console.error('Error fetching data:', error);
-            toast.error('Error loading data');
+            toast.error('Error cargando datos');
         }
     };
 
@@ -171,15 +171,15 @@ export const PaymentsManagement = () => {
                 ? await api.put(`/api/payments/${currentPaymentId}`, payload)
                 : await api.post('/api/payments', payload);
 
-            if (!response.ok) throw new Error(editMode ? 'Failed to update payment' : 'Failed to register payment');
+            if (!response.ok) throw new Error(editMode ? 'Error al actualizar el pago' : 'Error al registrar el pago');
 
-            toast.success(editMode ? 'Payment updated successfully' : 'Payment registered successfully');
+            toast.success(editMode ? 'Pago actualizado exitosamente' : 'Pago registrado exitosamente');
             setIsModalOpen(false);
             setEditMode(false);
             setCurrentPaymentId(null);
             setRefreshTrigger(prev => prev + 1);
         } catch (error) {
-            toast.error(editMode ? 'Error updating payment' : 'Error registering payment');
+            toast.error(editMode ? 'Error al actualizar el pago' : 'Error al registrar el pago');
         } finally {
             setIsSubmitting(false);
         }
@@ -296,8 +296,8 @@ export const PaymentsManagement = () => {
             )}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-white font-heading">Payments Management</h2>
-                    <p className="text-gray-400">Track and manage all client payments.</p>
+                    <h2 className="text-2xl font-bold text-white font-heading">Gestión de Pagos</h2>
+                    <p className="text-gray-400">Rastrea y gestiona todos los pagos de clientes.</p>
                 </div>
                 <div className="flex gap-3">
                     <button
@@ -312,7 +312,7 @@ export const PaymentsManagement = () => {
                         className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors text-sm font-medium"
                     >
                         <Plus className="w-4 h-4" />
-                        Register Payment
+                        Registrar Pago
                     </button>
                 </div>
             </div>
@@ -322,13 +322,13 @@ export const PaymentsManagement = () => {
                 <div className="flex flex-wrap gap-4 items-center w-full md:w-auto">
                     {/* Client Filter */}
                     <div className="space-y-1">
-                        <label className="text-xs text-gray-400">Client</label>
+                        <label className="text-xs text-gray-400">Cliente</label>
                         <select
                             value={filterClient}
                             onChange={(e) => setFilterClient(e.target.value)}
                             className="w-full md:w-48 px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-sm text-white focus:border-primary focus:outline-none"
                         >
-                            <option value="">All Clients</option>
+                            <option value="">Todos los Clientes</option>
                             {clients.map(client => (
                                 <option key={client.id} value={client.id}>{client.name}</option>
                             ))}
@@ -337,7 +337,7 @@ export const PaymentsManagement = () => {
 
                     {/* Month Filter */}
                     <div className="space-y-1">
-                        <label className="text-xs text-gray-400">Month</label>
+                        <label className="text-xs text-gray-400">Mes</label>
                         <input
                             type="month"
                             value={filterMonth}
@@ -355,7 +355,7 @@ export const PaymentsManagement = () => {
                             }}
                             className="mt-5 text-xs text-gray-400 hover:text-white underline"
                         >
-                            Clear Filters
+                            Limpiar Filtros
                         </button>
                     )}
                 </div>
@@ -382,28 +382,28 @@ export const PaymentsManagement = () => {
                     <table className="w-full">
                         <thead className="bg-white/5 border-b border-white/10">
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Client</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Service</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Amount</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Payment Date</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Due Date</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Method</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Cliente</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Servicio</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Monto</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Fecha Pago</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Fecha Venc.</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Estado</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Método</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/10">
                             {filteredPayments.length === 0 ? (
                                 <tr>
                                     <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                                        No payments found
+                                        No se encontraron pagos
                                     </td>
                                 </tr>
                             ) : (
                                 filteredPayments.map((payment) => (
                                     <tr key={payment.id} className="hover:bg-white/5 transition-colors">
                                         <td className="px-4 py-3 text-sm text-white">{payment.client_name || `Client #${payment.client_id}`}</td>
-                                        <td className="px-4 py-3 text-sm text-gray-400">{payment.service_name || (payment.service_id ? `Service #${payment.service_id}` : 'General / No Service')}</td>
+                                        <td className="px-4 py-3 text-sm text-gray-400">{payment.service_name || (payment.service_id ? `Servicio #${payment.service_id}` : 'General / Sin Servicio')}</td>
                                         <td className="px-4 py-3 text-sm font-medium text-white">
                                             {payment.currency} {payment.amount}
                                         </td>
@@ -424,7 +424,7 @@ export const PaymentsManagement = () => {
                                                 onClick={() => handleEditClick(payment)}
                                                 className="text-primary hover:text-primary/80 transition-colors font-medium"
                                             >
-                                                Edit
+                                                Editar
                                             </button>
                                         </td>
                                     </tr>
@@ -441,7 +441,7 @@ export const PaymentsManagement = () => {
                     <div className="relative w-full max-w-2xl bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl p-6">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-xl font-bold text-white font-heading">
-                                {editMode ? 'Edit Payment' : 'Register Payment'}
+                                {editMode ? 'Editar Pago' : 'Registrar Pago'}
                             </h3>
                             <button
                                 onClick={() => setIsModalOpen(false)}
@@ -453,7 +453,7 @@ export const PaymentsManagement = () => {
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Client *</label>
+                                    <label className="text-sm font-medium text-gray-300">Cliente *</label>
                                     <select
                                         name="client_id"
                                         value={formData.client_id}
@@ -461,14 +461,14 @@ export const PaymentsManagement = () => {
                                         required
                                         className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
                                     >
-                                        <option value="">Select client</option>
+                                        <option value="">Seleccionar cliente</option>
                                         {clients.map(client => (
                                             <option key={client.id} value={client.id}>{client.name}</option>
                                         ))}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Service *</label>
+                                    <label className="text-sm font-medium text-gray-300">Servicio *</label>
                                     <select
                                         name="service_id"
                                         value={formData.service_id}
@@ -477,14 +477,14 @@ export const PaymentsManagement = () => {
                                         disabled={!formData.client_id}
                                         className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none disabled:opacity-50"
                                     >
-                                        <option value="">Select service</option>
+                                        <option value="">Seleccionar servicio</option>
                                         {services.map(service => (
                                             <option key={service.id} value={service.id}>{service.name}</option>
                                         ))}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Amount *</label>
+                                    <label className="text-sm font-medium text-gray-300">Monto *</label>
                                     <input
                                         type="number"
                                         name="amount"
@@ -496,7 +496,7 @@ export const PaymentsManagement = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Currency *</label>
+                                    <label className="text-sm font-medium text-gray-300">Moneda *</label>
                                     <select
                                         name="currency"
                                         value={formData.currency}
@@ -509,7 +509,7 @@ export const PaymentsManagement = () => {
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Payment Date *</label>
+                                    <label className="text-sm font-medium text-gray-300">Fecha de Pago *</label>
                                     <input
                                         type="date"
                                         name="payment_date"
@@ -520,7 +520,7 @@ export const PaymentsManagement = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Due Date *</label>
+                                    <label className="text-sm font-medium text-gray-300">Fecha de Vencimiento *</label>
                                     <input
                                         type="date"
                                         name="due_date"
@@ -531,7 +531,7 @@ export const PaymentsManagement = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Status *</label>
+                                    <label className="text-sm font-medium text-gray-300">Estado *</label>
                                     <select
                                         name="status"
                                         value={formData.status}
@@ -544,20 +544,20 @@ export const PaymentsManagement = () => {
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Payment Method</label>
+                                    <label className="text-sm font-medium text-gray-300">Método de Pago</label>
                                     <select
                                         name="payment_method"
                                         value={formData.payment_method}
                                         onChange={handleInputChange}
                                         className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
                                     >
-                                        <option value="">Select method</option>
+                                        <option value="">Seleccionar método</option>
                                         <option value="PayPal">PayPal</option>
                                         <option value="Zelle">Zelle</option>
-                                        <option value="Pago Movil">Pago Movil</option>
-                                        <option value="Bank Transfer">Bank Transfer</option>
-                                        <option value="Cash">Cash</option>
-                                        <option value="Other">Other</option>
+                                        <option value="Pago Movil">Pago Móvil</option>
+                                        <option value="Bank Transfer">Transferencia Bancaria</option>
+                                        <option value="Cash">Efectivo</option>
+                                        <option value="Other">Otro</option>
                                     </select>
                                 </div>
                             </div>
@@ -578,7 +578,7 @@ export const PaymentsManagement = () => {
                                     onClick={() => setIsModalOpen(false)}
                                     className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
                                 >
-                                    Cancel
+                                    Cancelar
                                 </button>
                                 <button
                                     type="submit"
@@ -590,7 +590,7 @@ export const PaymentsManagement = () => {
                                     ) : (
                                         <Save className="w-4 h-4" />
                                     )}
-                                    {isSubmitting ? 'Saving...' : (editMode ? 'Update Payment' : 'Register Payment')}
+                                    {isSubmitting ? 'Guardando...' : (editMode ? 'Actualizar Pago' : 'Registrar Pago')}
                                 </button>
                             </div>
                         </form>

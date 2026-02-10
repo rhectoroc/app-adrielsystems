@@ -114,7 +114,7 @@ export const ClientsManagement = () => {
                 throw new Error(data.message || 'Failed to save client');
             }
 
-            toast.success(editMode ? 'Client updated successfully' : 'Client created successfully');
+            toast.success(editMode ? 'Cliente actualizado exitosamente' : 'Cliente creado exitosamente');
             setIsModalOpen(false);
             setFormData({
                 name: '',
@@ -144,8 +144,8 @@ export const ClientsManagement = () => {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-white font-heading">Clients Management</h2>
-                    <p className="text-gray-400">View and manage client accounts.</p>
+                    <h2 className="text-2xl font-bold text-white font-heading">Gestión de Clientes</h2>
+                    <p className="text-gray-400">Ver y gestionar cuentas de clientes.</p>
                 </div>
             </div>
 
@@ -158,7 +158,7 @@ export const ClientsManagement = () => {
                         {/* Header */}
                         <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5 sticky top-0 backdrop-blur-xl z-10">
                             <h3 className="text-xl font-bold text-white font-heading">
-                                {editMode ? 'Edit Client' : 'Add New Client'}
+                                {editMode ? 'Editar Cliente' : 'Agregar Nuevo Cliente'}
                             </h3>
                             <button
                                 onClick={() => setIsModalOpen(false)}
@@ -172,7 +172,7 @@ export const ClientsManagement = () => {
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Full Name</label>
+                                    <label className="text-sm font-medium text-gray-300">Nombre Completo</label>
                                     <input
                                         type="text"
                                         name="name"
@@ -183,7 +183,7 @@ export const ClientsManagement = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Company Name</label>
+                                    <label className="text-sm font-medium text-gray-300">Nombre de Empresa</label>
                                     <input
                                         type="text"
                                         name="company_name"
@@ -196,7 +196,7 @@ export const ClientsManagement = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Email</label>
+                                    <label className="text-sm font-medium text-gray-300">Correo Electrónico</label>
                                     <input
                                         type="email"
                                         name="email"
@@ -207,7 +207,7 @@ export const ClientsManagement = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Phone</label>
+                                    <label className="text-sm font-medium text-gray-300">Teléfono</label>
                                     <input
                                         type="text"
                                         name="phone"
@@ -220,7 +220,7 @@ export const ClientsManagement = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Domain</label>
+                                    <label className="text-sm font-medium text-gray-300">Dominio</label>
                                     <input
                                         type="text"
                                         name="domain"
@@ -231,7 +231,7 @@ export const ClientsManagement = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Country</label>
+                                    <label className="text-sm font-medium text-gray-300">País</label>
                                     <input
                                         type="text"
                                         name="country"
@@ -244,7 +244,7 @@ export const ClientsManagement = () => {
 
                             {!editMode && (
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Password</label>
+                                    <label className="text-sm font-medium text-gray-300">Contraseña</label>
                                     <input
                                         type="password"
                                         name="password"
@@ -257,14 +257,14 @@ export const ClientsManagement = () => {
                             )}
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Plan / Service</label>
+                                <label className="text-sm font-medium text-gray-300">Plan / Servicio</label>
                                 <select
                                     name="service_name"
                                     value={formData.service_name}
                                     onChange={handleInputChange}
                                     className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
                                 >
-                                    <option value="">Select a Plan</option>
+                                    <option value="">Seleccionar un Plan</option>
                                     {plans.map(plan => (
                                         <option key={plan.id} value={plan.name}>
                                             {plan.name} ({plan.cost} {plan.currency})
@@ -274,7 +274,7 @@ export const ClientsManagement = () => {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Notes</label>
+                                <label className="text-sm font-medium text-gray-300">Notas</label>
                                 <textarea
                                     name="notes"
                                     value={formData.notes}
@@ -290,7 +290,7 @@ export const ClientsManagement = () => {
                                     onClick={() => setIsModalOpen(false)}
                                     className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors"
                                 >
-                                    Cancel
+                                    Cancelar
                                 </button>
                                 <button
                                     type="submit"
@@ -298,7 +298,7 @@ export const ClientsManagement = () => {
                                     className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
                                 >
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                    {editMode ? 'Update Client' : 'Create Client'}
+                                    {editMode ? 'Actualizar Cliente' : 'Crear Cliente'}
                                 </button>
                             </div>
                         </form>

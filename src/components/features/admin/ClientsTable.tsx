@@ -62,7 +62,7 @@ export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: Cl
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                         type="text"
-                        placeholder="Search clients..."
+                        placeholder="Buscar clientes..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 bg-black/20 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-primary/50 text-white placeholder-gray-500"
@@ -73,7 +73,7 @@ export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: Cl
                     className="flex items-center justify-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors text-sm font-medium"
                 >
                     <Plus className="w-4 h-4" />
-                    Add Client
+                    Agregar Cliente
                 </button>
             </div>
 
@@ -82,12 +82,12 @@ export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: Cl
                     <table className="w-full text-left">
                         <thead>
                             <tr className="border-b border-white/10 text-gray-400 text-sm">
-                                <th className="p-4 font-medium">Name/Company</th>
-                                <th className="p-4 font-medium">Contact</th>
-                                <th className="p-4 font-medium">Location/Domain</th>
-                                <th className="p-4 font-medium">Service</th>
-                                <th className="p-4 font-medium">Service</th>
-                                <th className="p-4 font-medium">Joined</th>
+                                <th className="p-4 font-medium">Nombre/Empresa</th>
+                                <th className="p-4 font-medium">Contacto</th>
+                                <th className="p-4 font-medium">Ubicación/Dominio</th>
+                                <th className="p-4 font-medium">Servicio</th>
+                                <th className="p-4 font-medium">Estado</th>
+                                <th className="p-4 font-medium">Registrado</th>
                                 <th className="p-4 font-medium w-10"></th>
                             </tr>
                         </thead>
@@ -96,13 +96,13 @@ export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: Cl
                                 <tr>
                                     <td colSpan={5} className="p-8 text-center text-gray-400">
                                         <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                                        Loading clients...
+                                        Cargando clientes...
                                     </td>
                                 </tr>
                             ) : filteredClients.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="p-8 text-center text-gray-400">
-                                        No clients found.
+                                        No se encontraron clientes.
                                     </td>
                                 </tr>
                             ) : (
@@ -148,7 +148,7 @@ export const ClientsTable = ({ onAddClick, onEditClick, refreshTrigger = 0 }: Cl
                                         </td>
                                         <td className="p-4">
                                             <div className="flex flex-col">
-                                                <span className="text-sm text-white">{client.service_name || 'No Service'}</span>
+                                                <span className="text-sm text-white">{client.service_name || 'Sin Servicio'}</span>
                                                 {client.service_status && (
                                                     <span className={`text-xs mt-1 w-fit px-2 py-0.5 rounded-full ${client.service_status === 'ACTIVE' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
                                                         }`}>

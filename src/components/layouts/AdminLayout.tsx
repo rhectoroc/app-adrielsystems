@@ -35,29 +35,29 @@ export const AdminLayout = () => {
                 <div className="p-6 mt-14 md:mt-0">
                     <div className="flex items-center gap-2">
                         <img src="/logo.png" alt="Logo" className="h-6 opacity-80" />
-                        <h1 className="text-lg font-bold font-heading tracking-wider">Admin Console</h1>
+                        <h1 className="text-lg font-bold font-heading tracking-wider">Consola Admin</h1>
                     </div>
                 </div>
                 <nav className="mt-6 flex-1 px-4 space-y-2">
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
                         <BarChart3 className="w-5 h-5 mr-3 group-hover:text-primary transition-colors" />
-                        Overview
+                        Resumen
                     </Link>
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/clients" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
                         <Users className="w-5 h-5 mr-3 group-hover:text-secondary transition-colors" />
-                        Clients
+                        Clientes
                     </Link>
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/payments" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
                         <Wallet className="w-5 h-5 mr-3 group-hover:text-yellow-400 transition-colors" />
-                        Payments
+                        Pagos
                     </Link>
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/plans" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
                         <Tag className="w-5 h-5 mr-3 group-hover:text-green-400 transition-colors" />
-                        Plans
+                        Planes
                     </Link>
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/settings" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
                         <Settings className="w-5 h-5 mr-3 group-hover:text-gray-200 transition-colors" />
-                        Settings
+                        Configuración
                     </Link>
                 </nav>
                 <div className="p-4 border-t border-white/10">
@@ -66,7 +66,7 @@ export const AdminLayout = () => {
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
                     >
                         <LogOut className="w-4 h-4 mr-2" />
-                        Sign Out
+                        Cerrar Sesión
                     </button>
                 </div>
             </aside>

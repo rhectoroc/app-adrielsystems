@@ -284,7 +284,14 @@ app.put('/api/plans/:id', authenticateToken, authorizeRole('ADMIN'), async (req,
 app.get('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
-            SELECT p.*, c.name as client_name, c.company_name, c.email as client_email, s.name as service_name
+            SELECT 
+                p.*, 
+                c.name as client_name, 
+                c.company_name, 
+                c.email as client_email, 
+                s.name as service_name,
+                s.cost as service_cost,
+                s.currency as service_currency
             FROM payments p
             JOIN clients c ON p.client_id = c.id
             LEFT JOIN services s ON p.service_id = s.id

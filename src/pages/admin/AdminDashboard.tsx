@@ -66,13 +66,13 @@ export const AdminDashboard = () => {
     return (
         <div className="space-y-8">
             <div className="pb-6 border-b border-white/10">
-                <h1 className="text-3xl font-heading font-bold text-white tracking-wide">Admin Dashboard</h1>
-                <p className="text-gray-400 mt-1">System overview and key metrics.</p>
+                <h1 className="text-3xl font-heading font-bold text-white tracking-wide">Panel de Administración</h1>
+                <p className="text-gray-400 mt-1">Resumen del sistema y métricas clave.</p>
             </div>
 
             {/* Payment Summary Widgets */}
             <div className="space-y-6">
-                <h2 className="text-xl font-bold text-white">Payment Overview</h2>
+                <h2 className="text-xl font-bold text-white">Resumen de Pagos</h2>
                 <PaymentSummaryWidget />
             </div>
 
@@ -80,7 +80,7 @@ export const AdminDashboard = () => {
                 {/* Metric Card 1 */}
                 <div className="glass-card flex items-center justify-between group hover:border-primary/30 transition-all">
                     <div>
-                        <h3 className="text-sm font-medium text-gray-400">Total Clients</h3>
+                        <h3 className="text-sm font-medium text-gray-400">Total Clientes</h3>
                         <p className="mt-2 text-3xl font-bold text-white group-hover:text-primary transition-colors">{stats.totalClients}</p>
                     </div>
                     <div className="p-3 bg-primary/10 rounded-full text-primary">
@@ -91,7 +91,7 @@ export const AdminDashboard = () => {
                 {/* Metric Card 2 */}
                 <div className="glass-card flex items-center justify-between group hover:border-secondary/30 transition-all">
                     <div>
-                        <h3 className="text-sm font-medium text-gray-400">Total Revenue</h3>
+                        <h3 className="text-sm font-medium text-gray-400">Ingresos Totales</h3>
                         <p className="mt-2 text-3xl font-bold text-white group-hover:text-secondary transition-colors">${stats.monthlyRevenue.toLocaleString()}</p>
                     </div>
                     <div className="p-3 bg-secondary/10 rounded-full text-secondary">
@@ -102,7 +102,7 @@ export const AdminDashboard = () => {
                 {/* Metric Card 3 */}
                 <div className="glass-card flex items-center justify-between group hover:border-red-500/30 transition-all">
                     <div>
-                        <h3 className="text-sm font-medium text-gray-400">Pending Payments</h3>
+                        <h3 className="text-sm font-medium text-gray-400">Pagos Pendientes</h3>
                         <p className="mt-2 text-3xl font-bold text-white group-hover:text-red-500 transition-colors">{stats.pendingPayments}</p>
                     </div>
                     <div className="p-3 bg-red-500/10 rounded-full text-red-500">
@@ -119,9 +119,9 @@ export const AdminDashboard = () => {
 
             {/* Recent Activity or Placeholder */}
             <div className="glass-card">
-                <h3 className="text-lg font-heading font-semibold text-gray-100 mb-4">Recent System Activity</h3>
+                <h3 className="text-lg font-heading font-semibold text-gray-100 mb-4">Actividad Reciente del Sistema</h3>
                 <div className="text-gray-400 text-sm italic">
-                    No recent activity logs available.
+                    No hay registros de actividad reciente disponibles.
                 </div>
             </div>
         </div>
