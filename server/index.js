@@ -15,7 +15,29 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize Database Table
+const initDb = async () => {
+    try {
+        await query(`
+            CREATE TABLE IF NOT EXISTS notification_logs (
+                id SERIAL PRIMARY KEY,
+                client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+                type VARCHAR(50) NOT NULL,
+                channel VARCHAR(50) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'SENT',
+                sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('Database initialized: notification_logs table ready.');
+    } catch (err) {
+        console.error('Error initializing database:', err);
+    }
+};
+
+initDb();
 
 // Middleware
 app.use(cors());
