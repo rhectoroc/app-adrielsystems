@@ -126,7 +126,7 @@ export const PaymentsManagement = () => {
             client_id: clientId,
             service_id: serviceId,
             amount: payment.amount.toString(),
-            currency: payment.currency,
+            currency: payment.currency || 'USD',
             payment_date: new Date(payment.payment_date).toISOString().split('T')[0],
             due_date: new Date(payment.due_date).toISOString().split('T')[0],
             status: translateStatus(payment.status) as 'PAGADO' | 'PENDIENTE' | 'VENCIDO',
