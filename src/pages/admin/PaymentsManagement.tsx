@@ -49,6 +49,8 @@ interface Service {
     client_id: number;
     special_price?: number;
     cost: number;
+    expiration_date?: string;
+    billing_day_fixed?: number;
 }
 
 export const PaymentsManagement = () => {
@@ -59,6 +61,11 @@ export const PaymentsManagement = () => {
     // Filter State for Clients Table
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<string>('ALL');
+
+    // Stats State
+    const [overdueTotal, setOverdueTotal] = useState(0);
+    const [monthlyIncome, setMonthlyIncome] = useState(0);
+    const [pendingPayments, setPendingPayments] = useState(0);
 
     // View State (Non-modal approach)
     const [viewMode, setViewMode] = useState<'LIST' | 'DETAIL'>('LIST');
@@ -94,7 +101,22 @@ export const PaymentsManagement = () => {
 
     useEffect(() => {
         fetchClients();
+        fetchDashboardStats();
     }, [refreshTrigger]);
+
+    const fetchDashboardStats = async () => {
+        try {
+            const response = await api.get('/api/stats');
+            if (response.ok) {
+                const stats = await response.json();
+                setOverdueTotal(stats.overdueAmount || 0);
+                setMonthlyIncome(stats.monthlyIncome || 0);
+                setPendingPayments(stats.pendingAmount || 0);
+            }
+        } catch (error) {
+            console.error('Error fetching dashboard stats');
+        }
+    };
 
     const fetchClients = async () => {
         try {
@@ -362,6 +384,54 @@ export const PaymentsManagement = () => {
                                 <Plus className="w-5 h-5" />
                                 Registrar Pago General
                             </button>
+                        </div>
+
+                        {/* Stats Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <motion.div
+                                whileHover={{ y: -5 }}
+                                className="glass-card p-6 border-l-4 border-red-500/50 relative overflow-hidden group"
+                            >
+                                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                    <TrendingUp className="w-12 h-12 text-red-500" />
+                                </div>
+                                <div className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] mb-1">Cuentas por Cobrar (Mora)</div>
+                                <div className="text-3xl font-black text-white font-heading">${overdueTotal.toLocaleString()}</div>
+                                <div className="mt-2 flex items-center gap-2 text-[10px] text-red-400/80 font-bold bg-red-500/10 w-fit px-2 py-0.5 rounded-full border border-red-500/20">
+                                    <AlertCircle className="w-3 h-3" />
+                                    Requiere Acción Inmediata
+                                </div>
+                            </motion.div>
+
+                            <motion.div
+                                whileHover={{ y: -5 }}
+                                className="glass-card p-6 border-l-4 border-primary/50 relative overflow-hidden group"
+                            >
+                                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                    <TrendingUp className="w-12 h-12 text-primary" />
+                                </div>
+                                <div className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] mb-1">Ingresos Registrados (Mes Actual)</div>
+                                <div className="text-3xl font-black text-primary font-heading">${monthlyIncome.toLocaleString()}</div>
+                                <div className="mt-2 flex items-center gap-2 text-[10px] text-primary/80 font-bold bg-primary/10 w-fit px-2 py-0.5 rounded-full border border-primary/20">
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    Corte al día 30
+                                </div>
+                            </motion.div>
+
+                            <motion.div
+                                whileHover={{ y: -5 }}
+                                className="glass-card p-6 border-l-4 border-yellow-500/50 relative overflow-hidden group"
+                            >
+                                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                    <TrendingUp className="w-12 h-12 text-yellow-500" />
+                                </div>
+                                <div className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] mb-1">Facturación Pendiente (Próximos)</div>
+                                <div className="text-3xl font-black text-white font-heading">${pendingPayments.toLocaleString()}</div>
+                                <div className="mt-2 flex items-center gap-2 text-[10px] text-yellow-500/80 font-bold bg-yellow-500/10 w-fit px-2 py-0.5 rounded-full border border-yellow-500/20">
+                                    <Calendar className="w-3 h-3" />
+                                    Próximos Vencimientos
+                                </div>
+                            </motion.div>
                         </div>
 
                         {/* Filters Card */}
@@ -732,6 +802,26 @@ export const PaymentsManagement = () => {
                                                                 className="w-full pl-8 pr-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white font-bold focus:border-primary/50 focus:outline-none transition-all"
                                                             />
                                                         </div>
+                                                        {(() => {
+                                                            const selectedService = services.find(s => s.id.toString() === formData.service_id);
+                                                            if (selectedService && selectedService.expiration_date) {
+                                                                const exp = new Date(selectedService.expiration_date);
+                                                                if (exp.getDate() !== 30) {
+                                                                    // Simple calculation for UI suggestion
+                                                                    const daysInMonth = new Date(exp.getFullYear(), exp.getMonth() + 1, 0).getDate();
+                                                                    const daysLeft = 30 - exp.getDate();
+                                                                    const monthly = Number(selectedService.special_price) || Number(selectedService.cost) || 0;
+                                                                    const suggested = ((monthly / daysInMonth) * Math.max(0, daysLeft)).toFixed(2);
+
+                                                                    return suggested !== "0.00" && (
+                                                                        <p className="text-[10px] text-primary/80 italic mt-1 px-1">
+                                                                            💡 Ajuste sugerido al día 30: <strong>${suggested}</strong>
+                                                                        </p>
+                                                                    );
+                                                                }
+                                                            }
+                                                            return null;
+                                                        })()}
                                                     </div>
                                                     <div className="space-y-2">
                                                         <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Meses Cubiertos *</label>

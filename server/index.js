@@ -122,18 +122,23 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
         const clientsRes = await query('SELECT COUNT(*) FROM clients');
         stats.totalClients = parseInt(clientsRes.rows[0].count);
 
-        // 2. Active Services
-        const servicesRes = await query("SELECT COUNT(*) FROM services WHERE status = 'ACTIVE'");
-        stats.activeServices = parseInt(servicesRes.rows[0].count);
-
-        // 3. Pending Payments (Count & Amount)
-        // Check for both 'PENDIENTE' and 'PENDING' to be safe, though we standardized on 'PENDIENTE'
-        const pendingRes = await query(`
-            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total 
-            FROM payments 
-            WHERE status IN ('PENDIENTE', 'PENDING', 'VENCIDO', 'OVERDUE')
+        // 2. Overdue Amount (Actual Morosos: Expiration + 7 days < Today)
+        const overdueRes = await query(`
+            SELECT COALESCE(SUM(COALESCE(special_price, cost)), 0) as total 
+            FROM services 
+            WHERE status = 'ACTIVE' 
+            AND (expiration_date IS NULL OR (expiration_date + INTERVAL '7 days') < CURRENT_DATE)
         `);
-        stats.pendingPayments = parseInt(pendingRes.rows[0].count);
+        stats.overdueAmount = parseFloat(overdueRes.rows[0].total);
+
+        // 3. Pending Amount (Within Grace: Expiration < Today but Expiration + 7 >= Today)
+        const pendingRes = await query(`
+            SELECT COALESCE(SUM(COALESCE(special_price, cost)), 0) as total 
+            FROM services 
+            WHERE status = 'ACTIVE' 
+            AND expiration_date < CURRENT_DATE 
+            AND (expiration_date + INTERVAL '7 days') >= CURRENT_DATE
+        `);
         stats.pendingAmount = parseFloat(pendingRes.rows[0].total);
 
         // 4. Monthly Income (Paid payments in current month)
@@ -141,8 +146,7 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
             SELECT COALESCE(SUM(amount), 0) as total 
             FROM payments 
             WHERE status IN ('PAGADO', 'PAID') 
-            AND EXTRACT(MONTH FROM payment_date) = EXTRACT(MONTH FROM CURRENT_DATE)
-            AND EXTRACT(YEAR FROM payment_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+            AND DATE_TRUNC('month', payment_date) = DATE_TRUNC('month', CURRENT_DATE)
         `);
         stats.monthlyIncome = parseFloat(incomeRes.rows[0].total);
 
@@ -157,38 +161,39 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
 app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
-            SELECT c.*, u.email as user_email, u.role, 
-                   COALESCE(
-                       json_agg(
-                           json_build_object(
-                               'id', s.id,
-                               'name', s.name,
-                               'cost', s.cost,
-                               'special_price', s.special_price,
-                               'currency', s.currency,
-                               'status', s.status,
-                               'expiration_date', s.expiration_date,
-                               'payment_status', CASE 
-                                   WHEN s.expiration_date IS NULL OR s.expiration_date < CURRENT_DATE THEN 'OVERDUE'
-                                   WHEN s.expiration_date <= CURRENT_DATE + INTERVAL '7 days' THEN 'UPCOMING'
+            SELECT c.*, u.email as user_email, u.role,
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'id', s.id,
+                        'name', s.name,
+                        'cost', s.cost,
+                        'special_price', s.special_price,
+                        'currency', s.currency,
+                        'status', s.status,
+                        'expiration_date', s.expiration_date,
+                        'payment_status', CASE 
+                                   --Grace period: 5 business days ≈ 7 calendar days
+                                   WHEN s.expiration_date IS NULL OR(s.expiration_date + INTERVAL '7 days') < CURRENT_DATE THEN 'OVERDUE'
+                                   WHEN(s.expiration_date + INTERVAL '7 days') <= CURRENT_DATE + INTERVAL '7 days' AND(s.expiration_date + INTERVAL '7 days') >= CURRENT_DATE THEN 'UPCOMING'
                                    ELSE 'PAID'
                                END
-                           )
-                       ) FILTER (WHERE s.id IS NOT NULL),
-                       '[]'
-                   ) as services,
-                   COALESCE(SUM(COALESCE(s.special_price, s.cost)) FILTER (WHERE s.status = 'ACTIVE'), 0) as total_monthly,
-                   -- Backward compatibility: string of service names
-                   COALESCE(string_agg(s.name, ', ') FILTER (WHERE s.status = 'ACTIVE'), 'Sin Servicio') as service_name,
-                   -- General status: worst status among services (OVERDUE > UPCOMING > PAID)
-                   COALESCE(
-                       (SELECT 
+                    )
+                ) FILTER(WHERE s.id IS NOT NULL),
+                '[]'
+            ) as services,
+            COALESCE(SUM(COALESCE(s.special_price, s.cost)) FILTER(WHERE s.status = 'ACTIVE'), 0) as total_monthly,
+            --Backward compatibility: string of service names
+        COALESCE(string_agg(s.name, ', ') FILTER(WHERE s.status = 'ACTIVE'), 'Sin Servicio') as service_name,
+            --General status: worst status among services(OVERDUE > UPCOMING > PAID)
+        COALESCE(
+            (SELECT 
                            CASE 
-                               WHEN EXISTS (SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND (s2.expiration_date IS NULL OR s2.expiration_date < CURRENT_DATE)) THEN 'OVERDUE'
-                               WHEN EXISTS (SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND s2.expiration_date <= CURRENT_DATE + INTERVAL '7 days') THEN 'UPCOMING'
+                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND(s2.expiration_date IS NULL OR(s2.expiration_date + INTERVAL '7 days') < CURRENT_DATE)) THEN 'OVERDUE'
+                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND(s2.expiration_date + INTERVAL '7 days') <= CURRENT_DATE + INTERVAL '7 days' AND(s2.expiration_date + INTERVAL '7 days') >= CURRENT_DATE) THEN 'UPCOMING'
                                ELSE 'PAID'
                            END
-                       ), 'PAID'
+        ), 'PAID'
                    ) as payment_status
             FROM clients c
             LEFT JOIN users u ON u.client_id = c.id
@@ -211,8 +216,8 @@ app.post('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, 
 
         // 1. Create Client
         const clientResult = await query(
-            `INSERT INTO clients (name, company_name, email, phone, domain, country, notes) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+            `INSERT INTO clients(name, company_name, email, phone, domain, country, notes)
+VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
             [name, company_name, email, phone, domain, country, notes]
         );
         const clientId = clientResult.rows[0].id;
@@ -232,16 +237,16 @@ app.post('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, 
         if (services.length > 0) {
             for (const service of services) {
                 await query(
-                    `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price, expiration_date) 
-                     VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5, CURRENT_DATE + interval '1 month')`,
+                    `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed)
+VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, (DATE_TRUNC('month', CURRENT_DATE) + (LEAST(30, EXTRACT(DAY FROM(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')):: int) - 1) * INTERVAL '1 day'):: DATE, 30)`,
                     [clientId, service.name, service.cost || 0, service.currency || 'USD', service.special_price || null]
                 );
             }
         } else if (service_name) {
             // Backward compatibility for single service
             await query(
-                `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price, expiration_date) 
-                 VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5, CURRENT_DATE + interval '1 month')`,
+                `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed)
+VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, (DATE_TRUNC('month', CURRENT_DATE) + (LEAST(30, EXTRACT(DAY FROM(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')):: int) - 1) * INTERVAL '1 day'):: DATE, 30)`,
                 [clientId, service_name, cost || 0, currency || 'USD', req.body.special_price || null]
             );
         }
@@ -306,8 +311,8 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
                 } else {
                     // Create new service
                     await query(
-                        `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price, expiration_date) 
-                         VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5, CURRENT_DATE + interval '1 month')`,
+                        `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed)
+VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, (DATE_TRUNC('month', CURRENT_DATE) + (LEAST(30, EXTRACT(DAY FROM(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')):: int) - 1) * INTERVAL '1 day'):: DATE, 30)`,
                         [id, service.name, service.cost || 0, service.currency || 'USD', service.special_price || null]
                     );
                 }
@@ -328,8 +333,8 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
                 );
             } else {
                 await query(
-                    `INSERT INTO services (client_id, name, cost, currency, status, renewal_day, special_price) 
-                     VALUES ($1, $2, $3, $4, 'ACTIVE', 1, $5)`,
+                    `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed)
+VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, (DATE_TRUNC('month', CURRENT_DATE) + (LEAST(30, EXTRACT(DAY FROM(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')):: int) - 1) * INTERVAL '1 day'):: DATE, 30)`,
                     [id, service_name, cost || 0, currency || 'USD', req.body.special_price || null]
                 );
             }
@@ -390,19 +395,19 @@ app.put('/api/plans/:id', authenticateToken, authorizeRole('ADMIN'), async (req,
 app.get('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
-            SELECT 
-                p.*, 
-                c.name as client_name, 
-                c.company_name, 
-                c.email as client_email, 
-                COALESCE(s.name, (SELECT name FROM services WHERE client_id = p.client_id ORDER BY id DESC LIMIT 1)) as service_name,
-                COALESCE(s.cost, (SELECT cost FROM services WHERE client_id = p.client_id ORDER BY id DESC LIMIT 1)) as service_cost,
-                COALESCE(s.currency, (SELECT currency FROM services WHERE client_id = p.client_id ORDER BY id DESC LIMIT 1)) as service_currency
+SELECT
+p.*,
+    c.name as client_name,
+    c.company_name,
+    c.email as client_email,
+    COALESCE(s.name, (SELECT name FROM services WHERE client_id = p.client_id ORDER BY id DESC LIMIT 1)) as service_name,
+        COALESCE(s.cost, (SELECT cost FROM services WHERE client_id = p.client_id ORDER BY id DESC LIMIT 1)) as service_cost,
+            COALESCE(s.currency, (SELECT currency FROM services WHERE client_id = p.client_id ORDER BY id DESC LIMIT 1)) as service_currency
             FROM payments p
             JOIN clients c ON p.client_id = c.id
             LEFT JOIN services s ON p.service_id = s.id
             ORDER BY p.payment_date DESC
-        `);
+    `);
         res.json(result.rows);
     } catch (err) {
         console.error('Error fetching payments:', err);
@@ -420,15 +425,15 @@ app.get('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req, 
 app.get('/api/payments/summary', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
-            SELECT 
-                COUNT(CASE WHEN status = 'VENCIDO' THEN 1 END) as overdue_count,
-                COALESCE(SUM(CASE WHEN status = 'VENCIDO' THEN amount ELSE 0 END), 0) as overdue_amount,
-                COUNT(CASE WHEN status = 'PENDIENTE' THEN 1 END) as pending_count,
-                COALESCE(SUM(CASE WHEN status = 'PENDIENTE' THEN amount ELSE 0 END), 0) as pending_amount,
-                COUNT(CASE WHEN status = 'PENDIENTE' AND due_date <= CURRENT_DATE + INTERVAL '7 days' THEN 1 END) as upcoming_count,
-                COALESCE(SUM(CASE WHEN status = 'PENDIENTE' AND due_date <= CURRENT_DATE + INTERVAL '7 days' THEN amount ELSE 0 END), 0) as upcoming_amount
+SELECT
+COUNT(CASE WHEN status = 'VENCIDO' THEN 1 END) as overdue_count,
+    COALESCE(SUM(CASE WHEN status = 'VENCIDO' THEN amount ELSE 0 END), 0) as overdue_amount,
+    COUNT(CASE WHEN status = 'PENDIENTE' THEN 1 END) as pending_count,
+    COALESCE(SUM(CASE WHEN status = 'PENDIENTE' THEN amount ELSE 0 END), 0) as pending_amount,
+    COUNT(CASE WHEN status = 'PENDIENTE' AND due_date <= CURRENT_DATE + INTERVAL '7 days' THEN 1 END) as upcoming_count,
+    COALESCE(SUM(CASE WHEN status = 'PENDIENTE' AND due_date <= CURRENT_DATE + INTERVAL '7 days' THEN amount ELSE 0 END), 0) as upcoming_amount
             FROM payments
-        `);
+    `);
 
         res.json({
             overdue: {
@@ -454,24 +459,24 @@ app.get('/api/payments/summary', authenticateToken, authorizeRole('ADMIN'), asyn
 app.get('/api/payments/overdue', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
-            SELECT 
-                p.id as payment_id,
-                p.amount,
-                p.currency,
-                p.due_date,
-                p.status,
-                CURRENT_DATE - p.due_date as days_overdue,
-                c.id as client_id,
-                c.name as client_name,
-                c.email as client_email,
-                c.phone as client_phone,
-                s.name as service_name
+SELECT
+p.id as payment_id,
+    p.amount,
+    p.currency,
+    p.due_date,
+    p.status,
+    CURRENT_DATE - p.due_date as days_overdue,
+    c.id as client_id,
+    c.name as client_name,
+    c.email as client_email,
+    c.phone as client_phone,
+    s.name as service_name
             FROM payments p
             JOIN clients c ON p.client_id = c.id
             LEFT JOIN services s ON p.service_id = s.id
             WHERE p.status = 'VENCIDO'
             ORDER BY p.due_date ASC
-        `);
+    `);
 
         res.json(result.rows);
     } catch (err) {
@@ -486,25 +491,25 @@ app.get('/api/payments/upcoming', authenticateToken, authorizeRole('ADMIN'), asy
 
     try {
         const result = await query(`
-            SELECT 
-                p.id as payment_id,
-                p.amount,
-                p.currency,
-                p.due_date,
-                p.status,
-                CAST(p.due_date - CURRENT_DATE AS INTEGER) as days_until_due,
-                c.id as client_id,
-                c.name as client_name,
-                c.email as client_email,
-                c.phone as client_phone,
-                s.name as service_name
+SELECT
+p.id as payment_id,
+    p.amount,
+    p.currency,
+    p.due_date,
+    p.status,
+    CAST(p.due_date - CURRENT_DATE AS INTEGER) as days_until_due,
+    c.id as client_id,
+    c.name as client_name,
+    c.email as client_email,
+    c.phone as client_phone,
+    s.name as service_name
             FROM payments p
             JOIN clients c ON p.client_id = c.id
             LEFT JOIN services s ON p.service_id = s.id
             WHERE p.status = 'PENDIENTE' 
             AND p.due_date <= CURRENT_DATE + INTERVAL '${days} days'
             ORDER BY p.due_date ASC
-        `);
+    `);
 
         res.json(result.rows);
     } catch (err) {
@@ -524,14 +529,14 @@ app.get('/api/payments/client/:clientId', authenticateToken, async (req, res) =>
 
     try {
         const result = await query(`
-            SELECT 
-                p.*,
-                s.name as service_name
+SELECT
+p.*,
+    s.name as service_name
             FROM payments p
             LEFT JOIN services s ON p.service_id = s.id
             WHERE p.client_id = $1
             ORDER BY p.payment_date DESC, p.due_date DESC
-        `, [clientId]);
+    `, [clientId]);
 
         res.json(result.rows);
     } catch (err) {
@@ -549,12 +554,12 @@ app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req,
 
         // Insert payment
         const result = await query(`
-            INSERT INTO payments (client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            RETURNING *
-        `, [client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered]);
+            INSERT INTO payments(client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING *
+    `, [client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered]);
 
-        // Logic for Prepaid Services
+        // Logic for Prepaid Services & Billing Alignment (Unified Policy: Day 30)
         if ((status === 'PAGADO' || status === 'PAID')) {
             const months = parseInt(months_covered) || 1;
             const targetServices = [];
@@ -568,7 +573,7 @@ app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req,
             }
 
             for (const sId of targetServices) {
-                const serviceRes = await query('SELECT expiration_date FROM services WHERE id = $1', [sId]);
+                const serviceRes = await query('SELECT expiration_date, billing_day_fixed FROM services WHERE id = $1', [sId]);
                 const service = serviceRes.rows[0];
 
                 if (!service) continue;
@@ -579,20 +584,44 @@ app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req,
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
-                if (currentExpiration && currentExpiration > today) {
+                const billingDay = service.billing_day_fixed || 30;
+
+                // SPECIAL CASE: Prepaid accounts (more than 1 month ahead)
+                // Do not apply proration logic now, just extend normally
+                const oneMonthFromNow = new Date(today);
+                oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
+
+                if (currentExpiration && currentExpiration > oneMonthFromNow) {
                     newExpirationDate = new Date(currentExpiration);
                     newExpirationDate.setMonth(newExpirationDate.getMonth() + months);
-                } else {
-                    newExpirationDate = new Date(paymentDateObj);
+                } else if (currentExpiration && currentExpiration.getDate() !== billingDay) {
+                    // PRORATION LOGIC: If not aligned to day 30, align it to the NEXT day 30
+                    // This is the "Transition Payment"
+                    newExpirationDate = new Date(currentExpiration > today ? currentExpiration : paymentDateObj);
+
+                    // Move to the next month's day 30 (or last day)
                     newExpirationDate.setMonth(newExpirationDate.getMonth() + months);
+
+                    // Force to the billing day (e.g., 30)
+                    // handling months with fewer days (like Feb) automatically via JS Date
+                    const lastDayOfMonth = new Date(newExpirationDate.getFullYear(), newExpirationDate.getMonth() + 1, 0).getDate();
+                    newExpirationDate.setDate(Math.min(billingDay, lastDayOfMonth));
+                } else {
+                    // Standard extension
+                    newExpirationDate = new Date(currentExpiration && currentExpiration > today ? currentExpiration : paymentDateObj);
+                    newExpirationDate.setMonth(newExpirationDate.getMonth() + months);
+
+                    // Enforce billing day alignment
+                    const lastDayOfMonth = new Date(newExpirationDate.getFullYear(), newExpirationDate.getMonth() + 1, 0).getDate();
+                    newExpirationDate.setDate(Math.min(billingDay, lastDayOfMonth));
                 }
 
                 await query(`
                     UPDATE services 
                     SET last_payment_date = $1,
-                        expiration_date = $2
+    expiration_date = $2
                     WHERE id = $3
-                `, [payment_date, newExpirationDate.toISOString().split('T')[0], sId]);
+    `, [payment_date, newExpirationDate.toISOString().split('T')[0], sId]);
             }
         }
 
@@ -616,11 +645,11 @@ app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), async (r
         // Update payment
         const result = await query(`
             UPDATE payments 
-            SET amount = $1, currency = $2, payment_date = $3, due_date = $4, 
-                status = $5, payment_method = $6, notes = $7, months_covered = $8
+            SET amount = $1, currency = $2, payment_date = $3, due_date = $4,
+    status = $5, payment_method = $6, notes = $7, months_covered = $8
             WHERE id = $9
-            RETURNING *
-        `, [amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, id]);
+RETURNING *
+    `, [amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, id]);
 
         if (result.rows.length === 0) {
             await query('ROLLBACK');
@@ -633,10 +662,10 @@ app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), async (r
         if (payment.service_id && (status === 'PAGADO' || status === 'PAID')) {
             // "Smart" Heuristic: The service expires at the latest date covered by ANY valid payment
             const expResult = await query(`
-                SELECT MAX(payment_date + (COALESCE(months_covered, 1) || ' months')::INTERVAL) as max_expiration
+                SELECT MAX(payment_date + (COALESCE(months_covered, 1) || ' months'):: INTERVAL) as max_expiration
                 FROM payments
-                WHERE service_id = $1 AND status IN ('PAGADO', 'PAID')
-            `, [payment.service_id]);
+                WHERE service_id = $1 AND status IN('PAGADO', 'PAID')
+    `, [payment.service_id]);
 
             const newExpiration = expResult.rows[0].max_expiration;
 
@@ -644,9 +673,9 @@ app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), async (r
                 await query(`
                     UPDATE services 
                     SET expiration_date = $1,
-                        last_payment_date = (SELECT MAX(payment_date) FROM payments WHERE service_id = $2 AND status IN ('PAGADO', 'PAID'))
+    last_payment_date = (SELECT MAX(payment_date) FROM payments WHERE service_id = $2 AND status IN('PAGADO', 'PAID'))
                     WHERE id = $2
-                `, [newExpiration, payment.service_id]);
+    `, [newExpiration, payment.service_id]);
             }
         }
 
@@ -669,8 +698,8 @@ app.put('/api/services/:id/expiration', authenticateToken, authorizeRole('ADMIN'
             UPDATE services 
             SET expiration_date = $1
             WHERE id = $2
-            RETURNING *
-        `, [expiration_date, id]);
+RETURNING *
+    `, [expiration_date, id]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Service not found' });
@@ -687,33 +716,33 @@ app.put('/api/services/:id/expiration', authenticateToken, authorizeRole('ADMIN'
 app.get('/api/notifications/pending', authenticateToken, async (req, res) => {
     try {
         const result = await query(`
-            SELECT 
-                c.id as client_id,
-                c.name as client_name,
-                c.email,
-                c.phone,
-                s.name as service_name,
-                p.amount as amount_due,
-                p.currency,
-                p.due_date,
-                p.status,
-                CASE 
+SELECT
+c.id as client_id,
+    c.name as client_name,
+    c.email,
+    c.phone,
+    s.name as service_name,
+    p.amount as amount_due,
+    p.currency,
+    p.due_date,
+    p.status,
+    CASE 
                     WHEN p.status = 'VENCIDO' OR p.due_date < CURRENT_DATE THEN CURRENT_DATE - p.due_date
                     ELSE 0
-                END as days_overdue,
-                CASE 
+END as days_overdue,
+    CASE 
                     WHEN p.status = 'VENCIDO' OR p.due_date < CURRENT_DATE THEN 'overdue'
                     WHEN p.due_date = CURRENT_DATE THEN 'due_today'
                     ELSE 'upcoming'
-                END as notification_type
+END as notification_type
             FROM payments p
             JOIN clients c ON p.client_id = c.id
             LEFT JOIN services s ON p.service_id = s.id
-            WHERE p.status IN ('PENDIENTE', 'VENCIDO')
-            AND (
-                p.status = 'VENCIDO'
+            WHERE p.status IN('PENDIENTE', 'VENCIDO')
+AND(
+    p.status = 'VENCIDO'
                 OR p.due_date <= CURRENT_DATE + INTERVAL '3 days'
-            )
+)
             ORDER BY p.due_date ASC
         `);
 
@@ -740,5 +769,5 @@ app.use((req, res) => {
 
 // Start Server
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server running on port ${PORT} `);
 });
