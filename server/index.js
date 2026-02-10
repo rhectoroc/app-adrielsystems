@@ -165,7 +165,7 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
                    s.status as service_status,
                    s.expiration_date,
                    CASE 
-                       WHEN s.expiration_date < CURRENT_DATE THEN 'OVERDUE'
+                       WHEN s.expiration_date IS NULL OR s.expiration_date < CURRENT_DATE THEN 'OVERDUE'
                        WHEN s.expiration_date <= CURRENT_DATE + INTERVAL '7 days' THEN 'UPCOMING'
                        ELSE 'PAID'
                    END as payment_status
