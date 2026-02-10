@@ -158,6 +158,7 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
     try {
         const result = await query(`
             SELECT c.*, u.email as user_email, u.role, 
+                   s.id as service_id,
                    s.name as service_name, 
                    s.cost, 
                    s.special_price,

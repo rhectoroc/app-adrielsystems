@@ -459,7 +459,14 @@ export const PaymentsManagement = () => {
                                             </div>
                                         ) : (
                                             <div className="flex items-center gap-2 group">
-                                                <span className={`text-sm font-medium ${selectedClient.payment_status === 'OVERDUE' ? 'text-red-400' : 'text-white'}`}>
+                                                <span
+                                                    onClick={() => {
+                                                        setNewExpirationDate(selectedClient.expiration_date ? new Date(selectedClient.expiration_date).toISOString().split('T')[0] : '');
+                                                        setIsEditingExpiration(true);
+                                                    }}
+                                                    className={`text-sm font-medium cursor-pointer hover:underline ${selectedClient.payment_status === 'OVERDUE' ? 'text-red-400' : 'text-white'}`}
+                                                    title="Haga clic para editar manualmente"
+                                                >
                                                     {selectedClient.expiration_date ? new Date(selectedClient.expiration_date).toLocaleDateString() : 'N/A'}
                                                 </span>
                                                 <button
@@ -467,10 +474,10 @@ export const PaymentsManagement = () => {
                                                         setNewExpirationDate(selectedClient.expiration_date ? new Date(selectedClient.expiration_date).toISOString().split('T')[0] : '');
                                                         setIsEditingExpiration(true);
                                                     }}
-                                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded transition-all text-gray-400 hover:text-white"
-                                                    title="Editar fecha de vencimiento"
+                                                    className="p-1 hover:bg-white/10 rounded transition-all text-primary hover:text-primary/80"
+                                                    title="Editar fecha de vencimiento manualmente"
                                                 >
-                                                    <Edit2 className="w-3 h-3" />
+                                                    <Edit2 className="w-3.5 h-3.5" />
                                                 </button>
                                             </div>
                                         )}
@@ -540,7 +547,7 @@ export const PaymentsManagement = () => {
                                                                 className="text-gray-500 hover:text-white transition-colors"
                                                                 title="Editar detalles"
                                                             >
-                                                                <Eye className="w-4 h-4" />
+                                                                <Edit2 className="w-4 h-4" />
                                                             </button>
                                                         </td>
                                                     </tr>
