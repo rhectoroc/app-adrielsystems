@@ -28,9 +28,14 @@ const initDb = async () => {
                 channel VARCHAR(50) NOT NULL,
                 status VARCHAR(20) NOT NULL DEFAULT 'SENT',
                 sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            )
+            );
+            
+            ALTER TABLE clients 
+            ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
+
         `);
-        console.log('Database initialized: notification_logs table ready.');
+        console.log('Database initialized: Tables ready.');
     } catch (err) {
         console.error('Error initializing database:', err);
     }
@@ -227,7 +232,7 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
 app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
-            SELECT c.*, u.email as user_email, u.role,
+            SELECT c.*, c.is_active, u.email as user_email, u.role,
             COALESCE(
                 json_agg(
                     json_build_object(
@@ -239,37 +244,37 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
                         'status', s.status,
                         'expiration_date', s.expiration_date,
                         'payment_status', CASE 
-                                   -- OVERDUE: Expired and past grace period (7 days)
-                                   WHEN s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '7 days') < CURRENT_DATE THEN 'OVERDUE'
-                                   -- UPCOMING: Expired within grace period OR expiring in next 3 days
-                                   WHEN (
-                                       ((s.expiration_date + INTERVAL '7 days') >= CURRENT_DATE AND s.expiration_date < CURRENT_DATE)
+                                   --OVERDUE: Expired and past grace period(7 days)
+                                   WHEN s.expiration_date IS NULL OR(s.expiration_date + INTERVAL '7 days') < CURRENT_DATE THEN 'OVERDUE'
+                                   --UPCOMING: Expired within grace period OR expiring in next 3 days
+                                   WHEN(
+                            ((s.expiration_date + INTERVAL '7 days') >= CURRENT_DATE AND s.expiration_date < CURRENT_DATE)
                                        OR
-                                       (s.expiration_date >= CURRENT_DATE AND s.expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
-                                   ) THEN 'UPCOMING'
+                        (s.expiration_date >= CURRENT_DATE AND s.expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
+            ) THEN 'UPCOMING'
                                    ELSE 'PAID'
                                END
-                    )
+        )
                 ) FILTER(WHERE s.id IS NOT NULL),
-                '[]'
+    '[]'
             ) as services,
-            COALESCE(SUM(COALESCE(s.special_price, s.cost)) FILTER(WHERE s.status = 'ACTIVE'), 0) as total_monthly,
-            --Backward compatibility: string of service names
-        COALESCE(string_agg(s.name, ', ') FILTER(WHERE s.status = 'ACTIVE'), 'Sin Servicio') as service_name,
-            --General status: worst status among services(OVERDUE > UPCOMING > PAID)
-        COALESCE(
-            (SELECT 
+    COALESCE(SUM(COALESCE(s.special_price, s.cost)) FILTER(WHERE s.status = 'ACTIVE'), 0) as total_monthly,
+    --Backward compatibility: string of service names
+COALESCE(string_agg(s.name, ', ') FILTER(WHERE s.status = 'ACTIVE'), 'Sin Servicio') as service_name,
+    --General status: worst status among services(OVERDUE > UPCOMING > PAID)
+COALESCE(
+    (SELECT 
                            CASE 
-                               -- OVERDUE check
-                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND (s2.expiration_date IS NULL OR (s2.expiration_date + INTERVAL '7 days') < CURRENT_DATE)) THEN 'OVERDUE'
-                               -- UPCOMING check (Grace period OR Next 3 days)
-                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND (
-                                   ((s2.expiration_date + INTERVAL '7 days') >= CURRENT_DATE AND s2.expiration_date < CURRENT_DATE)
+                               --OVERDUE check
+                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND(s2.expiration_date IS NULL OR(s2.expiration_date + INTERVAL '7 days') < CURRENT_DATE)) THEN 'OVERDUE'
+                               --UPCOMING check(Grace period OR Next 3 days)
+                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND(
+        ((s2.expiration_date + INTERVAL '7 days') >= CURRENT_DATE AND s2.expiration_date < CURRENT_DATE)
                                    OR
-                                   (s2.expiration_date >= CURRENT_DATE AND s2.expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
+        (s2.expiration_date >= CURRENT_DATE AND s2.expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
                                )) THEN 'UPCOMING'
                                ELSE 'PAID'
-                           END
+END
         ), 'PAID'
                    ) as payment_status
             FROM clients c
@@ -282,6 +287,28 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
     } catch (err) {
         console.error('Error fetching clients:', err);
         res.status(500).json({ message: 'Error fetching clients' });
+    }
+});
+
+// Toggle Client Status (Active/Inactive)
+app.put('/api/clients/:id/status', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    try {
+        const result = await query(
+            'UPDATE clients SET is_active = $1 WHERE id = $2 RETURNING *',
+            [is_active, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Client not found' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Error updating client status:', err);
+        res.status(500).json({ message: 'Error updating client status' });
     }
 });
 
@@ -590,7 +617,7 @@ p.id as payment_id,
                 WHERE client_id = $1 
                 AND DATE(sent_at) = CURRENT_DATE
                 ORDER BY sent_at DESC LIMIT 1
-            `, [row.client_id]);
+    `, [row.client_id]);
             return {
                 ...row,
                 last_notification_date: notifRes.rows.length > 0 ? notifRes.rows[0].sent_at : null
@@ -637,7 +664,7 @@ p.id as payment_id,
                 WHERE client_id = $1 
                 AND DATE(sent_at) = CURRENT_DATE
                 ORDER BY sent_at DESC LIMIT 1
-            `, [row.client_id]);
+    `, [row.client_id]);
             return {
                 ...row,
                 last_notification_date: notifRes.rows.length > 0 ? notifRes.rows[0].sent_at : null
@@ -872,10 +899,10 @@ END as notification_type
             JOIN clients c ON p.client_id = c.id
             LEFT JOIN services s ON p.service_id = s.id
             WHERE p.status IN('PENDIENTE', 'VENCIDO')
-AND(
-    p.status = 'VENCIDO'
-                OR p.due_date <= CURRENT_DATE + INTERVAL '3 days'
-)
+            AND c.is_active = true
+            AND (
+                p.status = 'VENCIDO' OR p.due_date <= CURRENT_DATE + INTERVAL '3 days'
+            )
             ORDER BY p.due_date ASC
         `);
 
@@ -894,7 +921,7 @@ app.post('/api/notifications/log', authenticateToken, async (req, res) => {
 
     try {
         await query(
-            `INSERT INTO notification_logs (client_id, type, channel, status) VALUES ($1, $2, $3, $4)`,
+            `INSERT INTO notification_logs(client_id, type, channel, status) VALUES($1, $2, $3, $4)`,
             [client_id, type, channel, status || 'SENT']
         );
         res.json({ message: 'Notification logged successfully' });

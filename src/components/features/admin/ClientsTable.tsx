@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, User, Building, Mail, Phone, Loader2, Globe, MapPin, Edit, Trash2 } from 'lucide-react';
+import { Search, Plus, User, Building, Mail, Phone, Loader2, Globe, MapPin, Edit, Trash2, Ban, CheckCircle } from 'lucide-react';
 import { api } from '../../../utils/api';
 
 interface Client {
@@ -12,6 +12,7 @@ interface Client {
     country: string;
     contact_info: string;
     created_at: string;
+    is_active?: boolean;
     // joined fields
     service_name?: string;
     service_status?: string;
@@ -49,6 +50,26 @@ export const ClientsTable = ({ onAddClick, onEditClick, onDeleteClick, refreshTr
             console.error('Error fetching clients:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleToggleStatus = async (client: Client) => {
+        if (!confirm(`¿Estás seguro de que deseas ${client.is_active ? 'inhabilitar' : 'habilitar'} a ${client.name}?`)) return;
+
+        try {
+            const response = await api.put(`/api/clients/${client.id}/status`, {
+                is_active: !client.is_active
+            });
+
+            if (response.ok) {
+                // Update local state optimizing for speed
+                setClients(prev => prev.map(c =>
+                    c.id === client.id ? { ...c, is_active: !c.is_active } : c
+                ));
+            }
+        } catch (error) {
+            console.error('Error toggling client status:', error);
+            alert('Error al cambiar el estado del cliente');
         }
     };
 
@@ -110,7 +131,7 @@ export const ClientsTable = ({ onAddClick, onEditClick, onDeleteClick, refreshTr
                                 </tr>
                             ) : (
                                 filteredClients.map((client) => (
-                                    <tr key={client.id} className="hover:bg-white/5 transition-colors group border-b border-white/5 last:border-0">
+                                    <tr key={client.id} className={`transition-colors group border-b border-white/5 last:border-0 ${client.is_active === false ? 'bg-red-500/5 hover:bg-red-500/10 opacity-75 grayscale-[50%]' : 'hover:bg-white/5'}`}>
                                         <td className="p-4 align-top w-[25%]">
                                             <div className="flex items-start gap-3">
                                                 <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0 mt-1">
@@ -185,6 +206,13 @@ export const ClientsTable = ({ onAddClick, onEditClick, onDeleteClick, refreshTr
                                         </td>
                                         <td className="p-4 align-top text-right w-[5%]">
                                             <div className="flex flex-col items-end gap-2">
+                                                <button
+                                                    onClick={() => handleToggleStatus(client)}
+                                                    className={`p-1.5 rounded-lg transition-colors ${client.is_active === false ? 'text-green-400 hover:bg-green-500/20' : 'text-red-400 hover:bg-red-500/20'}`}
+                                                    title={client.is_active === false ? "Habilitar Cliente" : "Inhabilitar Cliente"}
+                                                >
+                                                    {client.is_active === false ? <CheckCircle className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                                                </button>
                                                 <button
                                                     onClick={() => onEditClick(client)}
                                                     className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
