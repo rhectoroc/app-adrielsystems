@@ -196,6 +196,7 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
                         'currency', s.currency,
                         'status', s.status,
                         'expiration_date', s.expiration_date,
+                        'payment_status', CASE 
                                    -- OVERDUE: Expired and past grace period (7 days)
                                    WHEN s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '7 days') < CURRENT_DATE THEN 'OVERDUE'
                                    -- UPCOMING: Expired within grace period OR expiring in next 3 days
