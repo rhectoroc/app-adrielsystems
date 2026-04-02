@@ -16,6 +16,7 @@ interface Payment {
     payment_date: string;
     due_date: string;
     status: 'PAGADO' | 'PENDIENTE' | 'VENCIDO';
+    payment_method: string;
     notes: string;
     months_covered: number;
     evidence_path?: string;
