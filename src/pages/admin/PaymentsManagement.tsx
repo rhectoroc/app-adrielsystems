@@ -3,6 +3,7 @@ import { Plus, Loader2, X, Save, Eye, DollarSign, Calendar, CreditCard, Edit2, T
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
+import { formatSafeDate, parseSafeDate } from '../../utils/dateUtils';
 
 interface Payment {
     id: number;
@@ -331,10 +332,14 @@ export const PaymentsManagement = () => {
     };
 
     const calculatePeriod = (startDate: string, months: number) => {
-        const start = new Date(startDate);
+        const start = parseSafeDate(startDate);
+        if (!start) return 'N/A';
         const end = new Date(start);
         end.setMonth(end.getMonth() + months);
-        return `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+
+        const fmt = (d: Date) => `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+
+        return `${fmt(start)} - ${fmt(end)}`;
     };
 
     const handleUpdateExpiration = async () => {
@@ -622,7 +627,7 @@ export const PaymentsManagement = () => {
                                 <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Próximo Vencimiento</div>
                                 <div className="flex items-center gap-3">
                                     <div className="text-3xl font-black text-white">
-                                        {selectedClient?.expiration_date ? new Date(selectedClient.expiration_date).toLocaleDateString() : 'Pendiente'}
+                                        {formatSafeDate(selectedClient?.expiration_date)}
                                     </div>
                                     <button
                                         onClick={() => {
@@ -697,7 +702,7 @@ export const PaymentsManagement = () => {
                                                     clientPayments.map(payment => (
                                                         <tr key={payment.id} className="hover:bg-white/[0.03] transition-colors group">
                                                             <td className="p-5">
-                                                                <div className="text-white font-bold">{new Date(payment.payment_date).toLocaleDateString()}</div>
+                                                                <div className="text-white font-bold">{formatSafeDate(payment.payment_date)}</div>
                                                                 <div className="text-[10px] text-gray-500 italic mt-1 max-w-[200px] truncate">{payment.notes || 'Sin notas'}</div>
                                                             </td>
                                                             <td className="p-5 text-center">

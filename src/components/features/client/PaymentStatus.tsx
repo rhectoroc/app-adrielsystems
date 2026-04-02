@@ -1,4 +1,5 @@
 import { getPaymentStatus } from '../../../utils/paymentStatus';
+import { formatSafeDate } from '../../../utils/dateUtils';
 
 interface PaymentStatusCardProps {
     paymentDay: number;
@@ -53,8 +54,8 @@ export const PaymentStatusCard = ({
             </div>
             <div className="text-center text-gray-400">
                 <p className="mb-1">Día de Pago: <strong className="text-gray-200">{paymentDay} de cada mes</strong></p>
-                {lastPaymentDate ? (
-                    <p className="text-sm">Último Pago: {lastPaymentDate.toLocaleDateString()}</p>
+                {lastPaymentDateString ? (
+                    <p className="text-sm">Último Pago: {formatSafeDate(lastPaymentDateString)}</p>
                 ) : (
                     <p className="text-sm">Último Pago: Nunca</p>
                 )}

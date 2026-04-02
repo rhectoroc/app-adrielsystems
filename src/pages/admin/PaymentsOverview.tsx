@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Filter, Download, ArrowUpRight, ArrowDownLeft, Calendar, Loader2 } from 'lucide-react';
+import { formatSafeDate } from '../../utils/dateUtils';
 
 interface Payment {
     id: number;
@@ -186,10 +187,10 @@ export const PaymentsOverview = () => {
                                                 </span>
                                             </td>
                                             <td className="p-4 text-gray-400">
-                                                {new Date(payment.payment_date).toLocaleDateString()}
+                                                {formatSafeDate(payment.payment_date)}
                                             </td>
                                             <td className="p-4 text-gray-400">
-                                                {new Date(payment.service_month).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                                                {formatSafeDate(payment.service_month)}
                                             </td>
                                         </tr>
                                     ))

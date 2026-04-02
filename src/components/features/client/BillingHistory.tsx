@@ -1,3 +1,4 @@
+import { formatSafeDate } from '../../../utils/dateUtils';
 
 export interface Payment {
     id: string;
@@ -35,7 +36,7 @@ export const BillingHistory = ({ payments }: BillingHistoryProps) => {
                             {payments.map((payment) => (
                                 <tr key={payment.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                                     <td className="px-4 py-3 text-gray-400">
-                                        {new Date(payment.payment_date).toLocaleDateString()}
+                                        {formatSafeDate(payment.payment_date)}
                                     </td>
                                     <td className="px-4 py-3">{payment.service_name || 'Pago de Servicio'}</td>
                                     <td className="px-4 py-3 font-medium text-white">{payment.currency} {Number(payment.amount).toFixed(2)}</td>
