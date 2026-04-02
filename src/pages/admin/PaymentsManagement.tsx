@@ -288,7 +288,7 @@ export const PaymentsManagement = () => {
             const payload = {
                 ...formData,
                 client_id: parseInt(formData.client_id),
-                service_id: parseInt(formData.service_id),
+                service_id: formData.service_id === 'all' ? 'all' : parseInt(formData.service_id),
                 amount: parseFloat(formData.amount)
             };
 

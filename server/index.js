@@ -276,7 +276,9 @@ COALESCE(
                                ELSE 'PAID'
 END
         ), 'PAID'
-                   ) as payment_status
+                   ) as payment_status,
+            -- Add expiration_date at client level (minimum expiration of active services)
+            (SELECT MIN(s2.expiration_date) FROM services s2 WHERE s2.client_id = c.id AND s2.status = 'ACTIVE') as expiration_date
             FROM clients c
             LEFT JOIN users u ON u.client_id = c.id
             LEFT JOIN services s ON s.client_id = c.id
@@ -712,12 +714,15 @@ app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req,
     try {
         await query('BEGIN');
 
+        // Normalize service_id: if it's 'all', NaN, or not provided, treat as NULL for the payment record
+        const normalizedServiceId = (service_id === 'all' || !service_id || isNaN(parseInt(service_id))) ? null : parseInt(service_id);
+
         // Insert payment
         const result = await query(`
             INSERT INTO payments(client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered)
 VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *
-    `, [client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered]);
+    `, [client_id, normalizedServiceId, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered]);
 
         // Logic for Prepaid Services & Billing Alignment (Unified Policy: Day 30)
         if ((status === 'PAGADO' || status === 'PAID')) {
