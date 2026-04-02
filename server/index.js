@@ -8,11 +8,39 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { authenticateToken, authorizeRole } from './middleware/auth.js';
 import { rateLimiter, loginRateLimiter, clearLoginAttempts } from './middleware/rateLimiter.js';
+import multer from 'multer';
+import fs from 'fs';
 
 // Configuration
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Uploads Configuration (Volume mounted at /data)
+const uploadDir = '/data/capref';
+if (!fs.existsSync(uploadDir)) {
+    try {
+        fs.mkdirSync(uploadDir, { recursive: true });
+        console.log(`Directory created: ${uploadDir}`);
+    } catch (err) {
+        console.error(`Error creating directory ${uploadDir}:`, err);
+    }
+}
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, `${uniqueSuffix}${ext}`);
+    }
+});
+const upload = multer({ 
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,6 +75,9 @@ initDb();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Static Serving for Uploads
+app.use('/uploads/capref', express.static('/data/capref'));
 
 // Apply general rate limiting to all routes
 app.use(rateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }));
@@ -707,9 +738,10 @@ p.*,
     }
 });
 
-// Register new payment with Prepaid Logic
-app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+// Create new payment
+app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), upload.single('evidence'), async (req, res) => {
     const { client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered = 1 } = req.body;
+    const evidence_path = req.file ? req.file.filename : null;
 
     try {
         await query('BEGIN');
@@ -719,10 +751,10 @@ app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), async (req,
 
         // Insert payment
         const result = await query(`
-            INSERT INTO payments(client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            INSERT INTO payments(client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, evidence_path)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING *
-    `, [client_id, normalizedServiceId, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered]);
+    `, [client_id, normalizedServiceId, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, evidence_path]);
 
         // Logic for Prepaid Services & Billing Alignment (Unified Policy: Day 30)
         if ((status === 'PAGADO' || status === 'PAID')) {

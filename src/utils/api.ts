@@ -3,9 +3,12 @@
 export const apiRequest = async (url: string, options: RequestInit = {}) => {
     const token = localStorage.getItem('auth_token');
 
-    const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-    };
+    const isFormData = options.body instanceof FormData;
+    const headers: Record<string, string> = {};
+
+    if (!isFormData) {
+        headers['Content-Type'] = 'application/json';
+    }
 
     // Merge existing headers
     if (options.headers) {
@@ -62,19 +65,23 @@ export const api = {
     get: (url: string, options?: RequestInit) =>
         apiRequest(url, { ...options, method: 'GET' }),
 
-    post: (url: string, body?: any, options?: RequestInit) =>
-        apiRequest(url, {
+    post: (url: string, body?: any, options?: RequestInit) => {
+        const isFormData = body instanceof FormData;
+        return apiRequest(url, {
             ...options,
             method: 'POST',
-            body: body ? JSON.stringify(body) : undefined
-        }),
+            body: body ? (isFormData ? body : JSON.stringify(body)) : undefined
+        });
+    },
 
-    put: (url: string, body?: any, options?: RequestInit) =>
-        apiRequest(url, {
+    put: (url: string, body?: any, options?: RequestInit) => {
+        const isFormData = body instanceof FormData;
+        return apiRequest(url, {
             ...options,
             method: 'PUT',
-            body: body ? JSON.stringify(body) : undefined
-        }),
+            body: body ? (isFormData ? body : JSON.stringify(body)) : undefined
+        });
+    },
 
     delete: (url: string, options?: RequestInit) =>
         apiRequest(url, { ...options, method: 'DELETE' }),

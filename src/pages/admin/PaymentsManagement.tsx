@@ -16,9 +16,9 @@ interface Payment {
     payment_date: string;
     due_date: string;
     status: 'PAGADO' | 'PENDIENTE' | 'VENCIDO';
-    payment_method: string;
     notes: string;
     months_covered: number;
+    evidence_path?: string;
 }
 
 interface Client {
@@ -85,6 +85,7 @@ export const PaymentsManagement = () => {
     const [editMode, setEditMode] = useState(false);
     const [currentPaymentId, setCurrentPaymentId] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -235,6 +236,7 @@ export const PaymentsManagement = () => {
             notes: '',
             months_covered: 1
         });
+        setSelectedFile(null);
 
         if (isFromHistory && selectedClient) {
             handleClientChange(selectedClient.id.toString());
@@ -290,16 +292,27 @@ export const PaymentsManagement = () => {
         setIsSubmitting(true);
 
         try {
-            const payload = {
+            const payload: any = {
                 ...formData,
                 client_id: parseInt(formData.client_id),
                 service_id: formData.service_id === 'all' ? 'all' : parseInt(formData.service_id),
                 amount: parseFloat(formData.amount)
             };
 
-            const response = editMode && currentPaymentId
-                ? await api.put(`/api/payments/${currentPaymentId}`, payload)
-                : await api.post('/api/payments', payload);
+            const data = new FormData();
+            Object.keys(payload).forEach(key => {
+                if (payload[key] !== null && payload[key] !== undefined) {
+                    data.append(key, payload[key].toString());
+                }
+            });
+            
+            if (selectedFile) {
+                data.append('evidence', selectedFile);
+            }
+
+            const response = editMode 
+                ? await api.put(`/api/payments/${currentPaymentId}`, data)
+                : await api.post('/api/payments', data);
 
             if (!response.ok) throw new Error(editMode ? 'Error al actualizar el pago' : 'Error al registrar el pago');
 
@@ -706,7 +719,20 @@ export const PaymentsManagement = () => {
                                                     clientPayments.map(payment => (
                                                         <tr key={payment.id} className="hover:bg-white/[0.03] transition-colors group">
                                                             <td className="p-5">
-                                                                <div className="text-white font-bold">{formatSafeDate(payment.payment_date)}</div>
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="text-white font-bold">{formatSafeDate(payment.payment_date)}</div>
+                                                                    {payment.evidence_path && (
+                                                                        <a 
+                                                                            href={`http://localhost:3000/uploads/capref/${payment.evidence_path}`} 
+                                                                            target="_blank" 
+                                                                            rel="noopener noreferrer"
+                                                                            className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-all"
+                                                                            title="Ver comprobante"
+                                                                        >
+                                                                            <Eye className="w-4 h-4" />
+                                                                        </a>
+                                                                    )}
+                                                                </div>
                                                                 <div className="text-[10px] text-gray-500 italic mt-1 max-w-[200px] truncate">{payment.notes || 'Sin notas'}</div>
                                                             </td>
                                                             <td className="p-5 text-center">
@@ -886,6 +912,18 @@ export const PaymentsManagement = () => {
                                                         placeholder="Nro de referencia, detalles adicionales..."
                                                         className="w-full px-5 py-3 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none resize-none transition-all"
                                                     />
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1 italic text-primary/80">Comprobante / Captura (Opcional)</label>
+                                                    <div className="relative group">
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                                                            className="w-full px-5 py-3 bg-black/40 border border-white/10 rounded-2xl text-xs text-gray-400 focus:border-primary/50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer"
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
 
