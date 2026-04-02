@@ -11,43 +11,7 @@ import { rateLimiter, loginRateLimiter, clearLoginAttempts } from './middleware/
 import multer from 'multer';
 import fs from 'fs';
 
-// Dashboard Activity Endpoint
-app.get('/api/activity', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
-    try {
-        const result = await query(`
-            (SELECT 
-                'PAYMENT' as type,
-                p.payment_date as activity_date,
-                p.amount,
-                p.currency,
-                c.name as client_name,
-                p.status as detail
-            FROM payments p
-            JOIN clients c ON p.client_id = c.id
-            WHERE p.status IN ('PAGADO', 'PAID')
-            ORDER BY p.payment_date DESC
-            LIMIT 5)
-            UNION ALL
-            (SELECT 
-                'NOTIFICATION' as type,
-                n.sent_at as activity_date,
-                NULL as amount,
-                NULL as currency,
-                c.name as client_name,
-                n.type as detail
-            FROM notification_logs n
-            JOIN clients c ON n.client_id = c.id
-            ORDER BY n.sent_at DESC
-            LIMIT 5)
-            ORDER BY activity_date DESC
-            LIMIT 10
-        `);
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Error fetching system activity:', err);
-        res.status(500).json({ message: 'Error fetching system activity' });
-    }
-});
+// Uploads Configuration (Volume mounted at /data in production)
 
 // Uploads Configuration (Volume mounted at /data in production)
 dotenv.config();
@@ -86,6 +50,44 @@ const upload = multer({
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Dashboard Activity Endpoint
+app.get('/api/activity', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const result = await query(`
+            (SELECT 
+                'PAYMENT' as type,
+                p.payment_date as activity_date,
+                p.amount,
+                p.currency,
+                c.name as client_name,
+                p.status as detail
+            FROM payments p
+            JOIN clients c ON p.client_id = c.id
+            WHERE p.status IN ('PAGADO', 'PAID')
+            ORDER BY p.payment_date DESC
+            LIMIT 5)
+            UNION ALL
+            (SELECT 
+                'NOTIFICATION' as type,
+                n.sent_at as activity_date,
+                NULL as amount,
+                NULL as currency,
+                c.name as client_name,
+                n.type as detail
+            FROM notification_logs n
+            JOIN clients c ON n.client_id = c.id
+            ORDER BY n.sent_at DESC
+            LIMIT 5)
+            ORDER BY activity_date DESC
+            LIMIT 10
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching system activity:', err);
+        res.status(500).json({ message: 'Error fetching system activity' });
+    }
+});
 
 // Initialize Database Table
 const initDb = async () => {
