@@ -215,12 +215,20 @@ export const PaymentsManagement = () => {
         const isFromHistory = fromHistory === true;
         setEditMode(false);
         setCurrentPaymentId(null);
+
+        // Auto-fill logic
+        const lastPayment = clientPayments.length > 0 ? clientPayments[0] : null;
+        const lastDate = lastPayment ? new Date(lastPayment.payment_date).toISOString().split('T')[0] : '';
+        const firstService = (isFromHistory && selectedClient?.services && selectedClient.services.length > 0)
+            ? selectedClient.services[0]
+            : null;
+
         setFormData({
             client_id: isFromHistory ? (selectedClient?.id.toString() || '') : '',
-            service_id: isFromHistory ? (selectedClient?.service_id?.toString() || '') : '',
-            amount: '',
-            currency: 'USD',
-            payment_date: new Date().toISOString().split('T')[0],
+            service_id: isFromHistory ? (firstService?.id.toString() || '') : '',
+            amount: isFromHistory ? (firstService?.special_price || firstService?.cost || '').toString() : '',
+            currency: isFromHistory ? (firstService?.currency || 'USD') : 'USD',
+            payment_date: isFromHistory ? lastDate : new Date().toISOString().split('T')[0],
             due_date: new Date().toISOString().split('T')[0],
             status: 'PAGADO',
             payment_method: '',
@@ -229,10 +237,7 @@ export const PaymentsManagement = () => {
         });
 
         if (isFromHistory && selectedClient) {
-            const firstServiceId = selectedClient.service_id || selectedClient.services?.[0]?.id;
-            if (firstServiceId) {
-                handleClientChange(selectedClient.id.toString());
-            }
+            handleClientChange(selectedClient.id.toString());
         } else if (!fromHistory) {
             setServices([]);
         }
@@ -240,7 +245,6 @@ export const PaymentsManagement = () => {
         if (isFromHistory) {
             setShowEditForm(true);
         } else {
-            // If from main list, we'll ask to select a client or just show empty form
             setViewMode('DETAIL');
             setShowEditForm(true);
         }
@@ -854,7 +858,6 @@ export const PaymentsManagement = () => {
                                                             required
                                                             className="w-full px-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none transition-all"
                                                         />
-                                                        <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
                                                     </div>
                                                 </div>
 
