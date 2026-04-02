@@ -336,21 +336,21 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
     --Backward compatibility: string of service names
 COALESCE(string_agg(s.name, ', ') FILTER(WHERE s.status = 'ACTIVE'), 'Sin Servicio') as service_name,
     --General status: worst status among services(OVERDUE > UPCOMING > PAID)
-COALESCE(
-    (SELECT 
-                           CASE 
-                               --OVERDUE check
-                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND(s2.expiration_date IS NULL OR(s2.expiration_date + INTERVAL '7 days') < CURRENT_DATE)) THEN 'OVERDUE'
-                               --UPCOMING check(Grace period OR Next 3 days)
-                               WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND(
-        ((s2.expiration_date + INTERVAL '7 days') >= CURRENT_DATE AND s2.expiration_date < CURRENT_DATE)
-                                   OR
-        (s2.expiration_date >= CURRENT_DATE AND s2.expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
-                               )) THEN 'UPCOMING'
-                               ELSE 'PAID'
-END
+    COALESCE(
+        (SELECT 
+            CASE 
+                --OVERDUE check
+                WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND s2.status = 'ACTIVE' AND (s2.expiration_date IS NULL OR (s2.expiration_date + INTERVAL '7 days') < CURRENT_DATE)) THEN 'OVERDUE'
+                --UPCOMING check (Grace period OR Next 3 days)
+                WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND s2.status = 'ACTIVE' AND (
+                    ((s2.expiration_date + INTERVAL '7 days') >= CURRENT_DATE AND s2.expiration_date < CURRENT_DATE)
+                    OR
+                    (s2.expiration_date >= CURRENT_DATE AND s2.expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
+                )) THEN 'UPCOMING'
+                ELSE 'PAID'
+            END
         ), 'PAID'
-                   ) as payment_status,
+    ) as payment_status,
             -- Add expiration_date at client level (minimum expiration of active services)
             (SELECT MIN(s2.expiration_date) FROM services s2 WHERE s2.client_id = c.id AND s2.status = 'ACTIVE') as expiration_date
             FROM clients c
