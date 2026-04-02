@@ -836,9 +836,10 @@ RETURNING *
 });
 
 // Update payment
-app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), upload.single('evidence'), async (req, res) => {
     const { id } = req.params;
     const { amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, service_month } = req.body;
+    const new_evidence_path = req.file ? req.file.filename : null;
 
     try {
         await query('BEGIN');
@@ -847,10 +848,12 @@ app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), async (r
         const result = await query(`
             UPDATE payments 
             SET amount = $1, currency = $2, payment_date = $3, due_date = $4,
-    status = $5, payment_method = $6, notes = $7, months_covered = $8, service_month = $9
-            WHERE id = $10
-RETURNING *
-    `, [amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, service_month, id]);
+                status = $5, payment_method = $6, notes = $7, months_covered = $8, 
+                service_month = $9,
+                evidence_path = COALESCE($10, evidence_path)
+            WHERE id = $11
+            RETURNING *
+        `, [amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, service_month, new_evidence_path, id]);
 
         if (result.rows.length === 0) {
             await query('ROLLBACK');
