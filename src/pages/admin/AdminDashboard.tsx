@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Users, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { PaymentSummaryWidget } from '../../components/features/admin/PaymentSummaryWidget';
 import { OverdueClientsWidget } from '../../components/features/admin/OverdueClientsWidget';
@@ -138,8 +139,13 @@ export const AdminDashboard = () => {
                     ) : (
                         activities.map((activity, idx) => (
                             <div key={idx} className="flex items-center justify-between text-xs border-b border-white/5 pb-2 last:border-0 last:pb-0">
-                                <div className="flex flex-col">
-                                    <span className="text-white font-black uppercase tracking-tight">{activity.client_name}</span>
+                                <div className="flex flex-col flex-1 min-w-0">
+                                    <Link 
+                                        to={`/admin/payments?clientId=${activity.client_id || (activity.client_name ? `?search=${activity.client_name}` : '')}`}
+                                        className="text-white font-black uppercase tracking-tight hover:text-primary transition-colors truncate"
+                                    >
+                                        {activity.client_name}
+                                    </Link>
                                     <span className="text-[10px] text-gray-500 font-bold uppercase">
                                         {activity.type === 'PAYMENT' ? `PAGO REGISTRADO - ${activity.detail}` : `NOTIFICACIÓN - ${activity.detail}`}
                                     </span>

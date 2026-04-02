@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Loader2, X, Save, Eye, DollarSign, Edit2, History, ArrowLeft, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -118,10 +119,37 @@ export const PaymentsManagement = () => {
         service_month: new Date().toISOString().split('T')[0]
     });
 
+    const [searchParams] = useSearchParams();
+    const hasHandledParams = useRef(false);
+
     useEffect(() => {
         fetchClients();
         fetchDashboardStats();
     }, [refreshTrigger]);
+
+    // Handle Smart Navigation from Dashboard
+    useEffect(() => {
+        if (clients.length > 0 && !hasHandledParams.current) {
+            const clientId = searchParams.get('clientId');
+            const action = searchParams.get('action');
+
+            if (clientId) {
+                const client = clients.find(c => c.id === parseInt(clientId));
+                if (client) {
+                    handleViewHistory(client);
+                    
+                    if (action === 'new') {
+                        // Small delay to ensure state updates and details are rendered
+                        setTimeout(() => {
+                            handleAddClick(true);
+                        }, 100);
+                    }
+                    
+                    hasHandledParams.current = true;
+                }
+            }
+        }
+    }, [clients, searchParams]);
 
     const fetchDashboardStats = async () => {
         try {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { AlertTriangle, Loader2, Phone, Mail, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Loader2, Phone, Mail, CheckCircle2, DollarSign } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from '../../../utils/api';
 
 interface OverdueClient {
@@ -71,17 +72,33 @@ export const OverdueClientsWidget = () => {
                             className="p-3 bg-white/[0.02] rounded border border-white/5 hover:border-red-500/20 transition-all group"
                         >
                             <div className="flex items-start justify-between mb-1.5">
-                                <div className="min-w-0">
-                                    <h4 className="text-[13px] font-black text-white truncate group-hover:text-red-400 transition-colors uppercase tracking-tight">{client.client_name}</h4>
+                                <div className="min-w-0 flex-1">
+                                    <Link 
+                                        to={`/admin/payments?clientId=${client.client_id}`}
+                                        className="text-[13px] font-black text-white truncate hover:text-primary transition-colors uppercase tracking-tight block"
+                                    >
+                                        {client.client_name}
+                                    </Link>
                                     <p className="text-[10px] text-gray-500 font-bold uppercase truncate">{client.service_name}</p>
                                 </div>
-                                <div className="text-right shrink-0">
-                                    <p className="text-sm font-black text-red-500">
-                                        {client.currency} {client.amount}
-                                    </p>
-                                    <p className="text-[9px] text-red-500/60 font-black uppercase tracking-tighter">
-                                        {client.days_overdue} DÍAS VENC.
-                                    </p>
+                                <div className="text-right shrink-0 ml-2">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <Link
+                                            to={`/admin/payments?clientId=${client.client_id}&action=new`}
+                                            className="p-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-black rounded-lg transition-all border border-primary/20"
+                                            title="Registrar Pago Rápido"
+                                        >
+                                            <DollarSign className="w-3 h-3" />
+                                        </Link>
+                                        <div className="text-right">
+                                            <p className="text-sm font-black text-red-500">
+                                                {client.currency} {client.amount}
+                                            </p>
+                                            <p className="text-[9px] text-red-500/60 font-black uppercase tracking-tighter">
+                                                {client.days_overdue} DÍAS VENC.
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3 text-[10px] text-gray-600 font-bold uppercase tracking-tighter">

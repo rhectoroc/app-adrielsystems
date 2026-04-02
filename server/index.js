@@ -61,6 +61,7 @@ app.get('/api/activity', authenticateToken, authorizeRole('ADMIN'), async (req, 
                 p.amount,
                 p.currency,
                 c.name as client_name,
+                c.id as client_id,
                 p.status as detail
             FROM payments p
             JOIN clients c ON p.client_id = c.id
@@ -74,6 +75,7 @@ app.get('/api/activity', authenticateToken, authorizeRole('ADMIN'), async (req, 
                 NULL as amount,
                 NULL as currency,
                 c.name as client_name,
+                c.id as client_id,
                 n.type as detail
             FROM notification_logs n
             JOIN clients c ON n.client_id = c.id

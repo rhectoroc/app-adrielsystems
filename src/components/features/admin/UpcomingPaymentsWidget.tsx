@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Loader2, CheckCircle2 } from 'lucide-react';
+import { Calendar, Loader2, CheckCircle2, DollarSign } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from '../../../utils/api';
 
 interface UpcomingPayment {
@@ -73,14 +74,30 @@ export const UpcomingPaymentsWidget = () => {
                             className="p-3 bg-white/[0.02] rounded border border-white/5 hover:border-blue-500/20 transition-all group"
                         >
                             <div className="flex items-center justify-between">
-                                <div className="min-w-0 pr-2">
-                                    <h4 className="text-[13px] font-black text-white truncate group-hover:text-blue-400 transition-colors uppercase tracking-tight">{payment.client_name}</h4>
+                                <div className="min-w-0 flex-1">
+                                    <Link 
+                                        to={`/admin/payments?clientId=${payment.client_id}`}
+                                        className="text-[13px] font-black text-white truncate hover:text-primary transition-colors uppercase tracking-tight block"
+                                    >
+                                        {payment.client_name}
+                                    </Link>
                                     <p className="text-[10px] text-gray-500 font-bold uppercase truncate">{payment.service_name}</p>
                                 </div>
-                                <div className="text-right shrink-0">
-                                    <p className="text-sm font-black text-white">
-                                        {payment.currency} {payment.amount}
-                                    </p>
+                                <div className="text-right shrink-0 ml-2">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <Link
+                                            to={`/admin/payments?clientId=${payment.client_id}&action=new`}
+                                            className="p-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-black rounded-lg transition-all border border-primary/20"
+                                            title="Registrar Pago Rápido"
+                                        >
+                                            <DollarSign className="w-3 h-3" />
+                                        </Link>
+                                        <div className="text-right">
+                                            <p className="text-sm font-black text-white">
+                                                {payment.currency} {payment.amount}
+                                            </p>
+                                        </div>
+                                    </div>
                                     <div className="flex items-center justify-end gap-1.5 mt-0.5">
                                         {payment.last_notification_date && (
                                             <div className="flex items-center gap-1 text-green-500 bg-green-500/10 px-1 py-0.5 rounded text-[8px] font-black border border-green-500/10" title="Notificación enviada">
