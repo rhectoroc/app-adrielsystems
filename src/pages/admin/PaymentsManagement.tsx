@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, X, Save, Eye, DollarSign, Edit2, History, ArrowLeft } from 'lucide-react';
+import { Plus, Loader2, X, Save, Eye, DollarSign, Edit2, History, ArrowLeft, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
@@ -362,6 +362,25 @@ export const PaymentsManagement = () => {
         }
     };
 
+    const handleDeletePayment = async (paymentId: number) => {
+        if (!window.confirm('¿Estás seguro de que deseas eliminar este registro de pago? Esta acción no se puede deshacer.')) return;
+
+        try {
+            const response = await api.delete(`/api/payments/${paymentId}`);
+            if (response.ok) {
+                toast.success('Pago eliminado exitosamente');
+                if (selectedClient) {
+                    fetchClientPayments(selectedClient.id);
+                    setRefreshTrigger(prev => prev + 1);
+                }
+            } else {
+                throw new Error('Error al eliminar');
+            }
+        } catch (error) {
+            toast.error('Error al eliminar el pago');
+        }
+    };
+
     const translateStatus = (status: string) => {
         const statusMap: { [key: string]: string } = {
             'PAID': 'PAGADO',
@@ -628,7 +647,10 @@ export const PaymentsManagement = () => {
                                                         <td className="p-3 text-center font-black text-white">{payment.currency} {payment.amount.toLocaleString()}</td>
                                                         <td className="p-3 text-gray-400 uppercase text-[10px]">{payment.payment_method || 'N/A'}</td>
                                                         <td className="p-3 text-right">
-                                                            <button onClick={() => handleEditPayment(payment)} className="p-1.5 bg-white/5 hover:bg-primary/10 text-gray-400 hover:text-primary rounded-lg transition-all border border-white/5"><Edit2 className="w-3 h-3" /></button>
+                                                            <div className="flex justify-end gap-1.5">
+                                                                <button onClick={() => handleEditPayment(payment)} className="p-1.5 bg-white/5 hover:bg-primary/10 text-gray-400 hover:text-primary rounded-lg transition-all border border-white/5"><Edit2 className="w-3 h-3" /></button>
+                                                                <button onClick={() => handleDeletePayment(payment.id)} className="p-1.5 bg-white/5 hover:bg-red-500/10 text-gray-400 hover:text-red-500 rounded-lg transition-all border border-white/5"><Trash2 className="w-3 h-3" /></button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))

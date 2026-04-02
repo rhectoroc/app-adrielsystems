@@ -11,7 +11,45 @@ import { rateLimiter, loginRateLimiter, clearLoginAttempts } from './middleware/
 import multer from 'multer';
 import fs from 'fs';
 
-// Configuration
+// Dashboard Activity Endpoint
+app.get('/api/activity', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const result = await query(`
+            (SELECT 
+                'PAYMENT' as type,
+                p.payment_date as activity_date,
+                p.amount,
+                p.currency,
+                c.name as client_name,
+                p.status as detail
+            FROM payments p
+            JOIN clients c ON p.client_id = c.id
+            WHERE p.status IN ('PAGADO', 'PAID')
+            ORDER BY p.payment_date DESC
+            LIMIT 5)
+            UNION ALL
+            (SELECT 
+                'NOTIFICATION' as type,
+                n.sent_at as activity_date,
+                NULL as amount,
+                NULL as currency,
+                c.name as client_name,
+                n.type as detail
+            FROM notification_logs n
+            JOIN clients c ON n.client_id = c.id
+            ORDER BY n.sent_at DESC
+            LIMIT 5)
+            ORDER BY activity_date DESC
+            LIMIT 10
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching system activity:', err);
+        res.status(500).json({ message: 'Error fetching system activity' });
+    }
+});
+
+// Uploads Configuration (Volume mounted at /data in production)
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -233,7 +271,6 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
             WHERE status IN ('PAGADO', 'PAID') 
             AND DATE_TRUNC('month', payment_date) = DATE_TRUNC('month', CURRENT_DATE)
         `);
-        stats.monthlyIncome = parseFloat(incomeRes.rows[0].total);
         stats.monthlyIncome = parseFloat(incomeRes.rows[0].total);
 
         // 5. Notifications Sent Today
@@ -595,13 +632,13 @@ app.get('/api/payments/summary', authenticateToken, authorizeRole('ADMIN'), asyn
     try {
         const result = await query(`
 SELECT
-COUNT(CASE WHEN status = 'VENCIDO' THEN 1 END) as overdue_count,
-    COALESCE(SUM(CASE WHEN status = 'VENCIDO' THEN amount ELSE 0 END), 0) as overdue_amount,
-    COUNT(CASE WHEN status = 'PENDIENTE' THEN 1 END) as pending_count,
-    COALESCE(SUM(CASE WHEN status = 'PENDIENTE' THEN amount ELSE 0 END), 0) as pending_amount,
-    COUNT(CASE WHEN status = 'PENDIENTE' AND due_date <= CURRENT_DATE + INTERVAL '7 days' THEN 1 END) as upcoming_count,
-    COALESCE(SUM(CASE WHEN status = 'PENDIENTE' AND due_date <= CURRENT_DATE + INTERVAL '7 days' THEN amount ELSE 0 END), 0) as upcoming_amount
-            FROM payments
+    COUNT(CASE WHEN status IN ('VENCIDO', 'OVERDUE') THEN 1 END) as overdue_count,
+    COALESCE(SUM(CASE WHEN status IN ('VENCIDO', 'OVERDUE') THEN amount ELSE 0 END), 0) as overdue_amount,
+    COUNT(CASE WHEN status IN ('PENDIENTE', 'PENDING') THEN 1 END) as pending_count,
+    COALESCE(SUM(CASE WHEN status IN ('PENDIENTE', 'PENDING') THEN amount ELSE 0 END), 0) as pending_amount,
+    COUNT(CASE WHEN status IN ('PENDIENTE', 'PENDING') AND due_date <= CURRENT_DATE + INTERVAL '15 days' THEN 1 END) as upcoming_count,
+    COALESCE(SUM(CASE WHEN status IN ('PENDIENTE', 'PENDING') AND due_date <= CURRENT_DATE + INTERVAL '15 days' THEN amount ELSE 0 END), 0) as upcoming_amount
+FROM payments
     `);
 
         res.json({
@@ -643,7 +680,7 @@ p.id as payment_id,
             FROM payments p
             JOIN clients c ON p.client_id = c.id
             LEFT JOIN services s ON p.service_id = s.id
-            WHERE p.status = 'VENCIDO'
+            WHERE p.status IN ('VENCIDO', 'OVERDUE')
             ORDER BY p.due_date ASC, p.id ASC
     `);
 
@@ -689,7 +726,7 @@ p.id as payment_id,
             FROM payments p
             JOIN clients c ON p.client_id = c.id
             LEFT JOIN services s ON p.service_id = s.id
-            WHERE p.status = 'PENDIENTE' 
+            WHERE p.status IN ('PENDIENTE', 'PENDING') 
             AND p.due_date <= CURRENT_DATE + INTERVAL '${days} days'
             ORDER BY p.due_date ASC, p.id ASC
     `);
@@ -889,6 +926,62 @@ app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), upload.s
         await query('ROLLBACK');
         console.error('Error updating payment:', err);
         res.status(500).json({ message: 'Error updating payment' });
+    }
+});
+
+// DELETE payment endpoint
+app.delete('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        await query('BEGIN');
+
+        // Fetch payment details before deletion for recalculation
+        const paymentRes = await query('SELECT service_id, status FROM payments WHERE id = $1', [id]);
+        if (paymentRes.rows.length === 0) {
+            await query('ROLLBACK');
+            return res.status(404).json({ message: 'Payment not found' });
+        }
+
+        const payment = paymentRes.rows[0];
+
+        // Delete the payment
+        await query('DELETE FROM payments WHERE id = $1', [id]);
+
+        // Auto-recalculate Service Expiration if linked
+        if (payment.service_id && (payment.status === 'PAGADO' || payment.status === 'PAID')) {
+            const expResult = await query(`
+                SELECT MAX(payment_date + (COALESCE(months_covered, 1) || ' months'):: INTERVAL) as max_expiration,
+                       MAX(payment_date) as last_payment
+                FROM payments
+                WHERE service_id = $1 AND status IN('PAGADO', 'PAID')
+            `, [payment.service_id]);
+
+            const newExpiration = expResult.rows[0].max_expiration;
+            const lastPayment = expResult.rows[0].last_payment;
+
+            if (newExpiration) {
+                await query(`
+                    UPDATE services 
+                    SET expiration_date = $1, last_payment_date = $2, status = 'ACTIVE'
+                    WHERE id = $3
+                `, [newExpiration, lastPayment, payment.service_id]);
+            } else {
+                // No more payments, maybe set to null or a default
+                await query(`
+                    UPDATE services 
+                    SET expiration_date = NULL, last_payment_date = NULL, status = 'ACTIVE'
+                    WHERE id = $1
+                `, [payment.service_id]);
+            }
+        }
+
+        await query('COMMIT');
+        res.json({ message: 'Payment deleted and service status updated' });
+    } catch (err) {
+        await query('ROLLBACK');
+        console.error('Error deleting payment:', err);
+        res.status(500).json({ message: 'Error deleting payment' });
     }
 });
 

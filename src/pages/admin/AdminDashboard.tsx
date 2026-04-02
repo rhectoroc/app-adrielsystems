@@ -12,6 +12,7 @@ export const AdminDashboard = () => {
         monthlyRevenue: 0,
         pendingPayments: 0
     });
+    const [activities, setActivities] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -28,17 +29,27 @@ export const AdminDashboard = () => {
                 // Calculate stats
                 const totalClients = clients.length;
 
-                // Revenue: Sum of PAID payments for current month (simplified to all PAID for now or based on payments list)
-                // Let's just sum all PAID payments for a specific "Monthly" metric or just Total Revenue?
-                // User's previous hardcode was "Monthly Revenue". Let's approximation with last 30 days if possible,
-                // or just sum the amounts of PAID payments in the list if they are recent.
-                // For simplicity in this step, I'll sum ALL 'PAID' payments as "Total Revenue" or similar, 
-                // or if we want "Monthly", filter by date. Let's just sum all 'PAID' for now.
+                // Revenue: Sum of PAID/PAGADO payments for current month
+                const currentMonth = new Date().getMonth();
+                const currentYear = new Date().getFullYear();
+
                 const revenue = payments
-                    .filter((p: any) => p.status === 'PAID')
+                    .filter((p: any) => {
+                        const pDate = new Date(p.payment_date);
+                        return (p.status === 'PAID' || p.status === 'PAGADO') && 
+                               pDate.getMonth() === currentMonth && 
+                               pDate.getFullYear() === currentYear;
+                    })
                     .reduce((acc: number, curr: any) => acc + parseFloat(curr.amount), 0);
 
-                const pending = payments.filter((p: any) => p.status === 'PENDING').length;
+                const pending = payments.filter((p: any) => p.status === 'PENDING' || p.status === 'PENDIENTE').length;
+
+                // 3. Fetch Activity
+                const activityRes = await api.get('/api/activity');
+                if (activityRes.ok) {
+                    const activityData = await activityRes.json();
+                    setActivities(activityData);
+                }
 
                 setStats({
                     totalClients,
@@ -118,11 +129,32 @@ export const AdminDashboard = () => {
                 <UpcomingPaymentsWidget />
             </div>
 
-            {/* Recent Activity or Placeholder */}
+            {/* Recent Activity */}
             <div className="glass-card p-4">
                 <h3 className="text-sm font-heading font-semibold text-gray-100 mb-3 uppercase tracking-wider">Actividad Reciente del Sistema</h3>
-                <div className="text-gray-400 text-xs italic">
-                    No hay registros de actividad reciente disponibles.
+                <div className="space-y-3">
+                    {activities.length === 0 ? (
+                        <div className="text-gray-400 text-xs italic">No hay registros de actividad reciente disponibles.</div>
+                    ) : (
+                        activities.map((activity, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-xs border-b border-white/5 pb-2 last:border-0 last:pb-0">
+                                <div className="flex flex-col">
+                                    <span className="text-white font-black uppercase tracking-tight">{activity.client_name}</span>
+                                    <span className="text-[10px] text-gray-500 font-bold uppercase">
+                                        {activity.type === 'PAYMENT' ? `PAGO REGISTRADO - ${activity.detail}` : `NOTIFICACIÓN - ${activity.detail}`}
+                                    </span>
+                                </div>
+                                <div className="text-right">
+                                    {activity.amount && (
+                                        <div className="text-primary font-black">{activity.currency} {activity.amount}</div>
+                                    )}
+                                    <div className="text-[9px] text-gray-600 font-bold">
+                                        {new Date(activity.activity_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
         </div>

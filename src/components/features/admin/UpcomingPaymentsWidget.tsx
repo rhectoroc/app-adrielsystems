@@ -24,7 +24,7 @@ export const UpcomingPaymentsWidget = () => {
 
     const fetchUpcomingPayments = async () => {
         try {
-            const response = await api.get('/api/payments/upcoming?days=7');
+            const response = await api.get('/api/payments/upcoming?days=15');
             if (response.ok) {
                 const data = await response.json();
                 setUpcomingPayments(data);
