@@ -246,13 +246,21 @@ export const PaymentsManagement = () => {
 
         // Auto-fill amount if service changes
         if (name === 'service_id') {
-            const selectedService = services.find(s => s.id.toString() === value);
-            if (selectedService) {
+            if (value === 'all' && selectedClient) {
                 setFormData(prev => ({
                     ...prev,
-                    amount: (selectedService.special_price || selectedService.cost || '').toString(),
-                    service_id: value
+                    amount: (selectedClient.total_monthly || 0).toString(),
+                    service_id: 'all'
                 }));
+            } else {
+                const selectedService = services.find(s => s.id.toString() === value);
+                if (selectedService) {
+                    setFormData(prev => ({
+                        ...prev,
+                        amount: (selectedService.special_price || selectedService.cost || '').toString(),
+                        service_id: value
+                    }));
+                }
             }
         }
     };
@@ -265,15 +273,17 @@ export const PaymentsManagement = () => {
         // Auto-fill logic
         const lastPayment = clientPayments.length > 0 ? clientPayments[0] : null;
         const lastDate = lastPayment ? new Date(lastPayment.payment_date).toISOString().split('T')[0] : '';
-        const firstService = (isFromHistory && selectedClient?.services && selectedClient.services.length > 0)
-            ? selectedClient.services[0]
-            : null;
+        
+        // Intelligent dynamic amount: Sum of all active services
+        const totalAmount = (isFromHistory && selectedClient) ? (selectedClient.total_monthly || 0) : 0;
+        const activeServices = (isFromHistory && selectedClient?.services) ? selectedClient.services.filter(s => s.status === 'ACTIVE') : [];
+        const defaultServiceId = activeServices.length === 1 ? activeServices[0].id.toString() : (activeServices.length > 1 ? 'all' : '');
 
         setFormData({
             client_id: isFromHistory ? (selectedClient?.id.toString() || '') : '',
-            service_id: isFromHistory ? (firstService?.id.toString() || '') : '',
-            amount: isFromHistory ? (firstService?.special_price || firstService?.cost || '').toString() : '',
-            currency: isFromHistory ? (firstService?.currency || 'USD') : 'USD',
+            service_id: defaultServiceId,
+            amount: isFromHistory ? totalAmount.toString() : '',
+            currency: isFromHistory ? (activeServices[0]?.currency || 'USD') : 'USD',
             payment_date: isFromHistory ? lastDate : new Date().toISOString().split('T')[0],
             due_date: new Date().toISOString().split('T')[0],
             status: 'PAGADO',
@@ -627,8 +637,8 @@ export const PaymentsManagement = () => {
                             </div>
 
                             <div className="glass-card p-4 border-l-2 border-l-indigo-500 relative group">
-                                <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Inversión Total</div>
-                                <div className="text-xl font-black text-white">$ {clientPayments.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}</div>
+                                <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Total Pagado</div>
+                                <div className="text-xl font-black text-white">$ {clientPayments.reduce((acc, curr) => acc + Number(curr.amount), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                 <div className="text-[10px] text-gray-500 mt-1 font-bold uppercase tracking-widest">{clientPayments.length} transacciones</div>
                             </div>
                         </div>
@@ -705,11 +715,26 @@ export const PaymentsManagement = () => {
                                         <form onSubmit={handleSubmit} className="p-4 space-y-3">
                                             <div className="space-y-1">
                                                 <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Servicio</label>
-                                                <select name="service_id" value={formData.service_id} onChange={handleInputChange} required className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50">
+                                                <select name="service_id" value={formData.service_id} onChange={handleInputChange} required className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50 transition-all">
                                                     <option value="">Seleccione...</option>
-                                                    {services.length > 1 && <option value="all">TODOS LOS SERVICIOS</option>}
-                                                    {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                    {services.length > 1 && <option value="all" className="text-primary font-black">TODOS LOS SERVICIOS ACTIVOS</option>}
+                                                    {services.map(s => <option key={s.id} value={s.id}>{s.name} (${(s.special_price || s.cost).toLocaleString()})</option>)}
                                                 </select>
+                                                {formData.service_id === 'all' && (
+                                                    <div className="mt-2 p-2 bg-primary/5 rounded border border-primary/10 space-y-1 animate-in slide-in-from-top-1 duration-200">
+                                                        <p className="text-[9px] font-black text-primary uppercase tracking-widest italic mb-1">Desglose del Cobro Total:</p>
+                                                        {services.map(s => (
+                                                            <div key={s.id} className="flex justify-between text-[9px] text-gray-400 font-bold">
+                                                                <span>• {s.name}</span>
+                                                                <span>${(s.special_price || s.cost).toLocaleString()}</span>
+                                                            </div>
+                                                        ))}
+                                                        <div className="border-t border-primary/20 mt-1 pt-1 flex justify-between text-[10px] font-black text-white">
+                                                            <span>TOTAL RECAUDADO</span>
+                                                            <span>${selectedClient?.total_monthly?.toLocaleString()}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div className="space-y-1">
