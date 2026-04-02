@@ -54,7 +54,7 @@ export const UpcomingPaymentsWidget = () => {
         <div className="glass-card p-4 border border-white/5 bg-white/[0.01]">
             <div className="flex items-center gap-2 mb-3">
                 <Calendar className="w-4 h-4 text-blue-500" />
-                <h3 className="text-sm font-black text-white uppercase tracking-widest">Cobros Próximos</h3>
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">Proximos cobros</h3>
                 {upcomingPayments.length > 0 && (
                     <span className="ml-auto px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-black rounded border border-blue-500/10">
                         {upcomingPayments.length}

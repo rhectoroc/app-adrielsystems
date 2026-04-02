@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Users, DollarSign, AlertCircle, Loader2, Calendar } from 'lucide-react';
+import { Users, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { PaymentSummaryWidget } from '../../components/features/admin/PaymentSummaryWidget';
