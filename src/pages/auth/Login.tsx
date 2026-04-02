@@ -62,80 +62,101 @@ export const Login = () => {
 
     return (
         <div
-            className="min-h-screen flex items-center justify-center p-6"
+            className="min-h-screen flex items-center justify-center p-4 bg-[#05080f] overflow-hidden"
             style={{
-                background: 'radial-gradient(circle at top left, #1a2a4a, #0a101c)',
-                minHeight: '100vh'
+                background: 'radial-gradient(circle at 50% 50%, #0f172a 0%, #020617 100%)'
             }}
         >
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="w-full max-w-[450px] p-12 rounded-3xl bg-white/3 backdrop-blur-xl border border-white/10 shadow-[0_10px_50px_rgba(0,0,0,0.5)]"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4 }}
+                className="w-full max-w-[360px] p-8 rounded-2xl bg-white/[0.02] backdrop-blur-2xl border border-white/5 shadow-2xl relative overflow-hidden"
             >
-                <div className="flex justify-center mb-8">
+                {/* Accent Line */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/50 to-secondary/50 opacity-50" />
+
+                <div className="flex justify-center mb-6">
                     <img
                         src="/logo.png"
                         alt="Adriel's Systems"
-                        className="w-full max-w-[250px] h-auto object-contain"
+                        className="h-8 w-auto object-contain opacity-90 brightness-110"
                     />
                 </div>
 
-                <h1 className="text-3xl text-center text-white font-heading mb-2">Panel de Clientes</h1>
-                <p className="text-center text-[#aaa] text-sm mb-10">Ingresa tus credenciales para acceder</p>
+                <div className="text-center mb-6">
+                    <h1 className="text-lg font-black text-white font-heading tracking-[0.2em] uppercase leading-none mb-1">
+                        Acceso Centralizado
+                    </h1>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                        Gestión de Servicios & Infraestructura
+                    </p>
+                </div>
 
-                <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-                    <div className="flex flex-col gap-2">
-                        <label htmlFor="email" className="text-sm text-[#eee]">Correo Electrónico</label>
-                        <input
-                            type="email"
-                            id="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white outline-none focus:border-[#0070f3] transition-colors placeholder-gray-500"
-                            placeholder="correo@ejemplo.com"
-                            required
-                        />
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-1.5">
+                        <label htmlFor="email" className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">
+                            Credencial de Usuario
+                        </label>
+                        <div className="relative group">
+                            <input
+                                type="email"
+                                id="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full px-3 py-2 bg-black/40 border border-white/5 rounded-lg text-xs text-white outline-none focus:border-primary/50 transition-all placeholder-gray-700"
+                                placeholder="E-mail Corporativo"
+                                required
+                            />
+                        </div>
                     </div>
 
-                    <div className="flex flex-col gap-2">
-                        <label htmlFor="password" className="text-sm text-[#eee]">Contraseña</label>
-                        <div className="relative">
+                    <div className="space-y-1.5">
+                        <label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">
+                            Clave de Seguridad
+                        </label>
+                        <div className="relative group">
                             <input
                                 type={showPassword ? 'text' : 'password'}
                                 id="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white outline-none focus:border-[#0070f3] transition-colors placeholder-gray-500 pr-12"
+                                className="w-full px-3 py-2 bg-black/40 border border-white/5 rounded-lg text-xs text-white outline-none focus:border-primary/50 transition-all placeholder-gray-700 pr-10"
                                 placeholder="••••••••"
                                 required
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                                className="absolute right-2 px-1 top-1/2 -translate-y-1/2 text-gray-600 hover:text-white transition-colors"
                             >
-                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                             </button>
                         </div>
+                    </div>
+
+                    <div className="flex items-center justify-end">
+                        <button type="button" className="text-[9px] font-black uppercase tracking-tighter text-primary/60 hover:text-primary transition-colors">
+                            Recuperar Acceso
+                        </button>
                     </div>
 
                     <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full mt-4 py-4 bg-[#0070f3] hover:bg-[#0060d0] text-white font-semibold rounded-lg transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex justify-center items-center"
+                        className="w-full mt-2 py-2.5 bg-primary hover:bg-primary/90 text-black font-black text-[11px] uppercase tracking-[0.2em] rounded-lg transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center shadow-lg shadow-primary/10"
                     >
-                        {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Entrar'}
+                        {isLoading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Autenticar'}
                     </button>
-
-                    <div className="text-right">
-                        <a href="#" className="text-xs text-[#0070f3] hover:underline">¿Olvidaste tu contraseña?</a>
-                    </div>
                 </form>
 
-                <div className="mt-8 text-center text-sm text-[#888]">
-                    <span>¿No tienes cuenta? <a href="#" className="text-white hover:underline font-medium">Ponte en contacto</a></span>
+                <div className="mt-8 pt-6 border-t border-white/5 text-center">
+                    <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">
+                        ¿Requieres Asistencia? <br/>
+                        <button className="text-white hover:text-primary transition-colors mt-1 underline decoration-primary/30">
+                            Contactar Soporte IT
+                        </button>
+                    </p>
                 </div>
             </motion.div>
         </div>

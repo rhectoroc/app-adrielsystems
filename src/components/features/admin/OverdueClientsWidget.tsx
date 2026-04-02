@@ -41,64 +41,64 @@ export const OverdueClientsWidget = () => {
 
     if (loading) {
         return (
-            <div className="glass-card p-6 flex justify-center">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <div className="glass-card p-4 flex justify-center opacity-50">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
             </div>
         );
     }
 
     return (
-        <div className="glass-card p-6">
-            <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
-                <h3 className="text-lg font-bold text-white">Clientes Morosos</h3>
+        <div className="glass-card p-4 border border-white/5 bg-white/[0.01]">
+            <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-4 h-4 text-red-500" />
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">Mora Crítica</h3>
                 {overdueClients.length > 0 && (
-                    <span className="ml-auto px-2 py-1 bg-red-500/20 text-red-400 text-xs font-medium rounded-full">
+                    <span className="ml-auto px-1.5 py-0.5 bg-red-500/20 text-red-400 text-[10px] font-black rounded border border-red-500/10">
                         {overdueClients.length}
                     </span>
                 )}
             </div>
 
             {overdueClients.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                    <p>🎉 No hay clientes morosos</p>
+                <div className="text-center py-6 text-gray-600 italic text-xs">
+                    <p>No se registran deudas pendientes.</p>
                 </div>
             ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
+                <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
                     {overdueClients.map((client) => (
                         <div
                             key={client.payment_id}
-                            className="p-4 bg-white/5 rounded-lg border border-red-500/20 hover:border-red-500/40 transition-colors"
+                            className="p-3 bg-white/[0.02] rounded border border-white/5 hover:border-red-500/20 transition-all group"
                         >
-                            <div className="flex items-start justify-between mb-2">
-                                <div>
-                                    <h4 className="font-medium text-white">{client.client_name}</h4>
-                                    <p className="text-sm text-gray-400">{client.service_name}</p>
+                            <div className="flex items-start justify-between mb-1.5">
+                                <div className="min-w-0">
+                                    <h4 className="text-[13px] font-black text-white truncate group-hover:text-red-400 transition-colors uppercase tracking-tight">{client.client_name}</h4>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase truncate">{client.service_name}</p>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-lg font-bold text-red-400">
+                                <div className="text-right shrink-0">
+                                    <p className="text-sm font-black text-red-500">
                                         {client.currency} {client.amount}
                                     </p>
-                                    <p className="text-xs text-red-500">
-                                        {client.days_overdue} días vencido
+                                    <p className="text-[9px] text-red-500/60 font-black uppercase tracking-tighter">
+                                        {client.days_overdue} DÍAS VENC.
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-4 text-xs text-gray-500">
-                                <div className="flex items-center gap-1">
-                                    <Mail className="w-3 h-3" />
-                                    <span>{client.client_email}</span>
+                            <div className="flex items-center gap-3 text-[10px] text-gray-600 font-bold uppercase tracking-tighter">
+                                <div className="flex items-center gap-1 min-w-0">
+                                    <Mail className="w-2.5 h-2.5 opacity-50 shrink-0" />
+                                    <span className="truncate">{client.client_email}</span>
                                 </div>
                                 {client.client_phone && (
-                                    <div className="flex items-center gap-1">
-                                        <Phone className="w-3 h-3" />
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <Phone className="w-2.5 h-2.5 opacity-50 shrink-0" />
                                         <span>{client.client_phone}</span>
                                     </div>
                                 )}
                                 {client.last_notification_date && (
-                                    <div className="flex items-center gap-1 ml-auto text-green-400 bg-green-500/10 px-2 py-0.5 rounded text-[10px]" title="Notificación enviada hoy">
-                                        <CheckCircle2 className="w-3 h-3" />
-                                        <span>Enviado</span>
+                                    <div className="flex items-center gap-1 ml-auto text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded text-[8px] font-black border border-green-500/10" title="Notificación enviada">
+                                        <CheckCircle2 className="w-2.5 h-2.5" />
+                                        <span>ENVIADO</span>
                                     </div>
                                 )}
                             </div>

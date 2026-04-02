@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, Save, Tag, DollarSign, Edit } from 'lucide-react';
+import { Plus, Loader2, Save, Tag, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
 
@@ -91,63 +91,64 @@ export const PlansManagement = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-white font-heading">Planes y Tarifas</h2>
-                    <p className="text-gray-400">Gestionar planes de servicio y precios.</p>
+                    <h2 className="text-xl font-bold text-white font-heading">Planes y Tarifas</h2>
+                    <p className="text-gray-400 text-xs mt-0.5">Gestión de suscripciones y modelos de facturación.</p>
                 </div>
                 <button
                     onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors text-sm font-medium"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-primary hover:bg-primary/90 text-black rounded-lg transition-all text-xs font-black uppercase tracking-widest"
                 >
                     <Plus className="w-4 h-4" />
-                    Crear Plan
+                    Nuevo Plan
                 </button>
             </div>
 
             {loading ? (
-                <div className="flex justify-center p-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <div className="flex justify-center p-12 opacity-50">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {plans.map((plan) => (
-                        <div key={plan.id} className="glass-card p-6 flex flex-col justify-between group hover:border-primary/30 transition-all">
+                        <div key={plan.id} className="glass-card p-4 flex flex-col justify-between group hover:border-primary/20 transition-all border border-white/5 relative overflow-hidden bg-white/[0.01]">
+                            <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                    onClick={() => handleEdit(plan)}
+                                    className="p-1.5 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors bg-black/40 backdrop-blur-sm"
+                                    title="Editar"
+                                >
+                                    <Edit className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+
                             <div>
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="p-3 bg-primary/10 rounded-lg text-primary">
-                                        <Tag className="w-6 h-6" />
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="p-2 bg-primary/10 rounded text-primary">
+                                        <Tag className="w-4 h-4" />
                                     </div>
-                                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-white/5 text-gray-400 border border-white/10 uppercase tracking-wider">
+                                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10 uppercase tracking-widest">
                                         {plan.billing_cycle === 'MONTHLY' ? 'MENSUAL' : 'ANUAL'}
                                     </span>
                                 </div>
-                                <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
-                                <p className="text-gray-400 text-sm mb-6 line-clamp-2">{plan.description}</p>
+                                <h3 className="text-sm font-black text-white mb-1 uppercase tracking-tight">{plan.name}</h3>
+                                <p className="text-gray-500 text-[11px] mb-4 line-clamp-2 italic leading-relaxed">{plan.description}</p>
                             </div>
 
-                            <div className="border-t border-white/10 pt-4 flex items-center justify-between">
-                                <div className="flex items-baseline gap-1">
-                                    <span className="text-2xl font-bold text-white">
-                                        {plan.currency === 'USD' ? '$' : plan.currency} {plan.cost}
-                                    </span>
-                                    <span className="text-sm text-gray-500">/{plan.billing_cycle === 'MONTHLY' ? 'mo' : 'yr'}</span>
-                                </div>
-                                <button
-                                    onClick={() => handleEdit(plan)}
-                                    className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                                    title="Edit plan"
-                                >
-                                    <Edit className="w-4 h-4" />
-                                </button>
+                            <div className="border-t border-white/5 pt-3 flex items-baseline gap-1">
+                                <span className="text-lg font-black text-white">
+                                    {plan.currency === 'USD' ? '$' : plan.currency} {plan.cost}
+                                </span>
+                                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-tighter">/{plan.billing_cycle === 'MONTHLY' ? 'MES' : 'AÑO'}</span>
                             </div>
                         </div>
                     ))}
 
                     {plans.length === 0 && (
-                        <div className="col-span-full py-12 text-center text-gray-500 border border-dashed border-white/10 rounded-xl">
-                            No se encontraron planes. Crea uno para comenzar.
+                        <div className="col-span-full py-10 text-center text-gray-600 border border-dashed border-white/5 rounded-xl bg-white/[0.01]">
+                            <p className="text-xs italic">No hay planes configurados en el sistema.</p>
                         </div>
                     )}
                 </div>
@@ -156,58 +157,62 @@ export const PlansManagement = () => {
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="relative w-full max-w-md bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl p-6">
-                        <h3 className="text-xl font-bold text-white font-heading mb-4">
-                            {editMode ? 'Editar Plan' : 'Nuevo Plan'}
-                        </h3>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Nombre del Plan</label>
+                    <div className="relative w-full max-w-sm bg-[#0f172a] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+                        <div className="p-4 border-b border-white/10 bg-white/5">
+                            <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">
+                                {editMode ? 'Configurar Plan' : 'Nuevo Registro de Plan'}
+                            </h3>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Nombre Comercial</label>
                                 <input
                                     name="name"
                                     required
                                     value={formData.name}
                                     onChange={handleInputChange}
-                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                    placeholder="e.g. Basic Hosting"
+                                    className="w-full px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-xs text-white focus:border-primary/50 focus:outline-none"
+                                    placeholder="e.g. Premium Suite"
                                 />
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Descripción</label>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Detalles del Servicio</label>
                                 <textarea
                                     name="description"
                                     value={formData.description}
                                     onChange={handleInputChange}
-                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
-                                    placeholder="Plan details..."
-                                    rows={3}
+                                    className="w-full px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-xs text-white focus:border-primary/50 focus:outline-none"
+                                    placeholder="Alcance y beneficios..."
+                                    rows={2}
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Costo</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Tarifa Base</label>
                                     <div className="relative">
-                                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 font-bold">$</span>
                                         <input
                                             name="cost"
                                             type="number"
                                             required
                                             value={formData.cost}
                                             onChange={handleInputChange}
-                                            className="w-full pl-9 pr-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                            className="w-full pl-7 pr-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-xs text-white"
                                             placeholder="0.00"
+                                            step="0.01"
                                         />
                                     </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Moneda</label>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Divisa</label>
                                     <select
                                         name="currency"
                                         value={formData.currency}
                                         onChange={handleInputChange}
-                                        className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                        className="w-full px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-xs text-white focus:border-primary/50"
                                     >
                                         <option value="USD">USD</option>
                                         <option value="EUR">EUR</option>
@@ -216,34 +221,34 @@ export const PlansManagement = () => {
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-300">Ciclo de Facturación</label>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Ciclo de Cobro</label>
                                 <select
                                     name="billing_cycle"
                                     value={formData.billing_cycle}
                                     onChange={handleInputChange}
-                                    className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none"
+                                    className="w-full px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-xs text-white focus:border-primary/50"
                                 >
-                                    <option value="MONTHLY">Mensual</option>
-                                    <option value="YEARLY">Anual</option>
+                                    <option value="MONTHLY">MENSUAL</option>
+                                    <option value="YEARLY">ANUAL</option>
                                 </select>
                             </div>
 
-                            <div className="flex justify-end gap-3 pt-4">
+                            <div className="flex justify-end gap-2 pt-4 border-t border-white/5">
                                 <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
-                                    className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                                    className="px-3 py-1.5 text-[11px] font-bold text-gray-500 hover:text-white transition-colors uppercase tracking-widest"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg flex items-center gap-2"
+                                    className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary hover:bg-primary/90 text-black rounded-lg transition-all text-[11px] font-black uppercase tracking-widest disabled:opacity-50"
                                 >
-                                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                    Guardar Plan
+                                    {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                    Guardar Cambios
                                 </button>
                             </div>
                         </form>

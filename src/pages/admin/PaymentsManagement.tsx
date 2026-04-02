@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, X, Save, Eye, DollarSign, Calendar, CreditCard, Edit2, TrendingUp, History, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Loader2, X, Save, Eye, DollarSign, Edit2, History, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
@@ -19,6 +19,7 @@ interface Payment {
     payment_method: string;
     notes: string;
     months_covered: number;
+    service_month: string;
     evidence_path?: string;
 }
 
@@ -89,17 +90,32 @@ export const PaymentsManagement = () => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     // Form State
-    const [formData, setFormData] = useState({
+    interface PaymentFormData {
+        client_id: string;
+        service_id: string;
+        amount: string;
+        currency: string;
+        payment_date: string;
+        due_date: string;
+        status: 'PAGADO' | 'PENDIENTE' | 'VENCIDO';
+        payment_method: string;
+        notes: string;
+        months_covered: number | string;
+        service_month: string;
+    }
+
+    const [formData, setFormData] = useState<PaymentFormData>({
         client_id: '',
         service_id: '',
         amount: '',
         currency: 'USD',
         payment_date: new Date().toISOString().split('T')[0],
         due_date: new Date().toISOString().split('T')[0],
-        status: 'PAGADO' as 'PAGADO' | 'PENDIENTE' | 'VENCIDO', // Default to PAID as requested
+        status: 'PAGADO',
         payment_method: '',
         notes: '',
-        months_covered: 1
+        months_covered: 1,
+        service_month: new Date().toISOString().split('T')[0]
     });
 
     useEffect(() => {
@@ -166,13 +182,13 @@ export const PaymentsManagement = () => {
     };
 
     // Filter Logic
-    const filteredClients = clients.filter(client => {
+    const filteredClients = clients.filter((client: Client) => {
         const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             client.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             client.email?.toLowerCase().includes(searchTerm.toLowerCase());
-
+ 
         const matchesStatus = filterStatus === 'ALL' || client.payment_status === filterStatus;
-
+ 
         return matchesSearch && matchesStatus;
     });
 
@@ -235,7 +251,15 @@ export const PaymentsManagement = () => {
             status: 'PAGADO',
             payment_method: '',
             notes: '',
-            months_covered: 1
+            months_covered: 1,
+            service_month: (() => {
+                if (lastPayment && lastPayment.service_month) {
+                    const next = new Date(lastPayment.service_month);
+                    next.setMonth(next.getMonth() + (lastPayment.months_covered || 1));
+                    return next.toISOString().split('T')[0];
+                }
+                return new Date().toISOString().split('T')[0];
+            })()
         });
         setSelectedFile(null);
 
@@ -282,7 +306,8 @@ export const PaymentsManagement = () => {
             status: translateStatus(payment.status) as 'PAGADO' | 'PENDIENTE' | 'VENCIDO',
             payment_method: payment.payment_method || '',
             notes: payment.notes || '',
-            months_covered: payment.months_covered || 1
+            months_covered: payment.months_covered || 1,
+            service_month: payment.service_month || new Date().toISOString().split('T')[0]
         });
 
         setShowEditForm(true);
@@ -384,7 +409,7 @@ export const PaymentsManagement = () => {
     };
 
     return (
-        <div className="min-h-screen pb-20">
+        <div className="min-h-screen pb-10">
             <AnimatePresence mode="wait">
                 {viewMode === 'LIST' ? (
                     <motion.div
@@ -392,183 +417,99 @@ export const PaymentsManagement = () => {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.3 }}
-                        className="space-y-6"
+                        className="space-y-4"
                     >
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div>
-                                <h2 className="text-3xl font-bold text-white font-heading tracking-tight">Gestión de Pagos</h2>
-                                <p className="text-gray-400 mt-1">Administra el historial financiero y suscripciones de tus clientes.</p>
+                                <h1 className="text-xl font-heading font-bold text-white tracking-wide">Gestión de Pagos</h1>
+                                <p className="text-gray-400 text-xs mt-0.5">Historial financiero y suscripciones.</p>
                             </div>
                             <button
                                 onClick={() => handleAddClick(false)}
-                                className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white rounded-xl transition-all shadow-lg shadow-primary/20 font-bold active:scale-95"
+                                className="flex items-center gap-2 px-4 py-2 bg-primary text-black rounded-lg font-bold text-xs hover:bg-primary/90 transition-all"
                             >
-                                <Plus className="w-5 h-5" />
-                                Registrar Pago General
+                                <Plus className="w-4 h-4" /> Registrar Pago General
                             </button>
                         </div>
 
                         {/* Stats Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <motion.div
-                                whileHover={{ y: -5 }}
-                                className="glass-card p-6 border-l-4 border-red-500/50 relative overflow-hidden group"
-                            >
-                                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <TrendingUp className="w-12 h-12 text-red-500" />
-                                </div>
-                                <div className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] mb-1">Cuentas por Cobrar (Mora)</div>
-                                <div className="text-3xl font-black text-white font-heading">${overdueTotal.toLocaleString()}</div>
-                                <div className="mt-2 flex items-center gap-2 text-[10px] text-red-400/80 font-bold bg-red-500/10 w-fit px-2 py-0.5 rounded-full border border-red-500/20">
-                                    <AlertCircle className="w-3 h-3" />
-                                    Requiere Acción Inmediata
-                                </div>
-                            </motion.div>
-
-                            <motion.div
-                                whileHover={{ y: -5 }}
-                                className="glass-card p-6 border-l-4 border-primary/50 relative overflow-hidden group"
-                            >
-                                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <TrendingUp className="w-12 h-12 text-primary" />
-                                </div>
-                                <div className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] mb-1">Ingresos Registrados (Mes Actual)</div>
-                                <div className="text-3xl font-black text-primary font-heading">${monthlyIncome.toLocaleString()}</div>
-                                <div className="mt-2 flex items-center gap-2 text-[10px] text-primary/80 font-bold bg-primary/10 w-fit px-2 py-0.5 rounded-full border border-primary/20">
-                                    <CheckCircle2 className="w-3 h-3" />
-                                    Corte al día 30
-                                </div>
-                            </motion.div>
-
-                            <motion.div
-                                whileHover={{ y: -5 }}
-                                className="glass-card p-6 border-l-4 border-yellow-500/50 relative overflow-hidden group"
-                            >
-                                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <TrendingUp className="w-12 h-12 text-yellow-500" />
-                                </div>
-                                <div className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] mb-1">Facturación Pendiente (Próximos)</div>
-                                <div className="text-3xl font-black text-white font-heading">${pendingPayments.toLocaleString()}</div>
-                                <div className="mt-2 flex items-center gap-2 text-[10px] text-yellow-500/80 font-bold bg-yellow-500/10 w-fit px-2 py-0.5 rounded-full border border-yellow-500/20">
-                                    <Calendar className="w-3 h-3" />
-                                    Próximos Vencimientos
-                                </div>
-                            </motion.div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="glass-card p-4 border-l-2 border-red-500/50">
+                                <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Por Cobrar (Mora)</div>
+                                <div className="text-xl font-black text-white font-heading">${overdueTotal.toLocaleString()}</div>
+                            </div>
+                            <div className="glass-card p-4 border-l-2 border-primary/50">
+                                <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Ingresos (Mes)</div>
+                                <div className="text-xl font-black text-primary font-heading">${monthlyIncome.toLocaleString()}</div>
+                            </div>
+                            <div className="glass-card p-4 border-l-2 border-yellow-500/50">
+                                <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Pendiente (Próximos)</div>
+                                <div className="text-xl font-black text-white font-heading">${pendingPayments.toLocaleString()}</div>
+                            </div>
                         </div>
 
-                        {/* Filters Card */}
-                        <div className="glass-card p-2 md:p-3 overflow-hidden">
-                            <div className="flex flex-col md:flex-row gap-3 items-center">
-                                <div className="relative w-full md:w-96">
-                                    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                                        <Eye className="w-4 h-4 text-gray-500" />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar por nombre, empresa o email..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2.5 bg-black/40 border border-white/5 rounded-xl text-sm text-white focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-gray-600"
-                                    />
-                                </div>
-                                <div className="flex gap-1.5 p-1 bg-black/40 border border-white/5 rounded-xl w-full md:w-auto overflow-x-auto no-scrollbar">
-                                    {['ALL', 'PAID', 'UPCOMING', 'OVERDUE'].map(status => {
-                                        const labels: any = { ALL: 'Todos', PAID: 'Al día', UPCOMING: 'Próximos', OVERDUE: 'Vencidos' };
-                                        const isActive = filterStatus === status;
-                                        return (
-                                            <button
-                                                key={status}
-                                                onClick={() => setFilterStatus(status)}
-                                                className={`px-4 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${isActive
-                                                    ? 'bg-primary text-white shadow-md'
-                                                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-                                                    }`}
-                                            >
-                                                {labels[status]}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                        {/* Filters */}
+                        <div className="glass-card p-2 flex flex-col md:flex-row gap-2 items-center">
+                            <div className="relative flex-1">
+                                <Eye className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por nombre, empresa..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 bg-black/40 border border-white/5 rounded-lg text-xs text-white focus:outline-none"
+                                />
+                            </div>
+                            <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                                {['ALL', 'PAID', 'UPCOMING', 'OVERDUE'].map(status => (
+                                    <button
+                                        key={status}
+                                        onClick={() => setFilterStatus(status)}
+                                        className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${filterStatus === status ? 'bg-primary text-black' : 'text-gray-500 hover:bg-white/5'}`}
+                                    >
+                                        {status === 'ALL' ? 'Todos' : status === 'PAID' ? 'Al día' : status === 'UPCOMING' ? 'Próximos' : 'Vencidos'}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
                         {/* Clients Table */}
-                        <div className="glass-card overflow-hidden">
+                        <div className="glass-card overflow-hidden p-0">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
-                                    <thead className="bg-white/5 border-b border-white/10">
+                                    <thead className="bg-white/5 border-b border-white/10 uppercase text-[10px] font-black text-gray-500 tracking-widest">
                                         <tr>
-                                            <th className="p-5 font-bold text-gray-400 text-xs uppercase tracking-wider">Cliente / Empresa</th>
-                                            <th className="p-5 font-bold text-gray-400 text-xs uppercase tracking-wider">Servicios Activos</th>
-                                            <th className="p-5 font-bold text-gray-400 text-xs uppercase tracking-wider text-right">Mensualidad Total</th>
-                                            <th className="p-5 font-bold text-gray-400 text-xs uppercase tracking-wider text-center">Estado</th>
-                                            <th className="p-5 font-bold text-gray-400 text-xs uppercase tracking-wider text-right">Acciones</th>
+                                            <th className="p-3">Cliente / Empresa</th>
+                                            <th className="p-3">Servicios</th>
+                                            <th className="p-3 text-right">Mensualidad</th>
+                                            <th className="p-3 text-center">Estado</th>
+                                            <th className="p-3 text-right">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
                                         {filteredClients.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={4} className="p-12 text-center">
-                                                    <div className="flex flex-col items-center gap-3">
-                                                        <div className="p-4 bg-white/5 rounded-full">
-                                                            <DollarSign className="w-8 h-8 text-gray-600" />
-                                                        </div>
-                                                        <p className="text-gray-500 font-medium">No se encontraron clientes con estos filtros</p>
-                                                    </div>
-                                                </td>
-                                            </tr>
+                                            <tr><td colSpan={5} className="p-10 text-center text-gray-500 text-xs italic">No se encontraron clientes</td></tr>
                                         ) : (
                                             filteredClients.map((client) => (
-                                                <tr
-                                                    key={client.id}
-                                                    className="hover:bg-white/[0.02] transition-colors group cursor-pointer"
-                                                    onClick={() => handleViewHistory(client)}
-                                                >
-                                                    <td className="p-5">
-                                                        <div className="font-bold text-white group-hover:text-primary transition-colors">{client.name}</div>
-                                                        <div className="text-xs text-gray-500 mt-0.5">{client.company_name || 'Particular'}</div>
+                                                <tr key={client.id} className="hover:bg-white/[0.02] transition-colors group cursor-pointer" onClick={() => handleViewHistory(client)}>
+                                                    <td className="p-3">
+                                                        <div className="font-bold text-white group-hover:text-primary transition-colors text-sm">{client.name}</div>
+                                                        <div className="text-[10px] text-gray-500">{client.company_name}</div>
                                                     </td>
-                                                    <td className="p-5">
-                                                        <div className="flex flex-col gap-1">
-                                                            <div className="inline-flex items-center gap-2 text-sm text-gray-300 bg-white/5 px-3 py-1 rounded-lg border border-white/5">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                                                                <span className="truncate max-w-[150px]">{client.service_name || 'Sin suscripción'}</span>
-                                                            </div>
-                                                            {client.services && client.services.length > 1 && (
-                                                                <div className="text-[10px] text-primary/70 font-bold ml-1">
-                                                                    +{client.services.length - 1} plan(es) adicional(es)
-                                                                </div>
-                                                            )}
+                                                    <td className="p-3">
+                                                        <div className="inline-flex items-center gap-2 text-[11px] text-gray-300 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                                                            <span className="truncate max-w-[120px]">{client.service_name || 'Sin plan'}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="p-5 text-right">
-                                                        <div className="font-bold text-white text-lg">
-                                                            ${(client.total_monthly || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                                        </div>
-                                                        <div className="text-[10px] text-gray-500 uppercase tracking-tighter">Total Mensual</div>
+                                                    <td className="p-3 text-right font-black text-white text-base">${(client.total_monthly || 0).toLocaleString()}</td>
+                                                    <td className="p-3 text-center">
+                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${client.payment_status === 'OVERDUE' ? 'bg-red-500/20 text-red-500' : client.payment_status === 'UPCOMING' ? 'bg-yellow-500/20 text-yellow-500' : 'bg-green-500/20 text-green-500'}`}>
+                                                            {client.payment_status === 'OVERDUE' ? 'Vencido' : client.payment_status === 'UPCOMING' ? 'Próximo' : 'Al día'}
+                                                        </span>
                                                     </td>
-                                                    <td className="p-5 text-center">
-                                                        {client.payment_status === 'OVERDUE' ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">
-                                                                <AlertCircle className="w-3 h-3" /> Vencido
-                                                            </span>
-                                                        ) : client.payment_status === 'UPCOMING' ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                                                                <Calendar className="w-3 h-3" /> Próximo
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-green-500/10 text-green-400 border border-green-500/20">
-                                                                <CheckCircle2 className="w-3 h-3" /> Al día
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-5 text-right">
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleViewHistory(client); }}
-                                                            className="p-2.5 bg-white/5 hover:bg-primary/20 text-gray-400 hover:text-primary rounded-xl transition-all"
-                                                        >
-                                                            <History className="w-5 h-5" />
+                                                    <td className="p-3 text-right">
+                                                        <button onClick={(e) => { e.stopPropagation(); handleViewHistory(client); }} className="p-1.5 bg-white/5 hover:bg-primary/20 text-gray-400 hover:text-primary rounded-lg transition-all">
+                                                            <History className="w-4 h-4" />
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -585,360 +526,194 @@ export const PaymentsManagement = () => {
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.4, ease: "easeOut" }}
-                        className="space-y-8"
+                        className="space-y-4"
                     >
-                        {/* Header & Navigation */}
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div className="flex items-center gap-5">
-                                <button
-                                    onClick={handleBackToList}
-                                    className="p-3 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-2xl transition-all shadow-sm border border-white/5 active:scale-90"
-                                >
-                                    <ArrowLeft className="w-6 h-6" />
+                        {/* Header */}
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <button onClick={handleBackToList} className="p-2 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg transition-all active:scale-90 shadow-sm border border-white/5">
+                                    <ArrowLeft className="w-5 h-5" />
                                 </button>
                                 <div>
-                                    <div className="flex items-center gap-3">
-                                        <h2 className="text-3xl font-bold text-white tracking-tight">{selectedClient?.name}</h2>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-bold text-white tracking-tight">{selectedClient?.name}</h2>
                                         {selectedClient?.payment_status === 'OVERDUE' && (
-                                            <span className="px-3 py-1 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg text-[10px] font-black uppercase tracking-widest">Moroso</span>
+                                            <span className="px-2 py-0.5 bg-red-500/10 text-red-500 border border-red-500/20 rounded text-[9px] font-black uppercase">Moroso</span>
                                         )}
                                     </div>
-                                    <p className="text-gray-500 text-sm mt-1">{selectedClient?.company_name} • {selectedClient?.email}</p>
+                                    <p className="text-gray-500 text-[11px]">{selectedClient?.company_name} • {selectedClient?.email}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={() => handleAddClick(true)}
-                                    className="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all flex items-center gap-2 group active:scale-95"
-                                >
-                                    <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-                                    Registrar Pago
-                                </button>
-                            </div>
+                            <button onClick={() => handleAddClick(true)} className="px-4 py-2 bg-primary text-black rounded-lg font-bold text-xs hover:bg-primary/90 transition-all flex items-center gap-2 group shadow-lg shadow-primary/20">
+                                <Plus className="w-4 h-4" /> Registrar Pago
+                            </button>
                         </div>
 
-                        {/* Top Stats Dashboard */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="glass-card p-6 border-l-4 border-l-primary relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                                    <TrendingUp className="w-24 h-24 text-white" />
-                                </div>
-                                <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Mensualidad Total</div>
-                                <div className="text-3xl font-black text-white">
-                                    ${(selectedClient?.total_monthly || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                </div>
-                                <div className="mt-4 space-y-2 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar">
+                        {/* Top Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="glass-card p-4 border-l-2 border-l-primary relative overflow-hidden group">
+                                <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Mensualidad Total</div>
+                                <div className="text-xl font-black text-white">${(selectedClient?.total_monthly || 0).toLocaleString()}</div>
+                                <div className="mt-2 space-y-1 max-h-[60px] overflow-y-auto pr-1 custom-scrollbar">
                                     {selectedClient?.services?.map((service: any, idx: number) => (
-                                        <div key={idx} className="flex items-center justify-between text-[11px] py-1.5 border-b border-white/5 last:border-0 hover:bg-white/5 px-1 rounded transition-colors">
-                                            <span className="text-gray-400 font-medium truncate max-w-[150px]">{service.name}</span>
+                                        <div key={idx} className="flex items-center justify-between text-[10px] py-1 border-b border-white/5 last:border-0">
+                                            <span className="text-gray-400 truncate max-w-[140px]">{service.name}</span>
                                             <span className="text-primary font-black">${(service.special_price || service.cost).toLocaleString()}</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
-                            <div className={`glass-card p-6 border-l-4 relative overflow-hidden group ${selectedClient?.payment_status === 'OVERDUE' ? 'border-l-red-500' : 'border-l-green-500'}`}>
-                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                                    <Calendar className="w-24 h-24 text-white" />
-                                </div>
-                                <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Próximo Vencimiento</div>
-                                <div className="flex items-center gap-3">
-                                    <div className="text-3xl font-black text-white">
-                                        {formatSafeDate(selectedClient?.expiration_date)}
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            setNewExpirationDate(selectedClient?.expiration_date ? new Date(selectedClient.expiration_date).toISOString().split('T')[0] : '');
-                                            setIsEditingExpiration(true);
-                                        }}
-                                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded-xl text-primary transition-all border border-primary/20 group hover:scale-105 active:scale-95"
-                                    >
-                                        <Edit2 className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                                        <span className="text-xs font-bold uppercase tracking-wider">Modificar Vencimiento</span>
-                                    </button>
+                            <div className={`glass-card p-4 border-l-2 relative overflow-hidden group ${selectedClient?.payment_status === 'OVERDUE' ? 'border-l-red-500' : 'border-l-green-500'}`}>
+                                <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Vencimiento</div>
+                                <div className="flex items-center justify-between">
+                                    <div className="text-xl font-black text-white">{formatSafeDate(selectedClient?.expiration_date)}</div>
+                                    <button onClick={() => { setNewExpirationDate(selectedClient?.expiration_date ? new Date(selectedClient.expiration_date).toISOString().split('T')[0] : ''); setIsEditingExpiration(true); }} className="p-1.5 bg-primary/10 text-primary rounded-lg border border-primary/20"><Edit2 className="w-3.5 h-3.5" /></button>
                                 </div>
                                 {isEditingExpiration && (
-                                    <div className="mt-4 flex items-center gap-2 bg-black/40 p-2 rounded-xl border border-white/10 animate-in fade-in slide-in-from-top-2">
-                                        <input
-                                            type="date"
-                                            value={newExpirationDate}
-                                            onChange={(e) => setNewExpirationDate(e.target.value)}
-                                            className="bg-transparent border-none text-white text-sm focus:ring-0 w-full"
-                                        />
-                                        <button onClick={handleUpdateExpiration} className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg"><Save className="w-4 h-4" /></button>
-                                        <button onClick={() => setIsEditingExpiration(false)} className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg"><X className="w-4 h-4" /></button>
+                                    <div className="mt-2 flex items-center gap-1 bg-black/40 p-1.5 rounded-lg border border-white/10">
+                                        <input type="date" value={newExpirationDate} onChange={(e) => setNewExpirationDate(e.target.value)} className="bg-transparent border-none text-white text-xs focus:ring-0 w-full" />
+                                        <button onClick={handleUpdateExpiration} className="p-1 text-green-400 hover:bg-green-400/10 rounded-md"><Save className="w-3 h-3" /></button>
+                                        <button onClick={() => setIsEditingExpiration(false)} className="p-1 text-red-400 hover:bg-red-400/10 rounded-md"><X className="w-3 h-3" /></button>
                                     </div>
                                 )}
                             </div>
 
-                            <div className="glass-card p-6 border-l-4 border-l-indigo-500 relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                                    <DollarSign className="w-24 h-24 text-white" />
-                                </div>
-                                <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Inversión Total</div>
-                                <div className="text-3xl font-black text-white">
-                                    $ {clientPayments.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
-                                </div>
-                                <div className="text-xs text-gray-500 mt-2 font-bold uppercase tracking-widest">{clientPayments.length} transacciones registradas</div>
+                            <div className="glass-card p-4 border-l-2 border-l-indigo-500 relative group">
+                                <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Inversión Total</div>
+                                <div className="text-xl font-black text-white">$ {clientPayments.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}</div>
+                                <div className="text-[10px] text-gray-500 mt-1 font-bold uppercase tracking-widest">{clientPayments.length} transacciones</div>
                             </div>
                         </div>
 
-                        {/* Full Width History Table */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between px-2">
-                                <h3 className="text-xl font-bold text-white flex items-center gap-3 font-heading tracking-tight">
-                                    <History className="w-5 h-5 text-primary" />
-                                    Historial de Operaciones
+                        {/* History Table */}
+                        <div className="glass-card overflow-hidden p-0 h-[calc(100vh-320px)] flex flex-col">
+                            <div className="p-3 border-b border-white/5 bg-white/[0.01]">
+                                <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2 italic">
+                                    <History className="w-3 h-3 text-primary" /> Historial de Operaciones
                                 </h3>
                             </div>
-
-                            <div className="glass-card overflow-hidden">
+                            <div className="flex-1 overflow-auto custom-scrollbar">
                                 {loadingHistory ? (
-                                    <div className="flex flex-col items-center justify-center py-24 gap-4">
-                                        <Loader2 className="w-12 h-12 text-primary animate-spin" />
-                                        <p className="text-gray-500 font-bold animate-pulse">Sincronizando historial...</p>
-                                    </div>
+                                    <div className="flex flex-col items-center justify-center h-full gap-2 opacity-50"><Loader2 className="w-6 h-6 animate-spin text-primary" /><span className="text-[10px] font-bold">Cargando...</span></div>
                                 ) : (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left">
-                                            <thead className="bg-white/5 border-b border-white/10">
-                                                <tr>
-                                                    <th className="p-5 font-bold text-gray-500 text-[10px] uppercase tracking-widest">Fecha de Pago (Reciente)</th>
-                                                    <th className="p-5 font-bold text-gray-500 text-[10px] uppercase tracking-widest text-center">Periodo Cubierto</th>
-                                                    <th className="p-5 font-bold text-gray-500 text-[10px] uppercase tracking-widest text-center">Monto</th>
-                                                    <th className="p-5 font-bold text-gray-500 text-[10px] uppercase tracking-widest">Método</th>
-                                                    <th className="p-5 font-bold text-gray-500 text-[10px] uppercase tracking-widest text-right">Administración</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-white/5">
-                                                {clientPayments.length === 0 ? (
-                                                    <tr>
-                                                        <td colSpan={5} className="p-12 text-center text-gray-600 font-medium">No hay registros de pago para este cliente</td>
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="bg-white/5 sticky top-0 z-10 border-b border-white/10 uppercase text-[9px] font-black text-gray-500 tracking-widest">
+                                            <tr>
+                                                <th className="p-3">Fecha</th>
+                                                <th className="p-3 text-center">Periodo</th>
+                                                <th className="p-3 text-center">Monto</th>
+                                                <th className="p-3">Método</th>
+                                                <th className="p-3 text-right">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5 text-xs">
+                                            {clientPayments.length === 0 ? (
+                                                <tr><td colSpan={5} className="p-10 text-center text-gray-500 italic">Sin registros</td></tr>
+                                            ) : (
+                                                clientPayments.map(payment => (
+                                                    <tr key={payment.id} className="hover:bg-white/[0.02] transition-colors">
+                                                        <td className="p-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold text-white uppercase">{formatSafeDate(payment.payment_date)}</span>
+                                                                {payment.evidence_path && (
+                                                                    <a href={`http://localhost:3000/uploads/capref/${payment.evidence_path}`} target="_blank" rel="noopener noreferrer" className="p-1 bg-primary/10 text-primary rounded-md hover:bg-primary/20"><Eye className="w-3 h-3" /></a>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-[9px] text-gray-500 truncate max-w-[120px]">{payment.notes || 'Sin notas'}</div>
+                                                        </td>
+                                                        <td className="p-3 text-center">
+                                                            <span className="text-[9px] px-2 py-0.5 bg-white/5 rounded border border-white/5 font-medium whitespace-nowrap">{calculatePeriod(payment.service_month, payment.months_covered || 1)}</span>
+                                                        </td>
+                                                        <td className="p-3 text-center font-black text-white">{payment.currency} {payment.amount.toLocaleString()}</td>
+                                                        <td className="p-3 text-gray-400 uppercase text-[10px]">{payment.payment_method || 'N/A'}</td>
+                                                        <td className="p-3 text-right">
+                                                            <button onClick={() => handleEditPayment(payment)} className="p-1.5 bg-white/5 hover:bg-primary/10 text-gray-400 hover:text-primary rounded-lg transition-all border border-white/5"><Edit2 className="w-3 h-3" /></button>
+                                                        </td>
                                                     </tr>
-                                                ) : (
-                                                    clientPayments.map(payment => (
-                                                        <tr key={payment.id} className="hover:bg-white/[0.03] transition-colors group">
-                                                            <td className="p-5">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className="text-white font-bold">{formatSafeDate(payment.payment_date)}</div>
-                                                                    {payment.evidence_path && (
-                                                                        <a 
-                                                                            href={`http://localhost:3000/uploads/capref/${payment.evidence_path}`} 
-                                                                            target="_blank" 
-                                                                            rel="noopener noreferrer"
-                                                                            className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-all"
-                                                                            title="Ver comprobante"
-                                                                        >
-                                                                            <Eye className="w-4 h-4" />
-                                                                        </a>
-                                                                    )}
-                                                                </div>
-                                                                <div className="text-[10px] text-gray-500 italic mt-1 max-w-[200px] truncate">{payment.notes || 'Sin notas'}</div>
-                                                            </td>
-                                                            <td className="p-5 text-center">
-                                                                <div className="inline-flex flex-col items-center px-4 py-2 bg-white/5 rounded-xl border border-white/5">
-                                                                    <div className="text-xs text-gray-300 font-medium">
-                                                                        {calculatePeriod(payment.payment_date, payment.months_covered || 1)}
-                                                                    </div>
-                                                                    <div className="text-[10px] font-black text-primary mt-0.5 uppercase tracking-tighter">
-                                                                        {payment.months_covered} {payment.months_covered === 1 ? 'Mes Pago' : 'Meses Adelantados'}
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-5 text-center">
-                                                                <div className="text-xl font-black text-white">{payment.currency} {payment.amount.toLocaleString()}</div>
-                                                            </td>
-                                                            <td className="p-5">
-                                                                <div className="flex items-center gap-2 text-sm text-gray-400">
-                                                                    <div className="p-2 bg-white/5 rounded-lg">
-                                                                        <CreditCard className="w-4 h-4 opacity-70" />
-                                                                    </div>
-                                                                    {payment.payment_method || 'Sin método'}
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-5 text-right">
-                                                                <button
-                                                                    onClick={() => handleEditPayment(payment)}
-                                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-primary/20 text-gray-400 hover:text-primary rounded-xl transition-all border border-white/5 group-hover:border-primary/30"
-                                                                >
-                                                                    <Edit2 className="w-4 h-4" />
-                                                                    <span className="text-xs font-bold uppercase">Modificar Pago</span>
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
                                 )}
                             </div>
                         </div>
 
-                        {/* Payment Form Modal (Re-implemented Centered) */}
+                        {/* Modal Form */}
                         <AnimatePresence>
                             {showEditForm && (
                                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                                    <motion.div
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        onClick={() => setShowEditForm(false)}
-                                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-                                    />
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                                        className="glass-card w-full max-w-lg border-primary/20 relative z-50 overflow-hidden"
-                                    >
-                                        <div className="p-6 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-primary/10 to-transparent">
-                                            <h3 className="font-bold text-xl text-white flex items-center gap-3">
-                                                <div className="p-2 bg-primary rounded-lg text-white">
-                                                    {editMode ? <Edit2 className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                                                </div>
-                                                {editMode ? 'Modificar Registro de Pago' : 'Registrar Nuevo Pago'}
-                                            </h3>
-                                            <button onClick={() => setShowEditForm(false)} className="p-2 hover:bg-white/10 rounded-xl text-gray-400 transition-colors active:scale-95">
-                                                <X className="w-6 h-6" />
-                                            </button>
+                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowEditForm(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+                                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-card w-full max-w-md relative z-50 overflow-hidden border border-white/10 shadow-2xl">
+                                        <div className="p-3 border-b border-white/10 flex justify-between items-center bg-white/[0.03]">
+                                            <div className="flex items-center gap-2">
+                                                <DollarSign className="w-4 h-4 text-primary" />
+                                                <h2 className="text-xs font-black text-white uppercase tracking-wider">{editMode ? 'Editar Pago' : 'Registrar Pago'}</h2>
+                                            </div>
+                                            <button onClick={() => setShowEditForm(false)} className="p-1.5 hover:bg-white/10 rounded-lg transition-all text-gray-500 hover:text-white"><X className="w-4 h-4" /></button>
                                         </div>
-                                        <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                                            <div className="space-y-5">
-                                                <div className="space-y-2">
-                                                    <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Servicio Contratado *</label>
-                                                    <select
-                                                        name="service_id"
-                                                        value={formData.service_id}
-                                                        onChange={handleInputChange}
-                                                        required
-                                                        className="w-full px-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
-                                                    >
-                                                        <option value="">Seleccionar el servicio...</option>
-                                                        {services.length > 1 && (
-                                                            <option value="all" className="font-bold text-primary italic">⭐ TODOS LOS SERVICIOS (Global / Prepago)</option>
-                                                        )}
-                                                        {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Servicio</label>
+                                                <select name="service_id" value={formData.service_id} onChange={handleInputChange} required className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50">
+                                                    <option value="">Seleccione...</option>
+                                                    {services.length > 1 && <option value="all">TODOS LOS SERVICIOS</option>}
+                                                    {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Monto</label>
+                                                    <input type="number" name="amount" value={formData.amount} onChange={handleInputChange} required className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Meses a Cubrir</label>
+                                                    <select name="months_covered" value={formData.months_covered} onChange={handleInputChange} className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none">
+                                                        {[1, 2, 3, 4, 5, 6, 12].map(m => <option key={m} value={m}>{m} {m === 1 ? 'Mes' : 'Meses'}</option>)}
                                                     </select>
                                                 </div>
-
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="space-y-2">
-                                                        <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Monto Pagado *</label>
-                                                        <div className="relative group">
-                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-black">$</span>
-                                                            <input
-                                                                type="number"
-                                                                name="amount"
-                                                                value={formData.amount}
-                                                                onChange={handleInputChange}
-                                                                step="0.01"
-                                                                required
-                                                                className="w-full pl-8 pr-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white font-bold focus:border-primary/50 focus:outline-none transition-all"
-                                                            />
-                                                        </div>
-                                                        {(() => {
-                                                            const selectedService = services.find(s => s.id.toString() === formData.service_id);
-                                                            if (selectedService && selectedService.expiration_date) {
-                                                                const exp = new Date(selectedService.expiration_date);
-                                                                if (exp.getDate() !== 30) {
-                                                                    // Simple calculation for UI suggestion
-                                                                    const daysInMonth = new Date(exp.getFullYear(), exp.getMonth() + 1, 0).getDate();
-                                                                    const daysLeft = 30 - exp.getDate();
-                                                                    const monthly = Number(selectedService.special_price) || Number(selectedService.cost) || 0;
-                                                                    const suggested = ((monthly / daysInMonth) * Math.max(0, daysLeft)).toFixed(2);
-
-                                                                    return suggested !== "0.00" && (
-                                                                        <p className="text-[10px] text-primary/80 italic mt-1 px-1">
-                                                                            💡 Ajuste sugerido al día 30: <strong>${suggested}</strong>
-                                                                        </p>
-                                                                    );
-                                                                }
-                                                            }
-                                                            return null;
-                                                        })()}
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Meses Cubiertos *</label>
-                                                        <select
-                                                            name="months_covered"
-                                                            value={formData.months_covered}
-                                                            onChange={handleInputChange}
-                                                            className="w-full px-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none transition-all cursor-pointer"
-                                                        >
-                                                            {[1, 2, 3, 4, 6, 12].map(m => (
-                                                                <option key={m} value={m}>{m} {m === 1 ? 'Mes' : 'Meses'}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Fecha de Operación (Último Pago) *</label>
-                                                    <div className="relative">
-                                                        <input
-                                                            type="date"
-                                                            name="payment_date"
-                                                            value={formData.payment_date}
-                                                            onChange={handleInputChange}
-                                                            required
-                                                            className="w-full px-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none transition-all"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Método de Pago</label>
-                                                    <select
-                                                        name="payment_method"
-                                                        value={formData.payment_method}
-                                                        onChange={handleInputChange}
-                                                        className="w-full px-5 py-3.5 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none transition-all cursor-pointer"
-                                                    >
-                                                        <option value="">Seleccionar método...</option>
-                                                        {['PayPal', 'Zelle', 'Pago Movil', 'Bank Transfer', 'Cash', 'Other'].map(m => (
-                                                            <option key={m} value={m}>{m}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Notas del Pago</label>
-                                                    <textarea
-                                                        name="notes"
-                                                        value={formData.notes}
-                                                        onChange={handleInputChange}
-                                                        rows={2}
-                                                        placeholder="Nro de referencia, detalles adicionales..."
-                                                        className="w-full px-5 py-3 bg-black/40 border border-white/10 rounded-2xl text-sm text-white focus:border-primary/50 focus:outline-none resize-none transition-all"
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1 italic flex justify-between">
+                                                    <span>Mes de Inicio de Servicio</span>
+                                                    {Number(formData.months_covered) > 1 && <span className="text-primary font-black uppercase">Periodo Extendido</span>}
+                                                </label>
+                                                <div className="relative group">
+                                                    <input 
+                                                        type="month" 
+                                                        name="service_month" 
+                                                        value={formData.service_month.slice(0, 7)} 
+                                                        onChange={(e) => setFormData(prev => ({ ...prev, service_month: e.target.value + '-01' }))} 
+                                                        required 
+                                                        className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50 transition-all" 
                                                     />
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <label className="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1 italic text-primary/80">Comprobante / Captura (Opcional)</label>
-                                                    <div className="relative group">
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                                                            className="w-full px-5 py-3 bg-black/40 border border-white/10 rounded-2xl text-xs text-gray-400 focus:border-primary/50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer"
-                                                        />
+                                                    <div className="mt-1 flex justify-between items-center px-1">
+                                                        <span className="text-[9px] text-gray-500 font-bold uppercase">Atribuido a:</span>
+                                                        <span className="text-[10px] text-white font-black uppercase tracking-tighter">
+                                                            {calculatePeriod(formData.service_month, parseInt(formData.months_covered.toString()))}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            <button
-                                                type="submit"
-                                                disabled={isSubmitting}
-                                                className="w-full flex items-center justify-center gap-3 py-4 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-primary/30 active:scale-[0.98] disabled:opacity-50"
-                                            >
-                                                {isSubmitting ? (
-                                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                                ) : (
-                                                    <CheckCircle2 className="w-5 h-5" />
-                                                )}
-                                                {isSubmitting ? 'Guardando cambios...' : (editMode ? 'Guardar Cambios' : 'Confirmar Registro')}
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Fecha</label>
+                                                    <input type="date" name="payment_date" value={formData.payment_date} onChange={handleInputChange} required className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Método</label>
+                                                    <select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white">
+                                                        <option value="">Seleccionar...</option>
+                                                        {['PayPal', 'Zelle', 'Pago Movil', 'Bank Transfer', 'Cash'].map(m => <option key={m} value={m}>{m}</option>)}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Comprobante (Opcional)</label>
+                                                <input type="file" accept="image/*" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="w-full text-[10px] text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer" />
+                                            </div>
+                                            <button type="submit" disabled={isSubmitting} className="w-full py-2.5 bg-primary hover:bg-primary/90 text-black rounded-lg font-black text-xs uppercase tracking-widest transition-all mt-4 disabled:opacity-50">
+                                                {isSubmitting ? 'Procesando...' : (editMode ? 'Actualizar' : 'Registrar Pago')}
                                             </button>
                                         </form>
                                     </motion.div>

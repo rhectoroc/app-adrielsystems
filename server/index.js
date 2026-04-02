@@ -740,7 +740,7 @@ p.*,
 
 // Create new payment
 app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), upload.single('evidence'), async (req, res) => {
-    const { client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered = 1 } = req.body;
+    const { client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered = 1, service_month } = req.body;
     const evidence_path = req.file ? req.file.filename : null;
 
     try {
@@ -751,10 +751,10 @@ app.post('/api/payments', authenticateToken, authorizeRole('ADMIN'), upload.sing
 
         // Insert payment
         const result = await query(`
-            INSERT INTO payments(client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, evidence_path)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            INSERT INTO payments(client_id, service_id, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, evidence_path, service_month)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *
-    `, [client_id, normalizedServiceId, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, evidence_path]);
+    `, [client_id, normalizedServiceId, amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, evidence_path, service_month]);
 
         // Logic for Prepaid Services & Billing Alignment (Unified Policy: Day 30)
         if ((status === 'PAGADO' || status === 'PAID')) {
@@ -834,7 +834,7 @@ RETURNING *
 // Update payment
 app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     const { id } = req.params;
-    const { amount, currency, payment_date, due_date, status, payment_method, notes, months_covered } = req.body;
+    const { amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, service_month } = req.body;
 
     try {
         await query('BEGIN');
@@ -843,10 +843,10 @@ app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), async (r
         const result = await query(`
             UPDATE payments 
             SET amount = $1, currency = $2, payment_date = $3, due_date = $4,
-    status = $5, payment_method = $6, notes = $7, months_covered = $8
-            WHERE id = $9
+    status = $5, payment_method = $6, notes = $7, months_covered = $8, service_month = $9
+            WHERE id = $10
 RETURNING *
-    `, [amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, id]);
+    `, [amount, currency, payment_date, due_date, status, payment_method, notes, months_covered, service_month, id]);
 
         if (result.rows.length === 0) {
             await query('ROLLBACK');

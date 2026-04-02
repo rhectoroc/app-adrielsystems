@@ -64,63 +64,64 @@ export const AdminDashboard = () => {
     }
 
     return (
-        <div className="space-y-8">
-            <div className="pb-6 border-b border-white/10">
-                <h1 className="text-3xl font-heading font-bold text-white tracking-wide">Panel de Administración</h1>
-                <p className="text-gray-400 mt-1">Resumen del sistema y métricas clave.</p>
+        <div className="space-y-6">
+            <div className="pb-4 border-b border-white/10">
+                <h1 className="text-xl font-heading font-bold text-white tracking-wide">Panel de Administración</h1>
+                <p className="text-gray-400 text-xs mt-0.5">Resumen del sistema y métricas clave.</p>
             </div>
 
-            {/* Payment Summary Widgets */}
-            <div className="space-y-6">
-                <h2 className="text-xl font-bold text-white">Resumen de Pagos</h2>
-                <PaymentSummaryWidget />
-            </div>
-
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            {/* Metric Card Grid */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 {/* Metric Card 1 */}
-                <div className="glass-card flex items-center justify-between group hover:border-primary/30 transition-all">
+                <div className="glass-card flex items-center justify-between group hover:border-primary/30 transition-all py-3">
                     <div>
-                        <h3 className="text-sm font-medium text-gray-400">Total Clientes</h3>
-                        <p className="mt-2 text-3xl font-bold text-white group-hover:text-primary transition-colors">{stats.totalClients}</p>
+                        <h3 className="text-[11px] uppercase tracking-wider font-medium text-gray-400">Total Clientes</h3>
+                        <p className="mt-1 text-2xl font-bold text-white group-hover:text-primary transition-colors">{stats.totalClients}</p>
                     </div>
-                    <div className="p-3 bg-primary/10 rounded-full text-primary">
-                        <Users className="w-6 h-6" />
+                    <div className="p-2.5 bg-primary/10 rounded-full text-primary">
+                        <Users className="w-5 h-5" />
                     </div>
                 </div>
 
                 {/* Metric Card 2 */}
-                <div className="glass-card flex items-center justify-between group hover:border-secondary/30 transition-all">
+                <div className="glass-card flex items-center justify-between group hover:border-secondary/30 transition-all py-3">
                     <div>
-                        <h3 className="text-sm font-medium text-gray-400">Ingresos Totales</h3>
-                        <p className="mt-2 text-3xl font-bold text-white group-hover:text-secondary transition-colors">${stats.monthlyRevenue.toLocaleString()}</p>
+                        <h3 className="text-[11px] uppercase tracking-wider font-medium text-gray-400">Ingresos Totales</h3>
+                        <p className="mt-1 text-2xl font-bold text-white group-hover:text-secondary transition-colors">${stats.monthlyRevenue.toLocaleString()}</p>
                     </div>
-                    <div className="p-3 bg-secondary/10 rounded-full text-secondary">
-                        <DollarSign className="w-6 h-6" />
+                    <div className="p-2.5 bg-secondary/10 rounded-full text-secondary">
+                        <DollarSign className="w-5 h-5" />
                     </div>
                 </div>
 
                 {/* Metric Card 3 */}
-                <div className="glass-card flex items-center justify-between group hover:border-red-500/30 transition-all">
+                <div className="glass-card flex items-center justify-between group hover:border-red-500/30 transition-all py-3">
                     <div>
-                        <h3 className="text-sm font-medium text-gray-400">Pagos Pendientes</h3>
-                        <p className="mt-2 text-3xl font-bold text-white group-hover:text-red-500 transition-colors">{stats.pendingPayments}</p>
+                        <h3 className="text-[11px] uppercase tracking-wider font-medium text-gray-400">Pagos Pendientes</h3>
+                        <p className="mt-1 text-2xl font-bold text-white group-hover:text-red-500 transition-colors">{stats.pendingPayments}</p>
                     </div>
-                    <div className="p-3 bg-red-500/10 rounded-full text-red-500">
-                        <AlertCircle className="w-6 h-6" />
+                    <div className="p-2.5 bg-red-500/10 rounded-full text-red-500">
+                        <AlertCircle className="w-5 h-5" />
                     </div>
                 </div>
             </div>
 
+            {/* Payment Summary Widgets */}
+            <div className="space-y-4">
+                <h2 className="text-sm font-bold text-white uppercase tracking-widest opacity-80">Resumen de Pagos</h2>
+                <PaymentSummaryWidget />
+            </div>
+
             {/* Payment Details Widgets */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <OverdueClientsWidget />
                 <UpcomingPaymentsWidget />
             </div>
 
             {/* Recent Activity or Placeholder */}
-            <div className="glass-card">
-                <h3 className="text-lg font-heading font-semibold text-gray-100 mb-4">Actividad Reciente del Sistema</h3>
-                <div className="text-gray-400 text-sm italic">
+            <div className="glass-card p-4">
+                <h3 className="text-sm font-heading font-semibold text-gray-100 mb-3 uppercase tracking-wider">Actividad Reciente del Sistema</h3>
+                <div className="text-gray-400 text-xs italic">
                     No hay registros de actividad reciente disponibles.
                 </div>
             </div>

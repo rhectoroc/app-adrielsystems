@@ -29,55 +29,55 @@ export const AdminLayout = () => {
 
             {/* Sidebar */}
             <aside className={`
-                fixed md:static inset-y-0 left-0 z-40 w-64 bg-black/90 md:bg-black/40 border-r border-white/10 flex flex-col backdrop-blur-md transition-transform duration-300 ease-in-out
+                fixed md:static inset-y-0 left-0 z-40 w-48 bg-black/95 md:bg-black/60 border-r border-white/5 flex flex-col backdrop-blur-xl transition-transform duration-300 ease-in-out
                 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
             `}>
-                <div className="p-6 mt-14 md:mt-0">
+                <div className="p-3 mt-14 md:mt-0 border-b border-white/5 bg-white/[0.02]">
                     <div className="flex items-center gap-2">
-                        <img src="/logo.png" alt="Logo" className="h-6 opacity-80" />
-                        <h1 className="text-lg font-bold font-heading tracking-wider">Consola Admin</h1>
+                        <img src="/logo.png" alt="Logo" className="h-4 opacity-100 brightness-110" />
+                        <h1 className="text-xs font-black font-heading tracking-[0.15em] text-white uppercase">Sistemas</h1>
                     </div>
                 </div>
-                <nav className="mt-6 flex-1 px-4 space-y-2">
-                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
-                        <BarChart3 className="w-5 h-5 mr-3 group-hover:text-primary transition-colors" />
+                <nav className="mt-4 flex-1 px-2 space-y-0.5">
+                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin" className="flex items-center px-2.5 py-1.5 text-gray-400 rounded-md hover:bg-white/5 hover:text-white transition-all group text-[11px] font-bold uppercase tracking-wider">
+                        <BarChart3 className="w-3.5 h-3.5 mr-3 group-hover:text-primary transition-colors" />
                         Resumen
                     </Link>
-                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/clients" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
-                        <Users className="w-5 h-5 mr-3 group-hover:text-secondary transition-colors" />
+                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/clients" className="flex items-center px-2.5 py-1.5 text-gray-400 rounded-md hover:bg-white/5 hover:text-white transition-all group text-[11px] font-bold uppercase tracking-wider">
+                        <Users className="w-3.5 h-3.5 mr-3 group-hover:text-secondary transition-colors" />
                         Clientes
                     </Link>
-                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/payments" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
-                        <Wallet className="w-5 h-5 mr-3 group-hover:text-yellow-400 transition-colors" />
+                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/payments" className="flex items-center px-2.5 py-1.5 text-gray-400 rounded-md hover:bg-white/5 hover:text-white transition-all group text-[11px] font-bold uppercase tracking-wider">
+                        <Wallet className="w-3.5 h-3.5 mr-3 group-hover:text-yellow-500 transition-colors" />
                         Pagos
                     </Link>
-                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/plans" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
-                        <Tag className="w-5 h-5 mr-3 group-hover:text-green-400 transition-colors" />
+                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/plans" className="flex items-center px-2.5 py-1.5 text-gray-400 rounded-md hover:bg-white/5 hover:text-white transition-all group text-[11px] font-bold uppercase tracking-wider">
+                        <Tag className="w-3.5 h-3.5 mr-3 group-hover:text-green-500 transition-colors" />
                         Planes
                     </Link>
-                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/settings" className="flex items-center px-4 py-3 text-gray-400 rounded-lg hover:bg-white/5 hover:text-white transition-all group">
-                        <Settings className="w-5 h-5 mr-3 group-hover:text-gray-200 transition-colors" />
+                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/settings" className="flex items-center px-2.5 py-1.5 text-gray-400 rounded-md hover:bg-white/5 hover:text-white transition-all group text-[11px] font-bold uppercase tracking-wider">
+                        <Settings className="w-3.5 h-3.5 mr-3 group-hover:text-gray-300 transition-colors" />
                         Configuración
                     </Link>
                 </nav>
-                <div className="p-4 border-t border-white/10">
+                <div className="p-3 border-t border-white/5">
                     <button
                         onClick={handleLogout}
-                        className="flex items-center w-full px-4 py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                        className="flex items-center w-full px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-red-500 hover:bg-red-500/5 rounded-md transition-all group"
                     >
-                        <LogOut className="w-4 h-4 mr-2" />
+                        <LogOut className="w-3.5 h-3.5 mr-2 group-hover:rotate-12 transition-transform" />
                         Cerrar Sesión
                     </button>
                 </div>
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-auto bg-gradient-to-br from-[hsl(var(--bg-deep))] to-[hsl(var(--bg-dark))] relative pt-16 md:pt-0">
-                {/* Background Glow Effects */}
-                <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-                    <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px]"></div>
+            <main className="flex-1 overflow-auto bg-[hsl(var(--bg-deep))] relative pt-16 md:pt-0 custom-scrollbar">
+                {/* Background Glow Effects (High Density - Sutil) */}
+                <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0 opacity-20">
+                    <div className="absolute top-[-10%] right-[-5%] w-[30%] h-[30%] bg-primary/2 rounded-full blur-[80px]"></div>
                 </div>
-                <div className="relative z-10 p-4 md:p-8 max-w-7xl mx-auto">
+                <div className="relative z-10 p-4 max-w-full lg:max-w-7xl mx-auto space-y-4">
                     <Outlet />
                 </div>
             </main>
