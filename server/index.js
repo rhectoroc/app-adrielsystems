@@ -326,6 +326,15 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
                         'cost', s.cost,
                         'special_price', s.special_price,
                         'currency', s.currency,
+                        'amount', (
+                            CASE 
+                                WHEN c.name = 'Martha Salazar' THEN
+                                    (CASE WHEN (EXTRACT(YEAR FROM s.expiration_date) = 2023 AND EXTRACT(MONTH FROM s.expiration_date) = 12) THEN 20 
+                                     ELSE 10 END) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                                ELSE COALESCE(s.special_price, s.cost) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                            END
+                        ),
+                        'months_overdue', GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)))),
                         'status', s.status,
                         'expiration_date', s.expiration_date,
                         'payment_status', CASE 
@@ -678,35 +687,51 @@ FROM payments
 app.get('/api/payments/overdue', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
-SELECT
-p.id as payment_id,
-    p.amount,
-    p.currency,
-    p.due_date,
-    p.status,
-    CURRENT_DATE - p.due_date as days_overdue,
-    c.id as client_id,
-    c.name as client_name,
-    c.email as client_email,
-    c.phone as client_phone,
-    s.name as service_name
-            FROM payments p
-            JOIN clients c ON p.client_id = c.id
-            LEFT JOIN services s ON p.service_id = s.id
-            WHERE p.status IN ('VENCIDO', 'OVERDUE')
-            ORDER BY p.due_date ASC, p.id ASC
-    `);
+            SELECT
+                s.id as service_id,
+                COALESCE(s.special_price, s.cost) as monthly_cost,
+                s.currency,
+                s.expiration_date as due_date,
+                'VENCIDO' as status,
+                CURRENT_DATE - s.expiration_date as days_overdue,
+                c.id as client_id,
+                c.name as client_name,
+                c.email as client_email,
+                c.phone as client_phone,
+                s.name as service_name,
+                -- Calculate full months elapsed since expiration
+                GREATEST(1, EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)) + 1) as months_overdue
+            FROM services s
+            JOIN clients c ON s.client_id = c.id
+            WHERE s.status = 'ACTIVE' 
+            AND s.expiration_date + INTERVAL '3 days' < CURRENT_DATE -- Overdue threshold (3 days grace)
+            ORDER BY s.expiration_date ASC
+        `);
 
-        // Fetch notification status for each client
+        // Fetch notification status and calculate intelligent cumulative debt
         const clientsWithNotifications = await Promise.all(result.rows.map(async (row) => {
+            // Notifications check
             const notifRes = await query(`
                 SELECT sent_at FROM notification_logs 
                 WHERE client_id = $1 
                 AND DATE(sent_at) = CURRENT_DATE
                 ORDER BY sent_at DESC LIMIT 1
-    `, [row.client_id]);
+            `, [row.client_id]);
+
+            // DYNAMIC DEBT LOGIC
+            let calculatedAmount = parseFloat(row.monthly_cost) * row.months_overdue;
+
+            // Martha Salazar Special Exception (Historical Pricing)
+            // User context: Dec 2025 was $20, Jan 2026+ is $10.
+            // If expiration was Dec 2025, we add the $10 difference for that first month.
+            const dueDate = new Date(row.due_date);
+            if (row.client_email === 'gentepro80@gmail.com' && dueDate.getFullYear() === 2025 && dueDate.getMonth() === 11) {
+                calculatedAmount += 10; // Adjustment for the $20 month
+            }
+
             return {
                 ...row,
+                amount: calculatedAmount,
                 last_notification_date: notifRes.rows.length > 0 ? notifRes.rows[0].sent_at : null
             };
         }));
