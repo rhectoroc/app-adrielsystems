@@ -617,7 +617,7 @@ export const PaymentsManagement = () => {
                                                             <div className="flex items-center gap-2">
                                                                 <span className="font-bold text-white uppercase">{formatSafeDate(payment.payment_date)}</span>
                                                                 {payment.evidence_path && (
-                                                                    <a href={`http://localhost:3000/uploads/capref/${payment.evidence_path}`} target="_blank" rel="noopener noreferrer" className="p-1 bg-primary/10 text-primary rounded-md hover:bg-primary/20"><Eye className="w-3 h-3" /></a>
+                                                                    <a href={`/uploads/capref/${payment.evidence_path}`} target="_blank" rel="noopener noreferrer" className="p-1 bg-primary/10 text-primary rounded-md hover:bg-primary/20"><Eye className="w-3 h-3" /></a>
                                                                 )}
                                                             </div>
                                                             <div className="text-[9px] text-gray-500 truncate max-w-[120px]">{payment.notes || 'Sin notas'}</div>

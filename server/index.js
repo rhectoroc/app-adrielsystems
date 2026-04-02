@@ -16,8 +16,12 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Uploads Configuration (Volume mounted at /data)
-const uploadDir = '/data/capref';
+// Uploads Configuration (Volume mounted at /data in production)
+const uploadRoot = process.platform === 'win32' 
+    ? path.join(__dirname, '..', 'data') 
+    : '/data';
+const uploadDir = path.join(uploadRoot, 'capref');
+
 if (!fs.existsSync(uploadDir)) {
     try {
         fs.mkdirSync(uploadDir, { recursive: true });
@@ -77,7 +81,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Static Serving for Uploads
-app.use('/uploads/capref', express.static('/data/capref'));
+app.use('/uploads/capref', express.static(uploadDir));
 
 // Apply general rate limiting to all routes
 app.use(rateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }));
