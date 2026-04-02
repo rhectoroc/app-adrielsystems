@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Users, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
+import { Users, DollarSign, AlertCircle, Loader2, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { PaymentSummaryWidget } from '../../components/features/admin/PaymentSummaryWidget';
@@ -10,61 +10,36 @@ import { UpcomingPaymentsWidget } from '../../components/features/admin/Upcoming
 export const AdminDashboard = () => {
     const [stats, setStats] = useState({
         totalClients: 0,
-        monthlyRevenue: 0,
+        grossRevenue: 0,
         pendingPayments: 0
     });
     const [activities, setActivities] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchStats = async () => {
+        const fetchData = async () => {
             try {
-                // Fetch Clients for count
-                const clientsRes = await api.get('/api/clients');
-                const clients = await clientsRes.json();
+                // 1. Fetch Stats from the new optimized endpoint
+                const statsRes = await api.get('/api/stats');
+                if (statsRes.ok) {
+                    const statsData = await statsRes.json();
+                    setStats(statsData);
+                }
 
-                // Fetch Payments for revenue/pending
-                const paymentsRes = await api.get('/api/payments');
-                const payments = await paymentsRes.json();
-
-                // Calculate stats
-                const totalClients = clients.length;
-
-                // Revenue: Sum of PAID/PAGADO payments for current month
-                const currentMonth = new Date().getMonth();
-                const currentYear = new Date().getFullYear();
-
-                const revenue = payments
-                    .filter((p: any) => {
-                        const pDate = new Date(p.payment_date);
-                        return (p.status === 'PAID' || p.status === 'PAGADO') && 
-                               pDate.getMonth() === currentMonth && 
-                               pDate.getFullYear() === currentYear;
-                    })
-                    .reduce((acc: number, curr: any) => acc + parseFloat(curr.amount), 0);
-
-                const pending = payments.filter((p: any) => p.status === 'PENDING' || p.status === 'PENDIENTE').length;
-
-                // 3. Fetch Activity
+                // 2. Fetch Activity
                 const activityRes = await api.get('/api/activity');
                 if (activityRes.ok) {
                     const activityData = await activityRes.json();
                     setActivities(activityData);
                 }
-
-                setStats({
-                    totalClients,
-                    monthlyRevenue: revenue,
-                    pendingPayments: pending
-                });
             } catch (error) {
-                console.error('Error fetching dashboard stats:', error);
+                console.error('Error fetching dashboard data:', error);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchStats();
+        fetchData();
     }, []);
 
     if (loading) {
@@ -99,7 +74,7 @@ export const AdminDashboard = () => {
                 <div className="glass-card flex items-center justify-between group hover:border-secondary/30 transition-all py-3">
                     <div>
                         <h3 className="text-[11px] uppercase tracking-wider font-medium text-gray-400">Ingresos Totales</h3>
-                        <p className="mt-1 text-2xl font-bold text-white group-hover:text-secondary transition-colors">${stats.monthlyRevenue.toLocaleString()}</p>
+                        <p className="mt-1 text-2xl font-bold text-white group-hover:text-secondary transition-colors">${(stats.grossRevenue || 0).toLocaleString()}</p>
                     </div>
                     <div className="p-2.5 bg-secondary/10 rounded-full text-secondary">
                         <DollarSign className="w-5 h-5" />

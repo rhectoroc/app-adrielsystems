@@ -227,7 +227,8 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
             activeServices: 0,
             pendingPayments: 0,
             pendingAmount: 0,
-            monthlyIncome: 0
+            monthlyIncome: 0,
+            grossRevenue: 0
         };
 
         // 1. Total Clients
@@ -277,7 +278,15 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
         `);
         stats.monthlyIncome = parseFloat(incomeRes.rows[0].total);
 
-        // 5. Notifications Sent Today
+        // 5. Gross Revenue (All time paid payments) - GROSS total as requested
+        const grossRes = await query(`
+            SELECT COALESCE(SUM(amount), 0) as total 
+            FROM payments 
+            WHERE status IN ('PAGADO', 'PAID')
+        `);
+        stats.grossRevenue = parseFloat(grossRes.rows[0].total);
+
+        // 6. Notifications Sent Today
         const notificationsRes = await query(`
             SELECT type, COUNT(*) as count
             FROM notification_logs
@@ -715,24 +724,24 @@ app.get('/api/payments/upcoming', authenticateToken, authorizeRole('ADMIN'), asy
 
     try {
         const result = await query(`
-SELECT
-p.id as payment_id,
-    p.amount,
-    p.currency,
-    p.due_date,
-    p.status,
-    CAST(p.due_date - CURRENT_DATE AS INTEGER) as days_until_due,
-    c.id as client_id,
-    c.name as client_name,
-    c.email as client_email,
-    c.phone as client_phone,
-    s.name as service_name
-            FROM payments p
-            JOIN clients c ON p.client_id = c.id
-            LEFT JOIN services s ON p.service_id = s.id
-            WHERE p.status IN ('PENDIENTE', 'PENDING') 
-            AND p.due_date <= CURRENT_DATE + INTERVAL '${days} days'
-            ORDER BY p.due_date ASC, p.id ASC
+            SELECT
+                s.id as service_id,
+                COALESCE(s.special_price, s.cost) as amount,
+                s.currency,
+                s.expiration_date as due_date,
+                'UPCOMING' as status,
+                CAST(s.expiration_date - CURRENT_DATE AS INTEGER) as days_until_due,
+                c.id as client_id,
+                c.name as client_name,
+                c.email as client_email,
+                c.phone as client_phone,
+                s.name as service_name
+            FROM services s
+            JOIN clients c ON s.client_id = c.id
+            WHERE s.status = 'ACTIVE' 
+            AND s.expiration_date >= (CURRENT_DATE - INTERVAL '15 days') -- Show recently expired and upcoming
+            AND s.expiration_date <= (CURRENT_DATE + INTERVAL '${days} days')
+            ORDER BY s.expiration_date ASC
     `);
 
         // Fetch notification status for each client
