@@ -1,18 +1,12 @@
 import { useState, useEffect } from 'react';
 import { 
     Search, 
-    Filter, 
     MessageSquare, 
-    Send, 
     CheckCircle2, 
     AlertCircle, 
     Clock, 
     Loader2, 
-    Check, 
-    X,
-    UserCheck,
-    UserMinus,
-    ExternalLink
+    Check
 } from 'lucide-react';
 import { api } from '../../utils/api';
 import { getTimeAgo } from '../../utils/dateUtils';

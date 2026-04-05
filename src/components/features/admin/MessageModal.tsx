@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { 
     X, 
-    Send, 
     MessageSquare, 
     Zap, 
     ChevronRight, 
     Loader2, 
     Copy, 
-    ExternalLink, 
     AlertCircle,
     TestTube2
 } from 'lucide-react';
@@ -36,19 +34,19 @@ const TEMPLATES = [
         id: 'DEBT_REMINDER',
         name: 'Recordatorio de Cobro (Monto)',
         icon: <AlertCircle className="w-4 h-4 text-red-400" />,
-        content: `Hola {{nombre}}, espero estés muy bien. Te contactamos de Adriel's Systems para recordarte que tienes un saldo pendiente de ${{monto}}. Agradecemos tu pronto pago para mantener la continuidad del servicio. ¡Saludos!`
+        content: "Hola {{nombre}}, espero estés muy bien. Te contactamos de Adriel's Systems para recordarte que tienes un saldo pendiente de ${{monto}}. Agradecemos tu pronto pago para mantener la continuidad del servicio. ¡Saludos!"
     },
     {
         id: 'PROMO',
         name: 'Oferta Promocional',
         icon: <Zap className="w-4 h-4 text-yellow-400" />,
-        content: `¡Hola {{nombre}}! 🎉 Tenemos una oferta especial de temporada para nuestros servicios en Adriel's Systems que no querrás perderte. Contáctanos para más detalles.`
+        content: "¡Hola {{nombre}}! 🎉 Tenemos una oferta especial de temporada para nuestros servicios en Adriel's Systems que no querrás perderte. Contáctanos para más detalles."
     },
     {
         id: 'TEST',
         name: 'Prueba de Sistema',
         icon: <TestTube2 className="w-4 h-4 text-blue-400" />,
-        content: `PRUEBA DE SISTEMA: Hola {{nombre}}, este es un mensaje de prueba generado desde el panel de control de Adriel's Systems.`
+        content: "PRUEBA DE SISTEMA: Hola {{nombre}}, este es un mensaje de prueba generado desde el panel de control de Adriel's Systems."
     }
 ];
 
@@ -190,7 +188,7 @@ export const MessageModal = ({ isOpen, onClose, mode, clients, onSuccess }: Mess
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
                             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 ml-1">Personalizar Contenido</label>
-                            <span className="text-[9px] text-gray-600 font-bold uppercase">Usa {{nombre}} o {{monto}}</span>
+                            <span className="text-[9px] text-gray-600 font-bold uppercase">Usa {'{{nombre}}'} o {'{{monto}}'}</span>
                         </div>
                         <textarea 
                             value={messageText}
