@@ -361,6 +361,152 @@ app.post('/api/messages/send', authenticateToken, authorizeRole('ADMIN'), async 
     }
 });
 
+// ========================
+// BOT CONTEXT API (For n8n EVA Agent)
+// Protected by x-api-key header (EVOLUTION_API_KEY)
+// ========================
+app.get('/api/bot/client-context', async (req, res) => {
+    // API Key authentication (no JWT needed for bot-to-bot communication)
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey || apiKey !== process.env.EVOLUTION_API_KEY) {
+        return res.status(401).json({ message: 'Unauthorized: Invalid API Key' });
+    }
+
+    const { phone } = req.query;
+    if (!phone) {
+        return res.status(400).json({ message: 'Phone number is required (?phone=584140108030)' });
+    }
+
+    try {
+        // Clean the phone number for flexible matching
+        const cleanPhone = phone.replace(/\D/g, '');
+
+        // 1. Find the client by phone (flexible match: exact, with +, partial)
+        const clientResult = await query(`
+            SELECT id, name, email, phone, company_name, domain, country, is_active, created_at
+            FROM clients 
+            WHERE REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', '') LIKE '%' || $1 || '%'
+            LIMIT 1
+        `, [cleanPhone.slice(-10)]); // Match last 10 digits for flexibility
+
+        if (clientResult.rows.length === 0) {
+            return res.json({
+                cliente_existe: false,
+                phone: phone,
+                mensaje_instruccion: "Este número no está registrado como cliente. Trátalo como un cliente potencial. Ofrece información sobre los servicios y sugiere agendar una llamada de descubrimiento."
+            });
+        }
+
+        const client = clientResult.rows[0];
+
+        // 2. Get active services with debt calculation
+        const servicesResult = await query(`
+            SELECT 
+                s.id,
+                s.name as nombre,
+                COALESCE(s.special_price, s.cost) as costo_mensual,
+                s.currency as moneda,
+                s.status as estado,
+                s.renewal_day,
+                s.expiration_date as vencimiento,
+                s.created_at,
+                -- Debt calculation (same logic as main app)
+                CASE 
+                    WHEN s.expiration_date >= CURRENT_DATE THEN 0
+                    WHEN s.renewal_day = 30 THEN
+                        (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
+                        (COALESCE(s.special_price, s.cost) * FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                    ELSE
+                        COALESCE(s.special_price, s.cost) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                END as deuda,
+                -- Payment status
+                CASE 
+                    WHEN s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '5 days') < CURRENT_DATE THEN 'VENCIDO'
+                    WHEN s.expiration_date < CURRENT_DATE THEN 'EN GRACIA'
+                    WHEN s.expiration_date <= (CURRENT_DATE + INTERVAL '3 days') THEN 'PROXIMO A VENCER'
+                    ELSE 'AL DIA'
+                END as estado_pago,
+                -- Days info
+                CASE 
+                    WHEN s.expiration_date < CURRENT_DATE THEN CURRENT_DATE - s.expiration_date
+                    ELSE 0
+                END as dias_vencido
+            FROM services s
+            WHERE s.client_id = $1 AND s.status = 'ACTIVE'
+            ORDER BY s.expiration_date ASC
+        `, [client.id]);
+
+        // 3. Get last payment
+        const lastPaymentResult = await query(`
+            SELECT amount, payment_date, payment_method, status, service_month
+            FROM payments 
+            WHERE client_id = $1 AND status = 'PAID'
+            ORDER BY payment_date DESC 
+            LIMIT 1
+        `, [client.id]);
+
+        // 4. Get last notification/contact
+        const lastContactResult = await query(`
+            SELECT sent_at, type, message_body 
+            FROM notification_logs 
+            WHERE client_id = $1 
+            ORDER BY sent_at DESC 
+            LIMIT 1
+        `, [client.id]);
+
+        // 5. Calculate total debt
+        const deudaTotal = servicesResult.rows.reduce((sum, s) => sum + parseFloat(s.deuda || 0), 0);
+
+        // Build response
+        const response = {
+            cliente_existe: true,
+            client_id: client.id,
+            client_name: client.name,
+            email: client.email,
+            phone: client.phone,
+            empresa: client.company_name,
+            dominio: client.domain,
+            pais: client.country,
+            cliente_desde: client.created_at,
+            
+            servicios: servicesResult.rows.map(s => ({
+                nombre: s.nombre,
+                costo_mensual: parseFloat(s.costo_mensual),
+                moneda: s.moneda,
+                estado: s.estado,
+                vencimiento: s.vencimiento,
+                estado_pago: s.estado_pago,
+                deuda: parseFloat(s.deuda || 0).toFixed(2),
+                dias_vencido: parseInt(s.dias_vencido || 0)
+            })),
+
+            deuda_total: deudaTotal.toFixed(2),
+            
+            ultimo_pago: lastPaymentResult.rows.length > 0 ? {
+                fecha: lastPaymentResult.rows[0].payment_date,
+                monto: lastPaymentResult.rows[0].amount,
+                metodo: lastPaymentResult.rows[0].payment_method,
+                periodo: lastPaymentResult.rows[0].service_month
+            } : null,
+
+            ultimo_contacto: lastContactResult.rows.length > 0 ? {
+                fecha: lastContactResult.rows[0].sent_at,
+                tipo: lastContactResult.rows[0].type
+            } : null,
+
+            metodos_pago_aceptados: ["PayPal", "Zelle", "Pago Móvil", "Binance"],
+            
+            instruccion_pago: "Para coordinar el pago, el cliente debe contactar directamente al equipo de Adriel's Systems. NO proporciones datos bancarios, números de cuenta ni enlaces de pago. Simplemente indica que el equipo le asistirá con el proceso."
+        };
+
+        res.json(response);
+
+    } catch (err) {
+        console.error('Error fetching client context for bot:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
 // Client Management Routes (Protected)
 app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
