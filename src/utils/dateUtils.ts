@@ -30,3 +30,31 @@ export const parseSafeDate = (dateStr: string | null | undefined): Date | null =
     const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
     return new Date(year, month - 1, day);
 };
+
+/**
+ * Returns a relative time string (e.g., 'Hace 5 minutos')
+ */
+export const getTimeAgo = (date: string | Date | null | undefined): string => {
+    if (!date) return 'Nunca';
+    
+    const now = new Date();
+    const past = typeof date === 'string' ? new Date(date) : date;
+    
+    // Check if the date is valid
+    if (isNaN(past.getTime())) return 'Fecha inválida';
+
+    const diffInSeconds = Math.floor((now.getTime() - past.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'Hace un momento';
+    
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `Hace ${diffInMinutes}m`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `Hace ${diffInHours}h`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 30) return `Hace ${diffInDays}d`;
+    
+    return formatSafeDate(past.toISOString());
+};

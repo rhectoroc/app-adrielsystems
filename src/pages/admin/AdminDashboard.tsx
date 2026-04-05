@@ -1,11 +1,12 @@
 
 import { useState, useEffect } from 'react';
-import { Users, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
+import { Users, DollarSign, AlertCircle, Loader2, Send } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { PaymentSummaryWidget } from '../../components/features/admin/PaymentSummaryWidget';
 import { OverdueClientsWidget } from '../../components/features/admin/OverdueClientsWidget';
 import { UpcomingPaymentsWidget } from '../../components/features/admin/UpcomingPaymentsWidget';
+import { SentMessagesWidget } from '../../components/features/admin/SentMessagesWidget';
 
 export const AdminDashboard = () => {
     const [stats, setStats] = useState({
@@ -105,38 +106,52 @@ export const AdminDashboard = () => {
                 <UpcomingPaymentsWidget />
             </div>
 
-            {/* Recent Activity */}
-            <div className="glass-card p-4">
-                <h3 className="text-sm font-heading font-semibold text-gray-100 mb-3 uppercase tracking-wider">Actividad Reciente del Sistema</h3>
-                <div className="space-y-3">
-                    {activities.length === 0 ? (
-                        <div className="text-gray-400 text-xs italic">No hay registros de actividad reciente disponibles.</div>
-                    ) : (
-                        activities.map((activity, idx) => (
-                            <div key={idx} className="flex items-center justify-between text-xs border-b border-white/5 pb-2 last:border-0 last:pb-0">
-                                <div className="flex flex-col flex-1 min-w-0">
-                                    <Link 
-                                        to={`/admin/payments?clientId=${activity.client_id || (activity.client_name ? `?search=${activity.client_name}` : '')}`}
-                                        className="text-white font-black uppercase tracking-tight hover:text-primary transition-colors truncate"
-                                    >
-                                        {activity.client_name}
-                                    </Link>
-                                    <span className="text-[10px] text-gray-500 font-bold uppercase">
-                                        {activity.type === 'PAYMENT' ? `PAGO REGISTRADO - ${activity.detail}` : `NOTIFICACIÓN - ${activity.detail}`}
-                                    </span>
-                                </div>
-                                <div className="text-right">
-                                    {activity.amount && (
-                                        <div className="text-primary font-black">{activity.currency} {activity.amount}</div>
-                                    )}
-                                    <div className="text-[9px] text-gray-600 font-bold">
-                                        {new Date(activity.activity_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            {/* Bottom Row - Activity and Notifications */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Recent Activity */}
+                <div className="glass-card p-4 h-full">
+                    <h3 className="text-sm font-heading font-semibold text-gray-100 mb-3 uppercase tracking-wider flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                        Actividad del Sistema
+                    </h3>
+                    <div className="space-y-3">
+                        {activities.length === 0 ? (
+                            <div className="text-gray-400 text-xs italic py-10 text-center">No hay registros de actividad reciente.</div>
+                        ) : (
+                            activities.map((activity, idx) => (
+                                <div key={idx} className="flex items-center justify-between text-[11px] border-b border-white/5 pb-2 last:border-0 last:pb-0 group">
+                                    <div className="flex flex-col flex-1 min-w-0">
+                                        <Link 
+                                            to={`/admin/payments?clientId=${activity.client_id || (activity.client_name ? `?search=${activity.client_name}` : '')}`}
+                                            className="text-white font-black uppercase tracking-tight hover:text-primary transition-colors truncate"
+                                        >
+                                            {activity.client_name}
+                                        </Link>
+                                        <span className="text-[9px] text-gray-500 font-bold uppercase flex items-center gap-1">
+                                            {activity.type === 'PAYMENT' ? (
+                                                <DollarSign className="w-2 h-2 text-green-500" />
+                                            ) : (
+                                                <Send className="w-2 h-2 text-blue-500" />
+                                            )}
+                                            {activity.type === 'PAYMENT' ? `Pago: ${activity.detail}` : `Notif: ${activity.detail}`}
+                                        </span>
+                                    </div>
+                                    <div className="text-right ml-2">
+                                        {activity.amount && (
+                                            <div className="text-primary font-black">{activity.currency} {activity.amount}</div>
+                                        )}
+                                        <div className="text-[9px] text-gray-600 font-bold">
+                                            {new Date(activity.activity_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))
-                    )}
+                            ))
+                        )}
+                    </div>
                 </div>
+
+                {/* Sent Messages Widget */}
+                <SentMessagesWidget />
             </div>
         </div>
     );
