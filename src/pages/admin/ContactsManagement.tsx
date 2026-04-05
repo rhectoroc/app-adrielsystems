@@ -88,8 +88,12 @@ export const ContactsManagement = () => {
             const selected = contacts.filter(c => selectedIds.includes(c.id));
             setTargetClients(selected);
         } else if (mode === 'TEST') {
-            // For test mode, we might use a dummy client object or the first one
-            setTargetClients(contacts.length > 0 ? [contacts[0]] : []);
+            const selected = contacts.filter(c => selectedIds.includes(c.id));
+            if (selected.length === 0) {
+                toast.warning('Por favor, selecciona al menos un contacto para enviar la prueba.');
+                return;
+            }
+            setTargetClients(selected);
         }
         setIsModalOpen(true);
     };
@@ -113,10 +117,15 @@ export const ContactsManagement = () => {
                 <div className="flex items-center gap-2">
                     <button 
                         onClick={() => handleOpenMessageModal('TEST')}
-                        className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2"
+                        className={`px-3 py-1.5 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                            selectedIds.length > 0 
+                            ? 'bg-white/10 border-white/20 text-white hover:bg-white/20 cursor-pointer' 
+                            : 'bg-white/5 border-white/10 text-gray-500 cursor-not-allowed'
+                        }`}
+                        title={selectedIds.length > 0 ? "Enviar plantilla de prueba a seleccionados" : "Selecciona contactos para enviar prueba"}
                     >
                         <Clock className="w-3.5 h-3.5" />
-                        Prueba de Envío
+                        Prueba de Envío {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}
                     </button>
                     
                     {selectedIds.length > 0 && (

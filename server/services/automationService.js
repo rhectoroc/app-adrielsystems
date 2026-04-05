@@ -51,6 +51,29 @@ Si tienes alguna duda o necesitas apoyo con tu pago, ¡aquí estamos para lo que
 };
 
 /**
+ * Generic function to send a message via Evolution API
+ */
+export const sendMessage = async (number, text) => {
+    if (!EVOLUTION_API_KEY) {
+        throw new Error('EVOLUTION_API_KEY is not defined');
+    }
+
+    const cleanPhone = number.replace(/\D/g, '');
+    const evolutionUrl = `${EVOLUTION_API_URL}/message/sendText/${INSTANCE_NAME}`;
+
+    return axios.post(evolutionUrl, {
+        number: cleanPhone,
+        text: text,
+        linkPreview: false
+    }, {
+        headers: {
+            'apikey': EVOLUTION_API_KEY,
+            'Content-Type': 'application/json'
+        }
+    });
+};
+
+/**
  * Main execution function
  */
 export const runBillingNotifications = async () => {
@@ -128,26 +151,15 @@ export const runBillingNotifications = async () => {
             if (!template) continue;
 
             const messageText = template(record);
-            const cleanPhone = record.phone ? record.phone.replace(/\D/g, '') : null;
 
-            if (!cleanPhone) {
+            if (!record.phone) {
                 console.warn(`[Automation] Client ${record.client_name} has no phone number. Skipping.`);
                 continue;
             }
 
             try {
                 // Send via Evolution API
-                const evolutionUrl = `${EVOLUTION_API_URL}/message/sendText/${INSTANCE_NAME}`;
-                await axios.post(evolutionUrl, {
-                    number: cleanPhone,
-                    text: messageText,
-                    linkPreview: false
-                }, {
-                    headers: {
-                        'apikey': EVOLUTION_API_KEY,
-                        'Content-Type': 'application/json'
-                    }
-                });
+                await sendMessage(record.phone, messageText);
 
                 // Log success to DB
                 await query(

@@ -10,7 +10,7 @@ import { authenticateToken, authorizeRole } from './middleware/auth.js';
 import { rateLimiter, loginRateLimiter, clearLoginAttempts } from './middleware/rateLimiter.js';
 import multer from 'multer';
 import fs from 'fs';
-import { initAutomation, runBillingNotifications } from './services/automationService.js';
+import { initAutomation, runBillingNotifications, sendMessage } from './services/automationService.js';
 
 // Uploads Configuration (Volume mounted at /data in production)
 
@@ -338,6 +338,26 @@ app.post('/api/admin/automation/trigger', authenticateToken, authorizeRole('ADMI
     } catch (err) {
         console.error('Error triggering automation:', err);
         res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Manual Send (Single/Bulk via Evolution)
+app.post('/api/messages/send', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { phone, message } = req.body;
+    
+    if (!phone || !message) {
+        return res.status(400).json({ message: 'Phone and message are required' });
+    }
+
+    try {
+        await sendMessage(phone, message);
+        res.json({ message: 'Message sent successfully' });
+    } catch (err) {
+        console.error('Error sending message:', err.response?.data || err.message);
+        res.status(500).json({ 
+            message: 'Error sending via Evolution API',
+            details: err.response?.data || err.message
+        });
     }
 });
 

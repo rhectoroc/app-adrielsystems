@@ -92,15 +92,21 @@ export const MessageModal = ({ isOpen, onClose, mode, clients, onSuccess }: Mess
 
             if (!response.ok) throw new Error('Failed to log notification');
 
-            // 2. Open WhatsApp Web
+            // 2. Send via Backend (which calls Evolution API)
             if (client.phone) {
-                // Remove non-numeric characters for WhatsApp link
-                const cleanPhone = client.phone.replace(/\D/g, '');
-                // Note: We assume the country code is already there or handled by the user input
-                const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(finalMessage)}`;
-                window.open(waUrl, '_blank');
+                const sendRes = await api.post('/api/messages/send', {
+                    phone: client.phone,
+                    message: finalMessage
+                });
+                
+                if (!sendRes.ok) {
+                    const errorData = await sendRes.json();
+                    throw new Error(errorData.message || 'Error al enviar por WhatsApp');
+                }
             } else {
                 toast.warning(`El cliente ${client.name} no tiene teléfono configurado.`);
+                setIsSubmitting(false);
+                return;
             }
 
             if (mode === 'SINGLE' || mode === 'TEST') {
