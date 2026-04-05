@@ -238,36 +238,45 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
         const clientsRes = await query('SELECT COUNT(*) FROM clients');
         stats.totalClients = parseInt(clientsRes.rows[0].count);
 
-        // 2. Overdue Amount (Actual Morosos)
-        // Includes:
-        // - Services expired > 7 days ago
-        // - OR services expired AND not covered by the "Pending" logic (to fill gaps)
+        // 2. Overdue Amount (Actual Morosos) - 5 days grace
         const overdueRes = await query(`
-            SELECT COALESCE(SUM(COALESCE(special_price, cost)), 0) as total 
-            FROM services 
-            WHERE status = 'ACTIVE' 
+            SELECT COALESCE(SUM(
+                CASE 
+                    WHEN s.renewal_day = 30 THEN
+                        (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
+                        (COALESCE(s.special_price, s.cost) * FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                    ELSE
+                        COALESCE(s.special_price, s.cost) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                END
+            ), 0) as total 
+            FROM services s
+            WHERE s.status = 'ACTIVE' 
             AND (
-                expiration_date IS NULL 
+                s.expiration_date IS NULL 
                 OR 
-                (expiration_date + INTERVAL '7 days') < CURRENT_DATE
+                (s.expiration_date + INTERVAL '5 days') < CURRENT_DATE
             )
         `);
         stats.overdueAmount = parseFloat(overdueRes.rows[0].total);
 
-        // 3. Pending Amount (Upcoming + Grace Period)
-        // Includes:
-        // - Services expired but within grace period (Expiration < Today <= Expiration + 7)
-        // - Services expiring soon (Today <= Expiration <= Today + 3 days)
+        // 3. Pending Amount (Upcoming + Grace Period) - 5 days grace
         const pendingRes = await query(`
-            SELECT COALESCE(SUM(COALESCE(special_price, cost)), 0) as total 
-            FROM services 
-            WHERE status = 'ACTIVE' 
+            SELECT COALESCE(SUM(
+                CASE 
+                    WHEN s.renewal_day = 30 THEN
+                        (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1))
+                    ELSE
+                        COALESCE(s.special_price, s.cost)
+                END
+            ), 0) as total 
+            FROM services s
+            WHERE s.status = 'ACTIVE' 
             AND (
-                -- Grace period case
-                (expiration_date < CURRENT_DATE AND (expiration_date + INTERVAL '7 days') >= CURRENT_DATE)
+                -- Grace period case (5 days)
+                (s.expiration_date < CURRENT_DATE AND (s.expiration_date + INTERVAL '5 days') >= CURRENT_DATE)
                 OR
                 -- Upcoming case (next 3 days)
-                (expiration_date >= CURRENT_DATE AND expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
+                (s.expiration_date >= CURRENT_DATE AND s.expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
             )
         `);
         stats.pendingAmount = parseFloat(pendingRes.rows[0].total);
@@ -334,18 +343,32 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
                                 WHEN c.name = 'Martha Salazar' THEN
                                     (CASE WHEN (EXTRACT(YEAR FROM s.expiration_date) = 2023 AND EXTRACT(MONTH FROM s.expiration_date) = 12) THEN 20 
                                      ELSE 10 END) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                                WHEN s.renewal_day = 30 THEN
+                                    CASE 
+                                        WHEN s.expiration_date <= CURRENT_DATE THEN
+                                            (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
+                                            (COALESCE(s.special_price, s.cost) * FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                                        ELSE 0
+                                    END
                                 ELSE COALESCE(s.special_price, s.cost) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
                             END
                         ),
-                        'months_overdue', GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)))),
+                        'months_overdue', (
+                            CASE 
+                                WHEN s.renewal_day = 30 THEN 
+                                    FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))) + 1
+                                ELSE
+                                    GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                            END
+                        ),
                         'status', s.status,
                         'expiration_date', s.expiration_date,
                         'payment_status', CASE 
                                    --OVERDUE: Expired and past grace period(7 days)
-                                   WHEN s.expiration_date IS NULL OR(s.expiration_date + INTERVAL '7 days') < CURRENT_DATE THEN 'OVERDUE'
+                                   WHEN s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '5 days') < CURRENT_DATE THEN 'OVERDUE'
                                    --UPCOMING: Expired within grace period OR expiring in next 3 days
                                    WHEN(
-                            ((s.expiration_date + INTERVAL '7 days') >= CURRENT_DATE AND s.expiration_date < CURRENT_DATE)
+                            ((s.expiration_date + INTERVAL '5 days') >= CURRENT_DATE AND s.expiration_date < CURRENT_DATE)
                                        OR
                         (s.expiration_date >= CURRENT_DATE AND s.expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
             ) THEN 'UPCOMING'
@@ -362,11 +385,11 @@ COALESCE(string_agg(s.name, ', ') FILTER(WHERE s.status = 'ACTIVE'), 'Sin Servic
     COALESCE(
         (SELECT 
             CASE 
-                --OVERDUE check
-                WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND s2.status = 'ACTIVE' AND (s2.expiration_date IS NULL OR (s2.expiration_date + INTERVAL '7 days') < CURRENT_DATE)) THEN 'OVERDUE'
-                --UPCOMING check (Grace period OR Next 3 days)
+                --OVERDUE check (5 days grace)
+                WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND s2.status = 'ACTIVE' AND (s2.expiration_date IS NULL OR (s2.expiration_date + INTERVAL '5 days') < CURRENT_DATE)) THEN 'OVERDUE'
+                --UPCOMING check (5 days grace period OR Next 3 days)
                 WHEN EXISTS(SELECT 1 FROM services s2 WHERE s2.client_id = c.id AND s2.status = 'ACTIVE' AND (
-                    ((s2.expiration_date + INTERVAL '7 days') >= CURRENT_DATE AND s2.expiration_date < CURRENT_DATE)
+                    ((s2.expiration_date + INTERVAL '5 days') >= CURRENT_DATE AND s2.expiration_date < CURRENT_DATE)
                     OR
                     (s2.expiration_date >= CURRENT_DATE AND s2.expiration_date <= (CURRENT_DATE + INTERVAL '3 days'))
                 )) THEN 'UPCOMING'
@@ -437,11 +460,22 @@ VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
 
         // 3. Create Services
         const services = req.body.services || [];
+        // Fixed Billing Logic: Everyone pays on the 30th.
+        // If joining on day 28, 29, 30, the first bill is on the 30th of NEXT month (pro-rated + full month).
+        const billingSql = `(
+            CASE 
+                WHEN EXTRACT(DAY FROM CURRENT_DATE) >= 28 THEN 
+                    (DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') + INTERVAL '29 days')::DATE
+                ELSE 
+                    (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '29 days')::DATE
+            END
+        )`;
+
         if (services.length > 0) {
             for (const service of services) {
                 await query(
                     `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed)
-VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, (DATE_TRUNC('month', CURRENT_DATE) + (LEAST(30, EXTRACT(DAY FROM(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')):: int) - 1) * INTERVAL '1 day'):: DATE, 30)`,
+                    VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, ${billingSql}, 30)`,
                     [clientId, service.name, service.cost || 0, service.currency || 'USD', service.special_price || null]
                 );
             }
@@ -449,7 +483,7 @@ VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, (DATE_TRUNC('month', CURRENT_DATE) + (L
             // Backward compatibility for single service
             await query(
                 `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed)
-VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, (DATE_TRUNC('month', CURRENT_DATE) + (LEAST(30, EXTRACT(DAY FROM(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')):: int) - 1) * INTERVAL '1 day'):: DATE, 30)`,
+                VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, ${billingSql}, 30)`,
                 [clientId, service_name, cost || 0, currency || 'USD', req.body.special_price || null]
             );
         }
@@ -695,6 +729,8 @@ app.get('/api/payments/overdue', authenticateToken, authorizeRole('ADMIN'), asyn
                 COALESCE(s.special_price, s.cost) as monthly_cost,
                 s.currency,
                 s.expiration_date as due_date,
+                s.created_at,
+                s.renewal_day,
                 'VENCIDO' as status,
                 CURRENT_DATE - s.expiration_date as days_overdue,
                 c.id as client_id,
@@ -707,7 +743,7 @@ app.get('/api/payments/overdue', authenticateToken, authorizeRole('ADMIN'), asyn
             FROM services s
             JOIN clients c ON s.client_id = c.id
             WHERE s.status = 'ACTIVE' 
-            AND s.expiration_date + INTERVAL '3 days' < CURRENT_DATE -- Overdue threshold (3 days grace)
+            AND s.expiration_date + INTERVAL '5 days' < CURRENT_DATE -- Overdue threshold (5 days grace)
             ORDER BY s.expiration_date ASC
         `);
 
@@ -722,7 +758,19 @@ app.get('/api/payments/overdue', authenticateToken, authorizeRole('ADMIN'), asyn
             `, [row.client_id]);
 
             // DYNAMIC DEBT LOGIC
-            let calculatedAmount = parseFloat(row.monthly_cost) * row.months_overdue;
+            let calculatedAmount = 0;
+            const monthsOverdue = parseInt(row.months_overdue);
+
+            if (row.renewal_day === 30) {
+                // Pro-rated First Month + Full months since
+                const monthlyCost = parseFloat(row.monthly_cost);
+                // First period is handled by the initial months_overdue calculation in SQL if we adjust it, 
+                // but let's do it precisely in JS here.
+                const firstPeriodDays = (new Date(row.due_date).getTime() - new Date(row.created_at).getTime()) / (1000 * 3600 * 24) + 1;
+                calculatedAmount = (monthlyCost / 30.0 * firstPeriodDays) + (monthlyCost * (monthsOverdue - 1));
+            } else {
+                calculatedAmount = parseFloat(row.monthly_cost) * monthsOverdue;
+            }
 
             // Martha Salazar Special Exception (Historical Pricing)
             // User context: Dec 2025 was $20, Jan 2026+ is $10.
@@ -1063,19 +1111,24 @@ app.get('/api/contacts/status', authenticateToken, authorizeRole('ADMIN'), async
                     ), 0) as monthly_revenue,
                 (SELECT COUNT(*) FROM services s WHERE s.client_id = c.id AND s.status = 'ACTIVE') as services_count,
                 (SELECT MAX(sent_at) FROM notification_logs nl WHERE nl.client_id = c.id) as last_contact,
-                -- Dynamic Debt Calculation (Simplified for the table)
+                -- Dynamic Debt Calculation (Pro-rated for 30th cycle)
                 COALESCE(
                     (SELECT SUM(
-                        COALESCE(s.special_price, s.cost) * 
-                        GREATEST(1, EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)))
+                        CASE 
+                            WHEN s.renewal_day = 30 THEN
+                                (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
+                                (COALESCE(s.special_price, s.cost) * FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                            ELSE
+                                COALESCE(s.special_price, s.cost) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                        END
                     )
                     FROM services s
                     WHERE s.client_id = c.id 
                     AND s.status = 'ACTIVE' 
-                    AND (s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '7 days') < CURRENT_DATE)
+                    AND (s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '5 days') < CURRENT_DATE)
                 ), 0) as total_debt,
                 CASE 
-                    WHEN EXISTS (SELECT 1 FROM services s WHERE s.client_id = c.id AND s.status = 'ACTIVE' AND (s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '7 days') < CURRENT_DATE)) THEN 'OVERDUE'
+                    WHEN EXISTS (SELECT 1 FROM services s WHERE s.client_id = c.id AND s.status = 'ACTIVE' AND (s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '5 days') < CURRENT_DATE)) THEN 'OVERDUE'
                     ELSE 'PAID'
                 END as status
             FROM clients c
