@@ -14,6 +14,7 @@ import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { ClientsManagement } from './pages/admin/ClientsManagement';
 import { PaymentsManagement } from './pages/admin/PaymentsManagement';
 import { PlansManagement } from './pages/admin/PlansManagement';
+import { ContactsManagement } from './pages/admin/ContactsManagement';
 import { ClientDashboard } from './pages/client/ClientDashboard';
 
 import { Toaster } from './components/ui/sonner';
@@ -52,6 +53,7 @@ function App() {
                                 <Route index element={<AdminDashboard />} />
                                 {/* Add more admin routes here later */}
                                 <Route path="clients" element={<ClientsManagement />} />
+                                <Route path="contacts" element={<ContactsManagement />} />
                                 <Route path="payments" element={<PaymentsManagement />} />
                                 <Route path="plans" element={<PlansManagement />} />
                                 <Route path="settings" element={<div>Settings Placeholder</div>} />

@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
-import { Users, BarChart3, Settings, LogOut, Wallet, Menu, X, Tag } from 'lucide-react';
+import { Users, BarChart3, Settings, LogOut, Wallet, Menu, X, Tag, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const AdminLayout = () => {
@@ -46,6 +46,10 @@ export const AdminLayout = () => {
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/clients" className="flex items-center px-2.5 py-1.5 text-gray-400 rounded-md hover:bg-white/5 hover:text-white transition-all group text-[11px] font-bold uppercase tracking-wider">
                         <Users className="w-3.5 h-3.5 mr-3 group-hover:text-secondary transition-colors" />
                         Clientes
+                    </Link>
+                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/contacts" className="flex items-center px-2.5 py-1.5 text-gray-400 rounded-md hover:bg-white/5 hover:text-white transition-all group text-[11px] font-bold uppercase tracking-wider">
+                        <MessageSquare className="w-3.5 h-3.5 mr-3 group-hover:text-primary transition-colors" />
+                        Contactos
                     </Link>
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/payments" className="flex items-center px-2.5 py-1.5 text-gray-400 rounded-md hover:bg-white/5 hover:text-white transition-all group text-[11px] font-bold uppercase tracking-wider">
                         <Wallet className="w-3.5 h-3.5 mr-3 group-hover:text-yellow-500 transition-colors" />

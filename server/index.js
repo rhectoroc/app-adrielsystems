@@ -101,8 +101,11 @@ const initDb = async () => {
                 type VARCHAR(50) NOT NULL,
                 channel VARCHAR(50) NOT NULL,
                 status VARCHAR(20) NOT NULL DEFAULT 'SENT',
+                message_body TEXT,
                 sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
+            
+            ALTER TABLE notification_logs ADD COLUMN IF NOT EXISTS message_body TEXT;
             
             ALTER TABLE clients 
             ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
@@ -1047,6 +1050,44 @@ RETURNING *
     }
 });
 
+// NEW: Message Dashboard Data Route
+app.get('/api/contacts/status', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const result = await query(`
+            SELECT 
+                c.id, c.name, c.email, c.phone, c.is_active,
+                COALESCE(
+                    (SELECT SUM(COALESCE(s.special_price, s.cost)) 
+                     FROM services s 
+                     WHERE s.client_id = c.id AND s.status = 'ACTIVE'
+                    ), 0) as monthly_revenue,
+                (SELECT COUNT(*) FROM services s WHERE s.client_id = c.id AND s.status = 'ACTIVE') as services_count,
+                (SELECT MAX(sent_at) FROM notification_logs nl WHERE nl.client_id = c.id) as last_contact,
+                -- Dynamic Debt Calculation (Simplified for the table)
+                COALESCE(
+                    (SELECT SUM(
+                        COALESCE(s.special_price, s.cost) * 
+                        GREATEST(1, EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)))
+                    )
+                    FROM services s
+                    WHERE s.client_id = c.id 
+                    AND s.status = 'ACTIVE' 
+                    AND (s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '7 days') < CURRENT_DATE)
+                ), 0) as total_debt,
+                CASE 
+                    WHEN EXISTS (SELECT 1 FROM services s WHERE s.client_id = c.id AND s.status = 'ACTIVE' AND (s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '7 days') < CURRENT_DATE)) THEN 'OVERDUE'
+                    ELSE 'PAID'
+                END as status
+            FROM clients c
+            ORDER BY c.name ASC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching contacts status:', err);
+        res.status(500).json({ message: 'Error fetching contacts status' });
+    }
+});
+
 // N8N Integration Endpoint - Get clients needing notifications
 app.get('/api/notifications/pending', authenticateToken, async (req, res) => {
     try {
@@ -1138,14 +1179,14 @@ app.get('/api/notifications/log', authenticateToken, async (req, res) => {
 
 // POST /api/notifications/log - Log a new notification
 app.post('/api/notifications/log', authenticateToken, async (req, res) => {
-    const { client_id, type, channel, status } = req.body;
+    const { client_id, type, channel, status, message_body } = req.body;
 
     console.log('Received notification log request:', { client_id, type, channel, status });
 
     try {
         await query(
-            `INSERT INTO notification_logs(client_id, type, channel, status) VALUES($1, $2, $3, $4)`,
-            [client_id, type, channel, status || 'SENT']
+            `INSERT INTO notification_logs(client_id, type, channel, status, message_body) VALUES($1, $2, $3, $4, $5)`,
+            [client_id, type, channel, status || 'SENT', message_body || null]
         );
         res.json({ message: 'Notification logged successfully' });
     } catch (err) {
