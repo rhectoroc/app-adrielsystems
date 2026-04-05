@@ -1,10 +1,26 @@
 // Simple in-memory rate limiter
 // For production, consider using Redis or a dedicated rate limiting service
+// FIX-12: Added MAX_ENTRIES to prevent memory exhaustion
 
 const requestCounts = new Map();
 const loginAttempts = new Map();
+const MAX_ENTRIES = 10000; // Prevent memory DoS from IP rotation attacks
 
-// Clean up old entries every 15 minutes
+// Prune Map if it grows too large
+const pruneMap = (map) => {
+    if (map.size > MAX_ENTRIES) {
+        // Delete oldest entries (first inserted)
+        const entriesToDelete = map.size - MAX_ENTRIES;
+        let count = 0;
+        for (const key of map.keys()) {
+            if (count >= entriesToDelete) break;
+            map.delete(key);
+            count++;
+        }
+    }
+};
+
+// Clean up old entries every 5 minutes (was 15 — reduced for faster cleanup)
 setInterval(() => {
     const now = Date.now();
     const fifteenMinutes = 15 * 60 * 1000;
@@ -20,7 +36,7 @@ setInterval(() => {
             loginAttempts.delete(key);
         }
     }
-}, 15 * 60 * 1000);
+}, 5 * 60 * 1000);
 
 // General rate limiter
 export const rateLimiter = (options = {}) => {
@@ -35,6 +51,7 @@ export const rateLimiter = (options = {}) => {
         const now = Date.now();
 
         if (!requestCounts.has(key)) {
+            pruneMap(requestCounts);
             requestCounts.set(key, {
                 count: 1,
                 resetTime: now
@@ -71,6 +88,7 @@ export const loginRateLimiter = (req, res, next) => {
     const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
 
     if (!loginAttempts.has(key)) {
+        pruneMap(loginAttempts);
         loginAttempts.set(key, {
             count: 1,
             resetTime: now,

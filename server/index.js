@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -44,13 +45,25 @@ const storage = multer.diskStorage({
         cb(null, `${uniqueSuffix}${ext}`);
     }
 });
+// FIX-06: File type validation — only allow images
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const upload = multer({ 
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error(`File type not allowed: ${file.mimetype}. Only images (JPEG, PNG, WebP, GIF) are accepted.`));
+        }
+    }
 });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// FIX-02: Trust proxy for correct IP detection behind Easypanel/Nginx
+app.set('trust proxy', 1);
 
 // Dashboard Activity Endpoint
 app.get('/api/activity', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
@@ -130,24 +143,48 @@ initDb();
 initAutomation();
 
 // Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// FIX-10: Helmet for security headers (XSS protection, Content-Type sniffing, etc.)
+app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled for SPA compatibility
+
+// FIX-01: CORS restricted to allowed origins only
+const ALLOWED_ORIGINS = [
+    process.env.APP_URL, // e.g. https://app.adrielssystems.com
+    'http://localhost:5173', // Vite dev
+    'http://localhost:3000'  // Local server
+].filter(Boolean);
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, server-to-server)
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
+
+app.use(express.json({ limit: '1mb' })); // Limit body size
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Static Serving for Uploads
 app.use('/uploads/capref', express.static(uploadDir));
 
 // Apply general rate limiting to all routes
-app.use(rateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }));
+app.use(rateLimiter({ windowMs: 15 * 60 * 1000, max: 200 }));
 
 // API Routes
-app.get('/api/health', async (req, res) => {
+// FIX-03: Rate limit on public health endpoint (stricter)
+const strictRateLimit = rateLimiter({ windowMs: 60 * 1000, max: 10 }); // 10 req/min
+
+app.get('/api/health', strictRateLimit, async (req, res) => {
     try {
         const result = await query('SELECT NOW()');
         res.json({ status: 'ok', time: result.rows[0].now });
     } catch (err) {
         console.error('Database connection error', err);
-        res.status(500).json({ status: 'error', message: 'Database connection failed' });
+        res.status(500).json({ status: 'error', message: 'Service unavailable' });
     }
 });
 
@@ -226,10 +263,7 @@ const loginHandler = async (req, res) => {
 app.post('/api/auth/login', loginRateLimiter, loginHandler);
 app.post('/api/login', loginRateLimiter, loginHandler);
 
-// Debug route to check if endpoint is reachable via GET
-app.get('/api/login', (req, res) => {
-    res.json({ message: 'Login endpoint active. Please use POST to authenticate.' });
-});
+// FIX-09: Debug route removed (was leaking endpoint info)
 
 // Dashboard Stats Route
 app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
@@ -335,8 +369,20 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
 });
 
 // Manual Notification Trigger (Admin only)
+// FIX-07: Cooldown to prevent WhatsApp spam/blocking
+let lastAutomationTrigger = 0;
+const AUTOMATION_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
 app.post('/api/admin/automation/trigger', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const now = Date.now();
+    const elapsed = now - lastAutomationTrigger;
+    if (elapsed < AUTOMATION_COOLDOWN_MS) {
+        const remaining = Math.ceil((AUTOMATION_COOLDOWN_MS - elapsed) / 1000);
+        return res.status(429).json({ message: `Cooldown activo. Intenta de nuevo en ${remaining} segundos.` });
+    }
+
     try {
+        lastAutomationTrigger = now;
         const result = await runBillingNotifications();
         if (result.error) {
             return res.status(400).json(result);
@@ -349,6 +395,8 @@ app.post('/api/admin/automation/trigger', authenticateToken, authorizeRole('ADMI
 });
 
 // Manual Send (Single/Bulk via Evolution)
+// FIX-08: Validate phone format and limit message length
+// FIX-11: Sanitize error responses
 app.post('/api/messages/send', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     const { phone, message } = req.body;
     
@@ -356,15 +404,23 @@ app.post('/api/messages/send', authenticateToken, authorizeRole('ADMIN'), async 
         return res.status(400).json({ message: 'Phone and message are required' });
     }
 
+    // Validate phone format (digits only, 10-15 chars)
+    const cleanPhone = String(phone).replace(/\D/g, '');
+    if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+        return res.status(400).json({ message: 'Invalid phone number format (10-15 digits required)' });
+    }
+
+    // Limit message length
+    if (message.length > 4096) {
+        return res.status(400).json({ message: 'Message too long (max 4096 characters)' });
+    }
+
     try {
-        await sendMessage(phone, message);
+        await sendMessage(cleanPhone, message);
         res.json({ message: 'Message sent successfully' });
     } catch (err) {
         console.error('Error sending message:', err.response?.data || err.message);
-        res.status(500).json({ 
-            message: 'Error sending via Evolution API',
-            details: err.response?.data || err.message
-        });
+        res.status(500).json({ message: 'Error sending message. Please try again.' });
     }
 });
 
@@ -372,7 +428,10 @@ app.post('/api/messages/send', authenticateToken, authorizeRole('ADMIN'), async 
 // BOT CONTEXT API (For n8n EVA Agent)
 // Protected by x-api-key header (EVOLUTION_API_KEY)
 // ========================
-app.get('/api/bot/client-context', async (req, res) => {
+// FIX-03: Strict rate limit on bot endpoint to prevent enumeration
+const botRateLimit = rateLimiter({ windowMs: 60 * 1000, max: 30 }); // 30 req/min
+
+app.get('/api/bot/client-context', botRateLimit, async (req, res) => {
     // API Key authentication (no JWT needed for bot-to-bot communication)
     const apiKey = req.headers['x-api-key'];
     if (!apiKey || apiKey !== process.env.EVOLUTION_API_KEY) {
@@ -1005,9 +1064,9 @@ app.get('/api/payments/upcoming', authenticateToken, authorizeRole('ADMIN'), asy
             JOIN clients c ON s.client_id = c.id
             WHERE s.status = 'ACTIVE' 
             AND s.expiration_date >= (CURRENT_DATE - INTERVAL '15 days') -- Show recently expired and upcoming
-            AND s.expiration_date <= (CURRENT_DATE + INTERVAL '${days} days')
+            AND s.expiration_date <= (CURRENT_DATE + $1 * INTERVAL '1 day')
             ORDER BY s.expiration_date ASC
-    `);
+    `, [days]);
 
         // Fetch notification status for each client
         const clientsWithNotifications = await Promise.all(result.rows.map(async (row) => {
@@ -1331,7 +1390,8 @@ app.get('/api/contacts/status', authenticateToken, authorizeRole('ADMIN'), async
 });
 
 // N8N Integration Endpoint - Get clients needing notifications
-app.get('/api/notifications/pending', authenticateToken, async (req, res) => {
+// FIX-05: Restrict to ADMIN only (was accessible by any authenticated user)
+app.get('/api/notifications/pending', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
 SELECT
@@ -1420,7 +1480,8 @@ app.get('/api/notifications/log', authenticateToken, async (req, res) => {
 });
 
 // POST /api/notifications/log - Log a new notification
-app.post('/api/notifications/log', authenticateToken, async (req, res) => {
+// FIX-05: Restrict to ADMIN only (was accessible by any authenticated user including CLIENT)
+app.post('/api/notifications/log', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     const { client_id, type, channel, status, message_body } = req.body;
 
     console.log('Received notification log request:', { client_id, type, channel, status });
