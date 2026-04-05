@@ -10,6 +10,7 @@ import { authenticateToken, authorizeRole } from './middleware/auth.js';
 import { rateLimiter, loginRateLimiter, clearLoginAttempts } from './middleware/rateLimiter.js';
 import multer from 'multer';
 import fs from 'fs';
+import { initAutomation, runBillingNotifications } from './services/automationService.js';
 
 // Uploads Configuration (Volume mounted at /data in production)
 
@@ -119,6 +120,7 @@ const initDb = async () => {
 };
 
 initDb();
+initAutomation();
 
 // Middleware
 app.use(cors());
@@ -322,6 +324,20 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
     } catch (err) {
         console.error('Error fetching dashboard stats:', err);
         res.status(500).json({ message: 'Error fetching stats' });
+    }
+});
+
+// Manual Notification Trigger (Admin only)
+app.post('/api/admin/automation/trigger', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const result = await runBillingNotifications();
+        if (result.error) {
+            return res.status(400).json(result);
+        }
+        res.json({ message: 'Automation loop completed', ...result });
+    } catch (err) {
+        console.error('Error triggering automation:', err);
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
 
