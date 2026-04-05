@@ -7,7 +7,7 @@ const WARNING_BEFORE_LOGOUT = 5 * 60 * 1000; // 5 minutes warning
 const TOKEN_REFRESH_THRESHOLD = 60 * 60 * 1000; // Refresh if less than 1 hour remaining
 
 // Define types
-type UserRole = 'ADMIN' | 'CLIENT';
+type UserRole = 'ADMIN' | 'EMPLOYEE' | 'CLIENT';
 
 interface User {
     id: string;

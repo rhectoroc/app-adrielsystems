@@ -111,6 +111,13 @@ const initDb = async () => {
             ALTER TABLE clients 
             ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 
+            -- User Management: Add new columns and update role constraint
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS receive_notifications BOOLEAN DEFAULT FALSE;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+            
+            -- Update role constraint to include EMPLOYEE
+            ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+            ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'EMPLOYEE', 'CLIENT'));
 
         `);
         console.log('Database initialized: Tables ready.');
@@ -1428,6 +1435,119 @@ app.post('/api/notifications/log', authenticateToken, async (req, res) => {
         console.error('Error logging notification:', err);
         console.error('Request body was:', req.body);
         res.status(500).json({ message: 'Error logging notification', error: err.message });
+    }
+});
+
+// ========================
+// USER MANAGEMENT ROUTES (ADMIN only)
+// ========================
+
+// GET /api/users — List all users
+app.get('/api/users', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const result = await query(`
+            SELECT u.id, u.email, u.role, u.client_id, u.receive_notifications, u.phone, u.created_at,
+                   c.name as client_name
+            FROM users u
+            LEFT JOIN clients c ON u.client_id = c.id
+            ORDER BY u.created_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching users:', err);
+        res.status(500).json({ message: 'Error fetching users' });
+    }
+});
+
+// POST /api/users — Create new user
+app.post('/api/users', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { email, password, role, phone, receive_notifications, client_id } = req.body;
+
+    if (!email || !password || !role) {
+        return res.status(400).json({ message: 'Email, password and role are required' });
+    }
+
+    if (!['ADMIN', 'EMPLOYEE', 'CLIENT'].includes(role)) {
+        return res.status(400).json({ message: 'Invalid role. Must be ADMIN, EMPLOYEE or CLIENT' });
+    }
+
+    try {
+        const saltRounds = 10;
+        const hash = await bcrypt.hash(password, saltRounds);
+
+        const result = await query(
+            `INSERT INTO users (email, password_hash, role, phone, receive_notifications, client_id)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, role, phone, receive_notifications, created_at`,
+            [email, hash, role, phone || null, receive_notifications || false, client_id || null]
+        );
+
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error('Error creating user:', err);
+        if (err.constraint === 'users_email_key') {
+            return res.status(400).json({ message: 'Email already exists' });
+        }
+        res.status(500).json({ message: 'Error creating user' });
+    }
+});
+
+// PUT /api/users/:id — Update user
+app.put('/api/users/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { id } = req.params;
+    const { email, password, role, phone, receive_notifications, client_id } = req.body;
+
+    if (!['ADMIN', 'EMPLOYEE', 'CLIENT'].includes(role)) {
+        return res.status(400).json({ message: 'Invalid role. Must be ADMIN, EMPLOYEE or CLIENT' });
+    }
+
+    try {
+        // If password is provided, update it. Otherwise keep existing hash.
+        if (password && password.trim() !== '') {
+            const saltRounds = 10;
+            const hash = await bcrypt.hash(password, saltRounds);
+            await query(
+                `UPDATE users SET email = $1, password_hash = $2, role = $3, phone = $4, receive_notifications = $5, client_id = $6
+                 WHERE id = $7`,
+                [email, hash, role, phone || null, receive_notifications || false, client_id || null, id]
+            );
+        } else {
+            await query(
+                `UPDATE users SET email = $1, role = $2, phone = $3, receive_notifications = $4, client_id = $5
+                 WHERE id = $6`,
+                [email, role, phone || null, receive_notifications || false, client_id || null, id]
+            );
+        }
+
+        res.json({ message: 'User updated successfully' });
+    } catch (err) {
+        console.error('Error updating user:', err);
+        if (err.constraint === 'users_email_key') {
+            return res.status(400).json({ message: 'Email already exists' });
+        }
+        res.status(500).json({ message: 'Error updating user' });
+    }
+});
+
+// DELETE /api/users/:id — Delete user
+app.delete('/api/users/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    const { id } = req.params;
+
+    // Prevent deleting yourself
+    if (parseInt(id) === req.user.id) {
+        return res.status(400).json({ message: 'Cannot delete your own account' });
+    }
+
+    try {
+        const result = await query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.json({ message: 'User deleted successfully' });
+    } catch (err) {
+        console.error('Error deleting user:', err);
+        res.status(500).json({ message: 'Error deleting user' });
     }
 });
 

@@ -15,6 +15,7 @@ import { ClientsManagement } from './pages/admin/ClientsManagement';
 import { PaymentsManagement } from './pages/admin/PaymentsManagement';
 import { PlansManagement } from './pages/admin/PlansManagement';
 import { ContactsManagement } from './pages/admin/ContactsManagement';
+import { UsersManagement } from './pages/admin/UsersManagement';
 import { ClientDashboard } from './pages/client/ClientDashboard';
 
 import { Toaster } from './components/ui/sonner';
@@ -28,7 +29,7 @@ function RootRedirect() {
 
     if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-    return <Navigate to={role === 'ADMIN' ? '/admin' : '/client'} replace />;
+    return <Navigate to={role === 'ADMIN' || role === 'EMPLOYEE' ? '/admin' : '/client'} replace />;
 }
 
 import { ConfirmProvider } from './context/ConfirmContext';
@@ -48,7 +49,7 @@ function App() {
                         </Route>
 
                         {/* Admin Routes (Protected) */}
-                        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'EMPLOYEE']} />}>
                             <Route path="/admin" element={<AdminLayout />}>
                                 <Route index element={<AdminDashboard />} />
                                 {/* Add more admin routes here later */}
@@ -56,6 +57,7 @@ function App() {
                                 <Route path="contacts" element={<ContactsManagement />} />
                                 <Route path="payments" element={<PaymentsManagement />} />
                                 <Route path="plans" element={<PlansManagement />} />
+                                <Route path="users" element={<UsersManagement />} />
                                 <Route path="settings" element={<div>Settings Placeholder</div>} />
                             </Route>
                         </Route>
