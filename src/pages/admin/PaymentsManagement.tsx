@@ -89,6 +89,8 @@ export const PaymentsManagement = () => {
     const [currentPaymentId, setCurrentPaymentId] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [discountPercent, setDiscountPercent] = useState<number | string>(0);
+    const [discountType, setDiscountType] = useState<'PRESET' | 'CUSTOM' | 'MANUAL'>('PRESET');
 
     // Form State
     interface PaymentFormData {
@@ -240,28 +242,101 @@ export const PaymentsManagement = () => {
         }
     };
 
+    const getMonthlyCost = (serviceId: string) => {
+        if (serviceId === 'all' && selectedClient) {
+            return selectedClient.total_monthly || 0;
+        }
+        const selectedService = services.find(s => s.id.toString() === serviceId);
+        if (selectedService) {
+            return Number(selectedService.special_price || selectedService.cost || 0);
+        }
+        return 0;
+    };
+
+    const handleDiscountChange = (value: string) => {
+        const monthlyCost = getMonthlyCost(formData.service_id);
+        const baseTotal = monthlyCost * Number(formData.months_covered || 1);
+
+        if (value === 'custom') {
+            setDiscountType('CUSTOM');
+            setDiscountPercent(0);
+            setFormData(prev => ({
+                ...prev,
+                amount: baseTotal.toFixed(2)
+            }));
+        } else {
+            const pct = parseFloat(value);
+            setDiscountType('PRESET');
+            setDiscountPercent(pct);
+            const finalAmount = baseTotal * (1 - pct / 100);
+            setFormData(prev => ({
+                ...prev,
+                amount: finalAmount.toFixed(2)
+            }));
+        }
+    };
+
+    const handleCustomDiscountPercentChange = (pctValue: string) => {
+        const pct = parseFloat(pctValue) || 0;
+        setDiscountPercent(pctValue);
+        const monthlyCost = getMonthlyCost(formData.service_id);
+        const baseTotal = monthlyCost * Number(formData.months_covered || 1);
+        const finalAmount = baseTotal * (1 - pct / 100);
+        setFormData(prev => ({
+            ...prev,
+            amount: finalAmount.toFixed(2)
+        }));
+    };
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
+
+        if (name === 'amount') {
+            setFormData(prev => ({ ...prev, amount: value }));
+            setDiscountType('MANUAL');
+            // calculate implicit discount percentage
+            const monthlyCost = getMonthlyCost(formData.service_id);
+            const baseTotal = monthlyCost * Number(formData.months_covered || 1);
+            if (baseTotal > 0) {
+                const implicitPct = ((baseTotal - parseFloat(value || '0')) / baseTotal) * 100;
+                setDiscountPercent(implicitPct > 0 ? parseFloat(implicitPct.toFixed(1)) : 0);
+            } else {
+                setDiscountPercent(0);
+            }
+            return;
+        }
+
         setFormData(prev => ({ ...prev, [name]: value }));
 
         // Auto-fill amount if service changes
         if (name === 'service_id') {
-            if (value === 'all' && selectedClient) {
-                setFormData(prev => ({
-                    ...prev,
-                    amount: (selectedClient.total_monthly || 0).toString(),
-                    service_id: 'all'
-                }));
-            } else {
-                const selectedService = services.find(s => s.id.toString() === value);
-                if (selectedService) {
-                    setFormData(prev => ({
-                        ...prev,
-                        amount: (selectedService.special_price || selectedService.cost || '').toString(),
-                        service_id: value
-                    }));
-                }
+            const monthlyCost = value === 'all' ? (selectedClient?.total_monthly || 0) : (() => {
+                const s = services.find(item => item.id.toString() === value);
+                return s ? Number(s.special_price || s.cost || 0) : 0;
+            })();
+            const baseTotal = monthlyCost * Number(formData.months_covered || 1);
+            const pct = discountType !== 'MANUAL' ? Number(discountPercent) : 0;
+            const finalAmount = baseTotal * (1 - pct / 100);
+            setFormData(prev => ({
+                ...prev,
+                amount: finalAmount > 0 ? finalAmount.toFixed(2) : '',
+                service_id: value
+            }));
+            if (value && value !== 'all') {
+                handleClientChange(formData.client_id || selectedClient?.id.toString() || '');
             }
+        }
+
+        if (name === 'months_covered') {
+            const monthlyCost = getMonthlyCost(formData.service_id);
+            const baseTotal = monthlyCost * Number(value || 1);
+            const pct = discountType !== 'MANUAL' ? Number(discountPercent) : 0;
+            const finalAmount = baseTotal * (1 - pct / 100);
+            setFormData(prev => ({
+                ...prev,
+                amount: finalAmount > 0 ? finalAmount.toFixed(2) : '',
+                months_covered: value
+            }));
         }
     };
 
@@ -269,6 +344,8 @@ export const PaymentsManagement = () => {
         const isFromHistory = fromHistory === true;
         setEditMode(false);
         setCurrentPaymentId(null);
+        setDiscountPercent(0);
+        setDiscountType('PRESET');
 
         // Auto-fill logic
         const lastPayment = clientPayments.length > 0 ? clientPayments[0] : null;
@@ -332,6 +409,18 @@ export const PaymentsManagement = () => {
                     setServices(servicesData);
                 }
             } catch (error) { console.error(error); }
+        }
+
+        // Calculate implicit discount percentage for the edited record
+        const monthlyCost = payment.client_id ? getMonthlyCost(payment.service_id.toString()) : 0;
+        const baseTotal = monthlyCost * (payment.months_covered || 1);
+        if (baseTotal > 0 && Math.abs(baseTotal - payment.amount) > 0.01) {
+            const implicitPct = ((baseTotal - payment.amount) / baseTotal) * 100;
+            setDiscountPercent(implicitPct > 0 ? parseFloat(implicitPct.toFixed(1)) : 0);
+            setDiscountType('MANUAL');
+        } else {
+            setDiscountPercent(0);
+            setDiscountType('PRESET');
         }
 
         setFormData({
@@ -739,7 +828,7 @@ export const PaymentsManagement = () => {
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div className="space-y-1">
                                                     <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Monto</label>
-                                                    <input type="number" name="amount" value={formData.amount} onChange={handleInputChange} required className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none" />
+                                                    <input type="number" name="amount" value={formData.amount} onChange={handleInputChange} required className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50 transition-all" />
                                                 </div>
                                                 <div className="space-y-1">
                                                     <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Meses a Cubrir</label>
@@ -747,6 +836,52 @@ export const PaymentsManagement = () => {
                                                         {[1, 2, 3, 4, 5, 6, 12].map(m => <option key={m} value={m}>{m} {m === 1 ? 'Mes' : 'Meses'}</option>)}
                                                     </select>
                                                 </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3 bg-white/[0.02] p-2 rounded-lg border border-white/5">
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Aplicar Descuento</label>
+                                                    <select
+                                                        value={discountType === 'CUSTOM' ? 'custom' : (discountType === 'MANUAL' ? 'manual' : discountPercent)}
+                                                        onChange={(e) => handleDiscountChange(e.target.value)}
+                                                        className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50"
+                                                    >
+                                                        <option value="0">0% (Sin desc.)</option>
+                                                        <option value="5">5% desc.</option>
+                                                        <option value="10">10% desc.</option>
+                                                        <option value="15">15% desc.</option>
+                                                        <option value="20">20% desc.</option>
+                                                        <option value="custom">Personalizado...</option>
+                                                        {discountType === 'MANUAL' && <option value="manual">Manual / Negociado</option>}
+                                                    </select>
+                                                </div>
+                                                {discountType === 'CUSTOM' ? (
+                                                    <div className="space-y-1">
+                                                        <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">% Descuento</label>
+                                                        <input
+                                                            type="number"
+                                                            placeholder="0"
+                                                            value={discountPercent}
+                                                            onChange={(e) => handleCustomDiscountPercentChange(e.target.value)}
+                                                            className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50"
+                                                            min="0"
+                                                            max="100"
+                                                            step="0.1"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col justify-end pb-1 px-1">
+                                                        <div className="text-[9px] text-gray-500 uppercase tracking-widest font-black">Información de Negociación:</div>
+                                                        <div className="text-[10px] text-primary font-black mt-0.5 leading-tight">
+                                                            {discountType === 'MANUAL' ? (
+                                                                <span className="text-yellow-500">Negociado Manual (-{discountPercent}% desc.)</span>
+                                                            ) : Number(discountPercent) > 0 ? (
+                                                                <span>Descuento: -{discountPercent}% (Ahorro: ${(getMonthlyCost(formData.service_id) * Number(formData.months_covered || 1) * Number(discountPercent) / 100).toFixed(2)})</span>
+                                                            ) : (
+                                                                <span>Monto estándar sin descuento</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="space-y-1">
                                                 <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1 italic flex justify-between">

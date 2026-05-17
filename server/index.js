@@ -479,7 +479,7 @@ app.get('/api/bot/client-context', botRateLimit, async (req, res) => {
                 -- Debt calculation (same logic as main app)
                 CASE 
                     WHEN s.expiration_date >= CURRENT_DATE THEN 0
-                    WHEN s.renewal_day = 30 THEN
+                    WHEN s.renewal_day IN (15, 30) THEN
                         (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
                         (COALESCE(s.special_price, s.cost) * FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
                     ELSE
@@ -591,7 +591,7 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
                                 WHEN c.name = 'Martha Salazar' THEN
                                     (CASE WHEN (EXTRACT(YEAR FROM s.expiration_date) = 2023 AND EXTRACT(MONTH FROM s.expiration_date) = 12) THEN 20 
                                      ELSE 10 END) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
-                                WHEN s.renewal_day = 30 THEN
+                                WHEN s.renewal_day IN (15, 30) THEN
                                     CASE 
                                         WHEN s.expiration_date <= CURRENT_DATE THEN
                                             (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
@@ -603,7 +603,7 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
                         ),
                         'months_overdue', (
                             CASE 
-                                WHEN s.renewal_day = 30 THEN 
+                                WHEN s.renewal_day IN (15, 30) THEN 
                                     FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))) + 1
                                 ELSE
                                     GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
@@ -712,34 +712,36 @@ VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
         if (services.length > 0) {
             for (const service of services) {
                 const serviceStartDate = service.created_at || new Date().toISOString().split('T')[0];
+                const renewalDaySql = `(CASE WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 15 ELSE 30 END)`;
                 const billingSql = `(
                     CASE 
-                        WHEN EXTRACT(DAY FROM $5::DATE) >= 28 THEN 
-                            (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '29 days')::DATE
+                        WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 
+                            (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
                         ELSE 
-                            (DATE_TRUNC('month', $5::DATE) + INTERVAL '29 days')::DATE
+                            (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', $5::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
                     END
                 )`;
                 await query(
                     `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed, created_at)
-                    VALUES($1, $2, $3, $4, 'ACTIVE', 30, $6, ${billingSql}, 30, $5)`,
+                    VALUES($1, $2, $3, $4, 'ACTIVE', ${renewalDaySql}, $6, ${billingSql}, ${renewalDaySql}, $5)`,
                     [clientId, service.name, service.cost || 0, service.currency || 'USD', serviceStartDate, service.special_price || null]
                 );
             }
         } else if (service_name) {
             // Backward compatibility for single service
             const serviceStartDate = new Date().toISOString().split('T')[0];
+            const renewalDaySql = `(CASE WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 15 ELSE 30 END)`;
             const billingSql = `(
                 CASE 
-                    WHEN EXTRACT(DAY FROM $5::DATE) >= 28 THEN 
-                        (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '29 days')::DATE
+                    WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 
+                        (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
                     ELSE 
-                        (DATE_TRUNC('month', $5::DATE) + INTERVAL '29 days')::DATE
+                        (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', $5::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
                 END
             )`;
             await query(
                 `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed, created_at)
-                VALUES($1, $2, $3, $4, 'ACTIVE', 30, $6, ${billingSql}, 30, $5)`,
+                VALUES($1, $2, $3, $4, 'ACTIVE', ${renewalDaySql}, $6, ${billingSql}, ${renewalDaySql}, $5)`,
                 [clientId, service_name, cost || 0, currency || 'USD', serviceStartDate, req.body.special_price || null]
             );
         }
@@ -808,20 +810,24 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
         if (services.length > 0) {
             for (const service of services) {
                 const serviceStartDate = service.created_at || new Date().toISOString().split('T')[0];
+                const renewalDaySql = `(CASE WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 15 ELSE 30 END)`;
                 if (service.id) {
                     // Update existing service
+                    const billingSql = `(
+                        CASE 
+                            WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 
+                                (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
+                            ELSE 
+                                (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', $5::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
+                        END
+                    )`;
                     await query(
                         `UPDATE services 
                          SET name = $1, cost = $2, currency = $3, special_price = $4, created_at = $5,
+                             renewal_day = ${renewalDaySql},
+                             billing_day_fixed = ${renewalDaySql},
                              expiration_date = CASE 
-                                 WHEN last_payment_date IS NULL THEN (
-                                     CASE 
-                                         WHEN EXTRACT(DAY FROM $5::DATE) >= 28 THEN 
-                                             (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '29 days')::DATE
-                                         ELSE 
-                                             (DATE_TRUNC('month', $5::DATE) + INTERVAL '29 days')::DATE
-                                     END
-                                 )
+                                 WHEN last_payment_date IS NULL THEN ${billingSql}
                                  ELSE expiration_date
                              END
                          WHERE id = $6 AND client_id = $7`,
@@ -831,15 +837,15 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
                     // Create new service
                     const billingSql = `(
                         CASE 
-                            WHEN EXTRACT(DAY FROM $5::DATE) >= 28 THEN 
-                                (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '29 days')::DATE
+                            WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 
+                                (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
                             ELSE 
-                                (DATE_TRUNC('month', $5::DATE) + INTERVAL '29 days')::DATE
+                                (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', $5::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
                         END
                     )`;
                     await query(
                         `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed, created_at)
-                         VALUES($1, $2, $3, $4, 'ACTIVE', 30, $6, ${billingSql}, 30, $5)`,
+                         VALUES($1, $2, $3, $4, 'ACTIVE', ${renewalDaySql}, $6, ${billingSql}, ${renewalDaySql}, $5)`,
                         [id, service.name, service.cost || 0, service.currency || 'USD', serviceStartDate, service.special_price || null]
                     );
                 }
@@ -1037,7 +1043,7 @@ app.get('/api/payments/overdue', authenticateToken, authorizeRole('ADMIN'), asyn
             let calculatedAmount = 0;
             const monthsOverdue = parseInt(row.months_overdue);
 
-            if (row.renewal_day === 30) {
+            if (row.renewal_day === 30 || row.renewal_day === 15) {
                 // Pro-rated First Month + Full months since
                 const monthlyCost = parseFloat(row.monthly_cost);
                 // First period is handled by the initial months_overdue calculation in SQL if we adjust it, 
