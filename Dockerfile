@@ -1,5 +1,5 @@
 # Stage 1: Build the React Application
-FROM node:20-alpine as builder
+FROM node:22-alpine as builder
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ COPY . .
 RUN pnpm run build
 
 # Stage 2: Production Server (Node.js)
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
