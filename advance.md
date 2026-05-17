@@ -1,90 +1,52 @@
-# Avance de Desarrollo — 4 de Abril 2026
+# Avance de Desarrollo — 5 de Abril 2026
 
-## Sesión: Facturación Fija + Automatización de Mensajes + Integración EVA
-
----
-
-## 1. Modelo de Facturación Fijo (Ciclo del Día 30)
-
-### Cambios en `server/index.js`
-
-- **POST /api/clients:** Todos los nuevos clientes se configuran con `renewal_day = 30` y `billing_day_fixed = 30`. La fecha de vencimiento se calcula al día 30 del mes actual.
-- **Excepción de fin de mes (día 28+):** Si un cliente se registra a partir del día 28, el primer vencimiento se traslada al día 30 del mes siguiente, sumando los días restantes del mes actual a la primera factura.
-- **Prorrateo automático:** Las consultas SQL en `GET /api/clients` y `GET /api/stats` calculan la deuda proporcional para el primer mes de servicio.
-- **Periodo de gracia reducido:** Se cambió globalmente de 7 a **5 días** en todos los endpoints que determinan el estado de pago (`OVERDUE`, `UPCOMING`, `PAID`).
-- **Alcance:** Solo aplica a clientes creados a partir de esta fecha. Clientes existentes mantienen su lógica previa.
+## Sesión: Gestión de Usuarios + Auditoría y Hardening de Seguridad
 
 ---
 
-## 2. Dashboard de Contactos + Sistema de Mensajería
-
-### Frontend
-
-- **Nueva sección:** `ContactsManagement.tsx` — Dashboard especializado para comunicación con clientes.
-- **MessageModal.tsx:** Modal para enviar mensajes personalizados con plantillas (Recordatorio de Cobro, Oferta Promocional, Prueba de Sistema).
-- **Envío directo por API:** Se eliminó la redirección a WhatsApp Web. Los mensajes ahora se envían directamente a través de la API de Evolution desde el backend.
-- **Botón de prueba mejorado:** Permite seleccionar contactos específicos antes de enviar mensajes de prueba.
+## 5. Sistema de Gestión de Usuarios (CRUD)
 
 ### Backend
+- **Nuevos Endpoints en `server/index.js`:**
+  - `GET /api/users`: Lista completa con datos de cliente asociados.
+  - `POST /api/users`: Creación con hashing de contraseña (bcrypt).
+  - `PUT /api/users/:id`: Actualización de perfil y/o contraseña.
+  - `DELETE /api/users/:id`: Eliminación con protección contra auto-borrado.
+- **Auto-Migración:** El servidor ahora detecta y añade automáticamente las columnas `phone` y `receive_notifications`, y actualiza el constraint de roles para incluir `EMPLOYEE`.
 
-- **POST /api/messages/send:** Nuevo endpoint que envía mensajes a WhatsApp vía Evolution API internamente.
-- **Función `sendMessage()`:** Extraída como utilidad reutilizable en `automationService.js`.
-
-### Fix de Build (TypeScript)
-- Corregidos errores de compilación en `MessageModal.tsx` y `ContactsManagement.tsx`:
-  - Template literals con `${{monto}}` provocaban errores TS18004
-  - Importaciones no utilizadas (`Send`, `Filter`, `ExternalLink`, etc.)
-
----
-
-## 3. Automatización de Cobro Nativa (Reemplaza n8n)
-
-### Nuevo archivo: `server/services/automationService.js`
-
-- **Cron Job:** Se ejecuta todos los días a las 9:00 AM (`node-cron`).
-- **Lógica de selección:** Identifica clientes con pagos vencidos (>5 días), que vencen hoy, o próximos a vencer (3 días).
-- **3 plantillas de mensaje:** Copia exacta de los textos del workflow de n8n (Morosos, Vence Hoy, Por Vencer).
-- **Prevención de spam:** Solo envía un tipo de mensaje por día por cliente.
-- **Envío vía Evolution API:** Comunicación interna entre contenedores Docker (`http://adrielssystems_evolution-api:8080`).
-- **Registro automático:** Cada envío se registra en `notification_logs`.
-
-### Nuevos endpoints en `server/index.js`
-- **POST /api/admin/automation/trigger:** Trigger manual para ejecutar el ciclo de notificaciones (protegido para ADMIN).
-
-### Dependencias añadidas
-- `node-cron` ^3.0.3
-- `axios` ^1.6.7
+### Frontend
+- **Nueva sección:** `UsersManagement.tsx` — Panel de administración de personal.
+- **Acceso Multinivel:** Se implementó el rol `EMPLOYEE`, permitiendo a empleados acceder al panel administrativo mientras que la gestión de usuarios queda reservada para `ADMIN`.
+- **Notificaciones:** Toggle integrado para que usuarios de staff elijan recibir alertas de pagos vía WhatsApp.
 
 ---
 
-## 4. API de Contexto para EVA (Agente Virtual)
+## 6. Auditoría y Hardening de Seguridad (Fase 1, 2 y 3)
 
-### Nuevo endpoint: `GET /api/bot/client-context`
+Se realizó una auditoría completa de los 35+ endpoints del backend, aplicando 12 correcciones críticas y preventivas.
 
-- **Autenticación:** Header `x-api-key` con `EVOLUTION_API_KEY` (sin JWT, para comunicación bot-a-bot).
-- **Parámetro:** `?phone=584140108030`
-- **Matching flexible:** Busca por los últimos 10 dígitos del teléfono, ignorando `+`, `-` y espacios.
-- **Respuesta para clientes registrados:**
-  - Servicios activos con deuda calculada en tiempo real
-  - Estado de pago (AL DIA, PROXIMO A VENCER, EN GRACIA, VENCIDO)
-  - Último pago registrado
-  - Métodos de pago aceptados: PayPal, Zelle, Pago Móvil, Binance
-  - Instrucción de pago: Contactar al equipo (nunca dar datos bancarios)
-- **Respuesta para no clientes:** `cliente_existe: false` con instrucción para EVA.
+### Mejoras de Infraestructura y Middleware
+- **Helmet.js:** Integración de cabeceras de seguridad HTTP para prevenir XSS y ataques de inyección.
+- **CORS Estricto:** Restricción de acceso solo a dominios permitidos (`APP_URL` y localhost).
+- **Trust Proxy:** Configuración corregida para detectar IPs reales detrás de Easypanel/Nginx.
+- **Rate Limiting Robusto:** 
+  - Protección contra DoS en `/api/health` y API de bot.
+  - Prevención de fugas de memoria (Memory Leaks) limitando las entradas de IP en memoria a 10,000 registros.
 
-### System Prompt de EVA actualizado
-- Respuestas cortas (máximo 3-4 líneas)
-- Menú para clientes: 1️⃣ Info contrato, 2️⃣ Soporte, 3️⃣ Otra consulta
-- Menú para no clientes: 1️⃣ Servicios, 2️⃣ Planes, 3️⃣ Agendar llamada
-- Detección de cliente transparente (nunca revela si es o no es cliente)
-- Info de cuenta solo cuando el cliente la solicita (opción 1)
+### Hardening de API
+- **SQL Injection Fix:** Parametrización de consultas en filtros temporales de pagos.
+- **Validación de Archivos:** El sistema ahora solo permite subir imágenes (JPEG, PNG, WebP) como evidencia de pago, bloqueando archivos ejecutables.
+- **Protección de Mensajería:** Cooldown de 5 minutos en el trigger de automatización y validación estricta de formato de teléfonos para evitar spam o bloqueos de WhatsApp.
+- **Privacidad de Datos:** Los endpoints de notificaciones y logs ahora requieren rol `ADMIN`, evitando que clientes vean deudas de otros usuarios.
+- **Sanitización de Errores:** Se eliminó la exposición de trazas de error internas hacia el cliente.
 
 ---
 
-## Variables de Entorno Requeridas (Easypanel)
+## Variables de Entorno Requeridas (Easypanel) — Actualizado
 
 | Variable | Descripción |
 |----------|-------------|
+| `APP_URL` | URL base de la app (ej: `https://app.adrielssystems.com`) para validación CORS. |
 | `EVOLUTION_API_URL` | `http://adrielssystems_evolution-api:8080` |
 | `EVOLUTION_API_KEY` | API Key de la instancia de Evolution |
 | `EVOLUTION_INSTANCE_NAME` | `AdrielsSystems` |
@@ -95,10 +57,12 @@
 
 | Archivo | Tipo | Cambio |
 |---------|------|--------|
-| `server/index.js` | MODIFY | Facturación fija, endpoints de mensajería, API de contexto para bot |
-| `server/services/automationService.js` | NEW | Servicio de automatización de cobro |
-| `src/pages/admin/ContactsManagement.tsx` | MODIFY | Fix imports, selección de contactos para prueba |
-| `src/components/features/admin/MessageModal.tsx` | MODIFY | Fix TS errors, envío directo vía API |
-| `package.json` | MODIFY | Añadir node-cron, axios |
+| `server/index.js` | MODIFY | CRUD de Usuarios, 12 fixes de seguridad, Helmet, CORS dinámico. |
+| `server/middleware/rateLimiter.js` | MODIFY | Pruning de memoria, soporte para proxy, rate limits específicos. |
+| `src/pages/admin/UsersManagement.tsx` | NEW | Panel de gestión de usuarios staff. |
+| `src/context/AuthContext.tsx` | MODIFY | Soporte para rol `EMPLOYEE`. |
+| `src/App.tsx` | MODIFY | Rutas protegidas para staff, redirección de roles. |
+| `package.json` | MODIFY | Añadido `helmet`. |
 
 ---
+

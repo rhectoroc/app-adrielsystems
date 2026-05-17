@@ -3,27 +3,30 @@ FROM node:20-alpine as builder
 
 WORKDIR /app
 
-# Copy package.json and install dependencies
-COPY package*.json ./
-RUN npm install
+# Habilitar corepack y preparar pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy source code and build
+# Copiar configuración de dependencias e instalar
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# Copiar código fuente y compilar
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 # Stage 2: Production Server (Node.js)
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package.json and install ONLY production dependencies
-COPY package*.json ./
-RUN npm install --only=production
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy built assets from builder stage
+# Copiar archivos de dependencias e instalar solo producción
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --prod --frozen-lockfile
+
+# Copiar recursos compilados y backend
 COPY --from=builder /app/dist ./dist
-
-# Copy server source code
 COPY server ./server
 
 # Expose port (default 3000 or defined by env)
