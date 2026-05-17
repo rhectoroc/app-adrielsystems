@@ -337,46 +337,48 @@ export const ClientsManagement = () => {
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
 
-                                                <div className="grid grid-cols-3 gap-2">
+                                                <div className="space-y-3">
                                                     <div className="space-y-1">
                                                         <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Plan</label>
                                                         <select
                                                             value={service.name}
                                                             onChange={(e) => handleServiceChange(index, 'name', e.target.value)}
-                                                            className="w-full px-2 py-1.5 bg-black/20 border border-white/10 rounded-md text-[11px] text-white focus:border-primary/40 focus:outline-none"
+                                                            className="w-full px-2 py-1.5 bg-[#0f172a] border border-white/10 rounded-md text-[11px] text-white focus:border-primary/40 focus:outline-none"
                                                             required
                                                         >
-                                                            <option value="">Seleccionar...</option>
+                                                            <option value="" className="bg-[#0f172a] text-white">Seleccionar...</option>
                                                             {plans.map(plan => (
-                                                                <option key={plan.id} value={plan.name}>
+                                                                <option key={plan.id} value={plan.name} className="bg-[#0f172a] text-white">
                                                                     {plan.name} (${plan.cost} {plan.currency})
                                                                 </option>
                                                             ))}
                                                         </select>
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Precio Especial</label>
-                                                        <div className="relative">
-                                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-600 text-[10px]">$</span>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Precio Especial</label>
+                                                            <div className="relative">
+                                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-600 text-[10px]">$</span>
+                                                                <input
+                                                                    type="number"
+                                                                    value={service.special_price || ''}
+                                                                    onChange={(e) => handleServiceChange(index, 'special_price', e.target.value)}
+                                                                    className="w-full pl-5 pr-2 py-1.5 bg-black/20 border border-white/10 rounded-md text-[11px] text-white focus:border-primary/40 focus:outline-none"
+                                                                    placeholder={service.cost ? `Base: ${service.cost}` : '0.00'}
+                                                                    step="0.01"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Fecha Inicio</label>
                                                             <input
-                                                                type="number"
-                                                                value={service.special_price || ''}
-                                                                onChange={(e) => handleServiceChange(index, 'special_price', e.target.value)}
-                                                                className="w-full pl-5 pr-2 py-1.5 bg-black/20 border border-white/10 rounded-md text-[11px] text-white focus:border-primary/40 focus:outline-none"
-                                                                placeholder={service.cost ? `Base: ${service.cost}` : '0.00'}
-                                                                step="0.01"
+                                                                type="date"
+                                                                value={service.created_at ? service.created_at.split('T')[0] : ''}
+                                                                onChange={(e) => handleServiceChange(index, 'created_at', e.target.value)}
+                                                                className="w-full px-2 py-1.5 bg-black/20 border border-white/10 rounded-md text-[11px] text-white focus:border-primary/40 focus:outline-none"
+                                                                required
                                                             />
                                                         </div>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Fecha Inicio</label>
-                                                        <input
-                                                            type="date"
-                                                            value={service.created_at ? service.created_at.split('T')[0] : ''}
-                                                            onChange={(e) => handleServiceChange(index, 'created_at', e.target.value)}
-                                                            className="w-full px-2 py-1.5 bg-black/20 border border-white/10 rounded-md text-[11px] text-white focus:border-primary/40 focus:outline-none"
-                                                            required
-                                                        />
                                                     </div>
                                                 </div>
                                             </div>
