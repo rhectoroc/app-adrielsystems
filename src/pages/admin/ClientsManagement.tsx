@@ -69,7 +69,10 @@ export const ClientsManagement = () => {
             notes: client.notes || '',
             contact_info: client.contact_info || '',
             password: '', // Keep empty
-            services: client.services || []
+            services: (client.services || []).map((s: any) => ({
+                ...s,
+                created_at: s.created_at ? new Date(s.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+            }))
         });
         setIsModalOpen(true);
     };
@@ -77,7 +80,7 @@ export const ClientsManagement = () => {
     const handleAddServiceField = () => {
         setFormData(prev => ({
             ...prev,
-            services: [...prev.services, { name: '', cost: 0, special_price: '', currency: 'USD' }]
+            services: [...prev.services, { name: '', cost: 0, special_price: '', currency: 'USD', created_at: new Date().toISOString().split('T')[0] }]
         }));
     };
 
@@ -334,7 +337,7 @@ export const ClientsManagement = () => {
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
 
-                                                <div className="grid grid-cols-2 gap-3">
+                                                <div className="grid grid-cols-3 gap-2">
                                                     <div className="space-y-1">
                                                         <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Plan</label>
                                                         <select
@@ -364,6 +367,16 @@ export const ClientsManagement = () => {
                                                                 step="0.01"
                                                             />
                                                         </div>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Fecha Inicio</label>
+                                                        <input
+                                                            type="date"
+                                                            value={service.created_at ? service.created_at.split('T')[0] : ''}
+                                                            onChange={(e) => handleServiceChange(index, 'created_at', e.target.value)}
+                                                            className="w-full px-2 py-1.5 bg-black/20 border border-white/10 rounded-md text-[11px] text-white focus:border-primary/40 focus:outline-none"
+                                                            required
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>

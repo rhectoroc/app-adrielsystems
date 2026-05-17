@@ -708,31 +708,39 @@ VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
 
         // 3. Create Services
         const services = req.body.services || [];
-        // Fixed Billing Logic: Everyone pays on the 30th.
-        // If joining on day 28, 29, 30, the first bill is on the 30th of NEXT month (pro-rated + full month).
-        const billingSql = `(
-            CASE 
-                WHEN EXTRACT(DAY FROM CURRENT_DATE) >= 28 THEN 
-                    (DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') + INTERVAL '29 days')::DATE
-                ELSE 
-                    (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '29 days')::DATE
-            END
-        )`;
 
         if (services.length > 0) {
             for (const service of services) {
+                const serviceStartDate = service.created_at || new Date().toISOString().split('T')[0];
+                const billingSql = `(
+                    CASE 
+                        WHEN EXTRACT(DAY FROM $5::DATE) >= 28 THEN 
+                            (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '29 days')::DATE
+                        ELSE 
+                            (DATE_TRUNC('month', $5::DATE) + INTERVAL '29 days')::DATE
+                    END
+                )`;
                 await query(
-                    `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed)
-                    VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, ${billingSql}, 30)`,
-                    [clientId, service.name, service.cost || 0, service.currency || 'USD', service.special_price || null]
+                    `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed, created_at)
+                    VALUES($1, $2, $3, $4, 'ACTIVE', 30, $6, ${billingSql}, 30, $5)`,
+                    [clientId, service.name, service.cost || 0, service.currency || 'USD', serviceStartDate, service.special_price || null]
                 );
             }
         } else if (service_name) {
             // Backward compatibility for single service
+            const serviceStartDate = new Date().toISOString().split('T')[0];
+            const billingSql = `(
+                CASE 
+                    WHEN EXTRACT(DAY FROM $5::DATE) >= 28 THEN 
+                        (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '29 days')::DATE
+                    ELSE 
+                        (DATE_TRUNC('month', $5::DATE) + INTERVAL '29 days')::DATE
+                END
+            )`;
             await query(
-                `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed)
-                VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, ${billingSql}, 30)`,
-                [clientId, service_name, cost || 0, currency || 'USD', req.body.special_price || null]
+                `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed, created_at)
+                VALUES($1, $2, $3, $4, 'ACTIVE', 30, $6, ${billingSql}, 30, $5)`,
+                [clientId, service_name, cost || 0, currency || 'USD', serviceStartDate, req.body.special_price || null]
             );
         }
 
@@ -799,20 +807,40 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
         // 3. Update or Insert services
         if (services.length > 0) {
             for (const service of services) {
+                const serviceStartDate = service.created_at || new Date().toISOString().split('T')[0];
                 if (service.id) {
                     // Update existing service
                     await query(
                         `UPDATE services 
-                         SET name = $1, cost = $2, currency = $3, special_price = $4
-                         WHERE id = $5 AND client_id = $6`,
-                        [service.name, service.cost || 0, service.currency || 'USD', service.special_price || null, service.id, id]
+                         SET name = $1, cost = $2, currency = $3, special_price = $4, created_at = $5,
+                             expiration_date = CASE 
+                                 WHEN last_payment_date IS NULL THEN (
+                                     CASE 
+                                         WHEN EXTRACT(DAY FROM $5::DATE) >= 28 THEN 
+                                             (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '29 days')::DATE
+                                         ELSE 
+                                             (DATE_TRUNC('month', $5::DATE) + INTERVAL '29 days')::DATE
+                                     END
+                                 )
+                                 ELSE expiration_date
+                             END
+                         WHERE id = $6 AND client_id = $7`,
+                        [service.name, service.cost || 0, service.currency || 'USD', service.special_price || null, serviceStartDate, service.id, id]
                     );
                 } else {
                     // Create new service
+                    const billingSql = `(
+                        CASE 
+                            WHEN EXTRACT(DAY FROM $5::DATE) >= 28 THEN 
+                                (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '29 days')::DATE
+                            ELSE 
+                                (DATE_TRUNC('month', $5::DATE) + INTERVAL '29 days')::DATE
+                        END
+                    )`;
                     await query(
-                        `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed)
-VALUES($1, $2, $3, $4, 'ACTIVE', 30, $5, (DATE_TRUNC('month', CURRENT_DATE) + (LEAST(30, EXTRACT(DAY FROM(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')):: int) - 1) * INTERVAL '1 day'):: DATE, 30)`,
-                        [id, service.name, service.cost || 0, service.currency || 'USD', service.special_price || null]
+                        `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed, created_at)
+                         VALUES($1, $2, $3, $4, 'ACTIVE', 30, $6, ${billingSql}, 30, $5)`,
+                        [id, service.name, service.cost || 0, service.currency || 'USD', serviceStartDate, service.special_price || null]
                     );
                 }
             }
