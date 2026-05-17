@@ -586,6 +586,7 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
                         'cost', s.cost,
                         'special_price', s.special_price,
                         'currency', s.currency,
+                        'created_at', s.created_at,
                         'amount', (
                             CASE 
                                 WHEN c.name = 'Martha Salazar' THEN
