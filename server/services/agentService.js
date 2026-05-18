@@ -918,6 +918,72 @@ export const getBillingSummary = async () => {
 };
 
 /**
+ * Process public website chatbot message using EVA's cognitive engine
+ */
+export const processWebChatMessage = async (sessionId, messageText) => {
+    try {
+        console.log(`[Agent Service] Processing web chat for session: ${sessionId}. Message: "${messageText}"`);
+
+        // 1. Fetch chat history for this web session
+        const logHistory = await query(
+            'SELECT sender, message_content FROM conversations WHERE session_id = $1 ORDER BY timestamp DESC LIMIT 8',
+            [sessionId]
+        );
+        
+        const history = logHistory.rows.reverse().map(l => ({
+            role: l.sender === 'User' ? 'user' : 'model',
+            parts: [{ text: l.message_content }]
+        }));
+
+        // 2. Save current User message to Database
+        await query(
+            'INSERT INTO conversations (session_id, sender, message_content) VALUES ($1, $2, $3)',
+            [sessionId, 'User', messageText]
+        );
+
+        // 3. Define the Web EVA system instructions
+        const systemMessage = `Eres EVA, la asistente virtual inteligente, cálida y altamente capacitada de Adriel's Systems (proveedor líder de soluciones tecnológicas, desarrollo de software, automatizaciones de IA y telecomunicaciones). Tu rol en nuestro sitio web público es recibir a los visitantes, resolver sus dudas de manera muy humana y entusiasta, y orientarlos hacia la venta o el agendamiento de citas.
+
+TONO Y PERSONALIDAD:
+- Sé sumamente cálida, empática, servicial y profesional.
+- Usa un lenguaje natural y conversacional, libre de formalidades robóticas. Puedes usar emojis de forma sutil y elegante (😊, ✨, 🚀, 📅).
+- Siempre dirígete al visitante con amabilidad y aprecio. Habla en español.
+
+SERVICIOS OFRECIDOS POR ADRIEL'S SYSTEMS:
+- Desarrollo de Software y Web a la medida.
+- Automatizaciones con Inteligencia Artificial (asistentes conversacionales, bots de WhatsApp corporativos como EVA).
+- Integración de APIs (Meta, Evolution API).
+- Infraestructura de Servidores, Bases de Datos y N8N.
+
+REGLAS DE INTERACCIÓN CRÍTICAS:
+1. Métodos de Pago: Si preguntan, indica que aceptamos PayPal, Zelle, Pago Móvil y Binance. (No des números de cuenta directamente; dile que al agendar, administración se los facilitará).
+2. Agendar Cita: Si el usuario desea contratar un servicio o hablar con un asesor, facilítale con total entusiasmo este enlace de Google Calendar: https://calendar.app.google/VbiUW5P5HWYHvK4P7 y dile que te avise con un "listo" cuando termine.
+3. Si el usuario dice "listo" o "ya agendé": Pídele amablemente su dirección de correo electrónico para que nuestro equipo le envíe la confirmación en minutos.
+4. Cero Robots: No te presentes repetitivamente en cada mensaje (ej: "¡Hola, soy Eva..."). Mantén un diálogo continuo y natural.`;
+
+        // 4. Combine history and current message for Gemini call
+        const formattedHistory = [
+            ...history,
+            { role: 'user', parts: [{ text: messageText }] }
+        ];
+
+        // 5. Call LLM
+        const replyText = await callLLM(systemMessage, formattedHistory);
+
+        // 6. Save Eva's reply to Database
+        await query(
+            'INSERT INTO conversations (session_id, sender, message_content) VALUES ($1, $2, $3)',
+            [sessionId, 'Eva', replyText]
+        );
+
+        return { response: replyText };
+    } catch (error) {
+        console.error('[Agent Service] Error in web chat processing:', error);
+        return { response: '¡Hola! Disculpa, estoy experimentando un inconveniente técnico momentáneo. Por favor, intenta de nuevo en unos minutos o contáctanos directamente a nuestro WhatsApp de soporte. 😊' };
+    }
+};
+
+/**
  * Standard HTTP REST call to DeepSeek or Gemini API
  */
 const callLLM = async (systemPrompt, messages) => {

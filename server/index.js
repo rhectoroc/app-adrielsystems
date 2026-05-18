@@ -12,7 +12,7 @@ import { rateLimiter, loginRateLimiter, clearLoginAttempts } from './middleware/
 import multer from 'multer';
 import fs from 'fs';
 import { initAutomation, runBillingNotifications, sendMessage } from './services/automationService.js';
-import { handleIncomingWebhook, approvePaymentById, registerEvolutionWebhook } from './services/agentService.js';
+import { handleIncomingWebhook, approvePaymentById, registerEvolutionWebhook, processWebChatMessage } from './services/agentService.js';
 
 // Uploads Configuration (Volume mounted at /data in production)
 
@@ -1665,6 +1665,21 @@ app.put('/api/users/:id', authenticateToken, authorizeRole('ADMIN'), async (req,
 
 // Webhook for Evolution API
 app.post('/api/webhooks/whatsapp', handleIncomingWebhook);
+
+// Web Chatbot Public Endpoint (Directly connects to EVA's engine)
+app.post('/api/chat', async (req, res) => {
+    const { sessionId, chatInput } = req.body;
+    if (!sessionId || !chatInput) {
+        return res.status(400).json({ error: 'Faltan parámetros obligatorios: sessionId o chatInput' });
+    }
+    try {
+        const result = await processWebChatMessage(sessionId, chatInput);
+        return res.json(result);
+    } catch (error) {
+        console.error('[Express Router] Error in POST /api/chat:', error);
+        return res.status(500).json({ error: 'Error interno del servidor procesando la consulta.' });
+    }
+});
 
 // Payment Approval Visual UI for the Boss (Hector)
 app.get('/api/payments/approve/:id', async (req, res) => {
