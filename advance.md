@@ -20,6 +20,12 @@ Se dotó a la asistente virtual **EVA** de herramientas analíticas y de visión
 ### 📊 Resumen Global de Cobranza (`get_billing_summary`)
 - **Reporte en Tiempo Real:** Nueva herramienta que permite a EVA consultar a todos los clientes activos del sistema, calcular sus deudas de forma matemática e inteligente, categorizarlos según su estado de pago (Morosos, En Gracia, Próximos a Vencer, Al Día) y devolverle al Jefe un resumen ejecutivo por WhatsApp que detalla la cartera de clientes y la deuda consolidada.
 
+### 🌐 Migración del Chatbot de la Web Pública a EVA Nativo
+- **Eliminación de Dependencia de N8N:** Se retiró a N8N del flujo conversacional de la página web principal, centralizando todo el procesamiento en el backend de la app.
+- **Función de Chat Web Nativo (`processWebChatMessage`):** EVA procesa las consultas de visitantes web utilizando Gemini 2.5 Flash de forma directa, persistiendo el historial de chat de la sesión en la base de datos de PostgreSQL (tabla `conversations`).
+- **Endpoint Express (`POST /api/chat`):** Registro de la nueva ruta pública en el backend principal para procesar peticiones web de forma segura.
+- **Redirección de Proxy Next.js:** Modificación de `src/app/api/chat/route.ts` en la web pública para actuar como proxy e interactuar con el backend nativo de EVA, eliminando latencias y problemas de CORS.
+
 ---
 
 ## 8. Robustez de Infraestructura y Conectividad
@@ -35,9 +41,10 @@ Se dotó a la asistente virtual **EVA** de herramientas analíticas y de visión
 
 | Archivo | Tipo | Cambio |
 |---------|------|--------|
-| `server/services/agentService.js` | MODIFY | Implementación de `getBillingSummary`, `searchClientByName`, `registerClientPayment`, `processAdminImage`, corrección de llave duplicada y humanización del prompt. |
-| `server/services/automationService.js` | MODIFY | Integración del reporte ejecutivo diario consolidado de cobros para el Jefe. |
-| `server/index.js` | MODIFY | Importación e inicialización del auto-registro de webhooks en `app.listen`. |
+| `app-adrielssystems: server/services/agentService.js` | MODIFY | Implementación de `getBillingSummary`, `searchClientByName`, `registerClientPayment`, `processAdminImage`, `processWebChatMessage` y humanización del prompt. |
+| `app-adrielssystems: server/services/automationService.js` | MODIFY | Integración del reporte ejecutivo diario consolidado de cobros para el Jefe. |
+| `app-adrielssystems: server/index.js` | MODIFY | Importación e inicialización del auto-registro de webhooks y el endpoint de chat `/api/chat`. |
+| `web-adrielssystems: src/app/api/chat/route.ts` | MODIFY | Redirección de proxy API del webhook de N8N al motor nativo de EVA del backend. |
 
 ---
 
