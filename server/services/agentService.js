@@ -439,6 +439,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - send_email(to, subject, messageBody) (REQUIERE AUTORIZACIÓN EXPLÍCITA DEL JEFE)
 - query_client(phone)
 - edit_client(phone, fieldsJSON)
+- get_billing_summary() (Úsala cuando te pidan verificar el estatus de todos los clientes, ver quiénes deben, o un resumen de cobranza general)
 
 3. INSTRUCCIONES DE RESPUESTA EN FORMATO JSON (CRÍTICO)
 Debes responder SIEMPRE con un objeto JSON válido con los siguientes campos:
@@ -535,6 +536,10 @@ MENSAJE DEL USUARIO:
                     case 'query_client':
                         const clientInfo = await getClientContext(parsed.parameters.phone.replace(/\D/g, ''));
                         toolResult = JSON.stringify(clientInfo);
+                        break;
+                    case 'get_billing_summary':
+                        const billingSummary = await getBillingSummary();
+                        toolResult = JSON.stringify(billingSummary);
                         break;
                     case 'edit_client':
                         const { phone, fieldsJSON } = parsed.parameters;
@@ -649,10 +654,11 @@ export const getClientContext = async (phone) => {
             ORDER BY payment_date DESC LIMIT 1
         `, [client.id]);
 
-        const lastPayment = paymentRes.rows[0] ? {
-            monto: lastPayment.amount,
-            fecha: lastPayment.payment_date,
-            metodo: lastPayment.payment_method
+        const row = paymentRes.rows[0];
+        const lastPayment = row ? {
+            monto: row.amount,
+            fecha: row.payment_date,
+            metodo: row.payment_method
         } : null;
 
         return {
@@ -667,6 +673,50 @@ export const getClientContext = async (phone) => {
     } catch (err) {
         console.error('[Agent Service] Error getting client context:', err);
         return { cliente_existe: false, deuda_total: 0, servicios: [] };
+    }
+};
+
+/**
+ * Fetch billing summary for all active services/clients
+ */
+export const getBillingSummary = async () => {
+    try {
+        const result = await query(`
+            SELECT 
+                c.name as client_name,
+                c.phone,
+                s.name as service_name,
+                s.expiration_date,
+                CASE 
+                    WHEN s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '5 days') < CURRENT_DATE THEN 'MOROSO'
+                    WHEN ((s.expiration_date + INTERVAL '5 days') >= CURRENT_DATE AND s.expiration_date < CURRENT_DATE) THEN 'EN GRACIA'
+                    WHEN (s.expiration_date >= CURRENT_DATE AND s.expiration_date <= (CURRENT_DATE + INTERVAL '3 days')) THEN 'PROXIMO'
+                    ELSE 'AL DIA'
+                END as status,
+                CASE 
+                    WHEN s.expiration_date < CURRENT_DATE THEN CURRENT_DATE - s.expiration_date
+                    ELSE 0
+                END as days_overdue,
+                COALESCE(
+                    CASE 
+                        WHEN s.renewal_day = 30 THEN
+                            (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
+                            (COALESCE(s.special_price, s.cost) * FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                        ELSE
+                            COALESCE(s.special_price, s.cost) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                    END, 0
+                ) as amount_due,
+                s.currency
+            FROM services s
+            JOIN clients c ON s.client_id = c.id
+            WHERE s.status = 'ACTIVE' AND c.is_active = true
+            ORDER BY s.expiration_date ASC
+        `);
+
+        return result.rows;
+    } catch (error) {
+        console.error('[Agent Service] Error getting billing summary:', error);
+        return [];
     }
 };
 
