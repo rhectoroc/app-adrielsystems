@@ -675,7 +675,7 @@ export const getClientContext = async (phone) => {
  */
 const callLLM = async (systemPrompt, messages) => {
     // If Gemini key exists, default to Gemini (flash) for fast & free/low cost
-    if (GEMINI_API_KEY) {
+    if (GEMINI_API_KEY && GEMINI_API_KEY.trim() !== '') {
         try {
             const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
             
@@ -702,8 +702,12 @@ const callLLM = async (systemPrompt, messages) => {
     }
 
     // Fallback to DeepSeek/OpenAI
+    if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY.trim() === '') {
+        throw new Error('No LLM API Key configured (neither GEMINI_API_KEY nor DEEPSEEK_API_KEY/OPENAI_API_KEY are set).');
+    }
+
     try {
-        const url = DEEPSEEK_API_KEY.includes('sk-') ? 'https://api.deepseek.com/chat/completions' : 'https://api.openai.com/v1/chat/completions';
+        const url = DEEPSEEK_API_KEY.includes('sk-') ? 'https://api.deepseek.com/chat/completions' : 'https://api.deepseek.com/v1/chat/completions';
         const model = DEEPSEEK_API_KEY.includes('sk-') ? 'deepseek-chat' : 'gpt-4o-mini';
 
         const payload = {
@@ -724,7 +728,7 @@ const callLLM = async (systemPrompt, messages) => {
 
         return response.data?.choices?.[0]?.message?.content || '';
     } catch (error) {
-        console.error('[Agent Service] DeepSeek API error:', error.response?.data || error.message);
+        console.error('[Agent Service] DeepSeek/OpenAI API error:', error.response?.data || error.message);
         throw new Error('LLM Service Unavailable');
     }
 };
@@ -733,7 +737,7 @@ const callLLM = async (systemPrompt, messages) => {
  * Call LLM in structured JSON mode
  */
 const callLLMJSON = async (prompt) => {
-    if (GEMINI_API_KEY) {
+    if (GEMINI_API_KEY && GEMINI_API_KEY.trim() !== '') {
         try {
             const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
             const payload = {
@@ -749,6 +753,10 @@ const callLLMJSON = async (prompt) => {
         } catch (err) {
             console.error('[Agent Service] Gemini JSON API error, trying DeepSeek...', err.message);
         }
+    }
+
+    if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY.trim() === '') {
+        throw new Error('No LLM JSON API Key configured (neither GEMINI_API_KEY nor DEEPSEEK_API_KEY/OPENAI_API_KEY are set).');
     }
 
     try {
