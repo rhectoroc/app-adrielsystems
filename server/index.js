@@ -12,6 +12,7 @@ import { rateLimiter, loginRateLimiter, clearLoginAttempts } from './middleware/
 import multer from 'multer';
 import fs from 'fs';
 import { initAutomation, runBillingNotifications, sendMessage } from './services/automationService.js';
+import { handleIncomingWebhook, approvePaymentById } from './services/agentService.js';
 
 // Uploads Configuration (Volume mounted at /data in production)
 
@@ -132,6 +133,40 @@ const initDb = async () => {
             ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
             ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'EMPLOYEE', 'CLIENT'));
 
+            -- AI Agent conversations table
+            CREATE TABLE IF NOT EXISTS conversations (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(255) NOT NULL,
+                sender VARCHAR(50) NOT NULL,
+                message_content TEXT NOT NULL,
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS sender VARCHAR(50);
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS message_content TEXT;
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+            -- AI Agent payment approvals table
+            CREATE TABLE IF NOT EXISTS payment_approvals (
+                id SERIAL PRIMARY KEY,
+                client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+                client_name VARCHAR(255),
+                phone VARCHAR(50) NOT NULL,
+                analysis TEXT,
+                status VARCHAR(50) DEFAULT 'PENDING',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                approved_at TIMESTAMP WITH TIME ZONE
+            );
+
+            -- AI Agent executive logs table
+            CREATE TABLE IF NOT EXISTS arc_logs (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(255) NOT NULL,
+                sender VARCHAR(255) NOT NULL,
+                message_content TEXT NOT NULL,
+                tool_used VARCHAR(255),
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
         `);
         console.log('Database initialized: Tables ready.');
     } catch (err) {
@@ -1621,6 +1656,163 @@ app.put('/api/users/:id', authenticateToken, authorizeRole('ADMIN'), async (req,
             return res.status(400).json({ message: 'Email already exists' });
         }
         res.status(500).json({ message: 'Error updating user' });
+    }
+});
+
+// ==========================================
+// AI Agent Bot Webhook & Payment Approval Routes
+// ==========================================
+
+// Webhook for Evolution API
+app.post('/api/webhooks/whatsapp', handleIncomingWebhook);
+
+// Payment Approval Visual UI for the Boss (Hector)
+app.get('/api/payments/approve/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await query('SELECT * FROM payment_approvals WHERE id = $1', [id]);
+        const approval = result.rows[0];
+        
+        if (!approval) {
+            return res.send(`
+                <html>
+                    <head>
+                        <title>Error - Adriel's Systems</title>
+                        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;900&display=swap" rel="stylesheet">
+                        <style>
+                            body { background: #0f172a; color: white; font-family: 'Outfit', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                            .card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; text-align: center; max-width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+                            h1 { color: #f43f5e; font-size: 24px; margin-bottom: 16px; }
+                            p { color: #94a3b8; font-size: 14px; line-height: 1.6; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="card">
+                            <h1>Aprobación No Encontrada</h1>
+                            <p>El registro de aprobación especificado no existe o ha sido eliminado.</p>
+                        </div>
+                    </body>
+                </html>
+            `);
+        }
+
+        if (approval.status === 'APPROVED') {
+            return res.send(`
+                <html>
+                    <head>
+                        <title>Pago Ya Aprobado - Adriel's Systems</title>
+                        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;900&display=swap" rel="stylesheet">
+                        <style>
+                            body { background: #0f172a; color: white; font-family: 'Outfit', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                            .card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; text-align: center; max-width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+                            .badge { background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.3); color: #22c55e; padding: 8px 16px; border-radius: 99px; font-size: 12px; font-weight: 900; letter-spacing: 0.1em; display: inline-block; margin-bottom: 24px; }
+                            h1 { color: white; font-size: 24px; margin-bottom: 16px; }
+                            p { color: #94a3b8; font-size: 14px; line-height: 1.6; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="card">
+                            <div class="badge">VERIFICADO</div>
+                            <h1>Pago Ya Aprobado</h1>
+                            <p>Este comprobante de <strong>${approval.client_name}</strong> ya fue aprobado y procesado anteriormente.</p>
+                        </div>
+                    </body>
+                </html>
+            `);
+        }
+
+        res.send(`
+            <html>
+                <head>
+                    <title>Aprobar Pago - Adriel's Systems</title>
+                    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;900&display=swap" rel="stylesheet">
+                    <style>
+                        body { background: #0b0f19; color: white; font-family: 'Outfit', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+                        .card { background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; padding: 40px; text-align: center; max-width: 500px; width: 100%; box-shadow: 0 40px 80px rgba(0,0,0,0.6); backdrop-blur: 20px; }
+                        .header { margin-bottom: 32px; }
+                        .logo { font-size: 12px; font-weight: 900; letter-spacing: 0.3em; color: #38bdf8; margin-bottom: 8px; text-transform: uppercase; }
+                        h1 { font-size: 28px; font-weight: 900; color: white; margin: 0; letter-spacing: -0.02em; }
+                        .details { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; margin-bottom: 32px; text-align: left; }
+                        .detail-item { margin-bottom: 16px; }
+                        .detail-item:last-child { margin-bottom: 0; }
+                        .label { font-size: 10px; font-weight: 900; letter-spacing: 0.1em; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
+                        .value { font-size: 15px; font-weight: 600; color: #f1f5f9; }
+                        .analysis { font-family: monospace; font-size: 13px; color: #38bdf8; background: rgba(56,189,248,0.05); border: 1px solid rgba(56,189,248,0.1); border-radius: 12px; padding: 16px; white-space: pre-wrap; line-height: 1.6; }
+                        .btn { background: #38bdf8; color: black; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; padding: 18px 36px; border-radius: 16px; border: none; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 100%; box-shadow: 0 10px 20px rgba(56,189,248,0.3); }
+                        .btn:hover { background: #7dd3fc; transform: translateY(-2px); box-shadow: 0 15px 30px rgba(56,189,248,0.5); }
+                        .btn:active { transform: translateY(0); }
+                    </style>
+                    <script>
+                        async function doApprove() {
+                            const btn = document.getElementById('approveBtn');
+                            btn.disabled = true;
+                            btn.innerText = 'PROCESANDO...';
+                            try {
+                                const res = await fetch('/api/payments/approve/${id}/confirm', { method: 'POST' });
+                                const data = await res.json();
+                                if (data.success) {
+                                    document.body.innerHTML = \`
+                                        <div class="card" style="animation: scaleIn 0.5s ease;">
+                                            <div style="background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px auto;">
+                                                <svg style="width:32px;height:32px;color:#22c55e;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                                            </div>
+                                            <h1 style="color:#22c55e; margin-bottom:16px;">¡Pago Aprobado!</h1>
+                                            <p style="color:#94a3b8; font-size:14px; line-height:1.6; margin-bottom:0;">El pago de <strong>\${data.clientName || '${approval.client_name}'}</strong> ha sido verificado con éxito y el cliente ha sido notificado automáticamente por WhatsApp.</p>
+                                        </div>
+                                    \`;
+                                } else {
+                                    alert(data.message || 'Error al aprobar el pago');
+                                    btn.disabled = false;
+                                    btn.innerText = 'APROBAR COMPROBANTE';
+                                }
+                            } catch (err) {
+                                alert('Error de conexión al procesar el pago');
+                                btn.disabled = false;
+                                btn.innerText = 'APROBAR COMPROBANTE';
+                            }
+                        }
+                    </script>
+                </head>
+                <body>
+                    <div class="card">
+                        <div class="header">
+                            <div class="logo">Adriel's Systems</div>
+                            <h1>Verificar Pago</h1>
+                        </div>
+                        <div class="details">
+                            <div class="detail-item">
+                                <div class="label">Cliente</div>
+                                <div class="value">${approval.client_name}</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="label">Celular</div>
+                                <div class="value">+${approval.phone}</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="label">Análisis de la IA</div>
+                                <div class="analysis">${approval.analysis}</div>
+                            </div>
+                        </div>
+                        <button id="approveBtn" class="btn" onclick="doApprove()">Aprobar Comprobante</button>
+                    </div>
+                </body>
+            </html>
+        `);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Error interno del servidor.');
+    }
+});
+
+// Confirmation logic endpoint
+app.post('/api/payments/approve/:id/confirm', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await approvePaymentById(parseInt(id));
+        res.json(result);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: 'Error interno del servidor.' });
     }
 });
 

@@ -18,6 +18,7 @@
         "dotenv": "^17.2.4",
         "express": "^5.2.1",
         "framer-motion": "^12.33.0",
+        "googleapis": "^144.0.0",
         "helmet": "^8.1.0",
         "jsonwebtoken": "^9.0.3",
         "lucide-react": "^0.344.0",
