@@ -48,6 +48,26 @@ Se dotó a la asistente virtual **EVA** de herramientas analíticas y de visión
 
 ---
 
+## 💡 Propuestas y Futuro Roadmap: Control de Infraestructura y Contenedores vía EVA
+
+Se realizó el análisis de factibilidad técnica y el diseño de la arquitectura para dotar a EVA del poder de apagar o encender de forma segura contenedores Docker distribuidos en tus 3 VPS en Easypanel:
+
+### 🎯 Objetivo
+Permitir al Administrador (El Jefe) suspender y reactivar de inmediato la infraestructura web de clientes morosos mediante comandos naturales en WhatsApp (ej. *"Eva, apaga la web de Daniel Gallo"*).
+
+### 🛠️ Estrategia Técnica Diseñada
+- **Conexión Robusta SSH (Recomendada):** Conexión segura desde el backend principal hacia cada uno de los 3 VPS usando la librería `ssh2` en Node.js mediante autenticación por clave SSH privada.
+  - **Suspensión:** EVA ejecuta `docker service scale [nombre_servicio]=0` o `docker stop [nombre_contenedor]`.
+  - **Reactivación:** EVA ejecuta `docker service scale [nombre_servicio]=1` o `docker start [nombre_contenedor]`.
+- **Pantalla de Suspensión Directa:** Configuración a nivel de proxy Nginx en el VPS para redirigir el tráfico del contenedor apagado hacia un banner premium corporativo que indique: *"Servicio suspendido temporalmente por razones administrativas. Contacte a soporte@adrielssystems.com"*.
+
+### 🛡️ Protocolo de Hardening de Seguridad Propuesto
+1. **Restricción de Remitente Extrema:** Comandos validados únicamente contra los teléfonos registrados de `EL_JEFE` (Héctor) y `LA_JEFA` (Oxarellys).
+2. **Doble Confirmación Conversacional:** EVA nunca suspenderá un servicio inmediatamente; requerirá un mensaje de confirmación idéntico (ej: *"Confirmar apagado de [nombre]"*) o el ingreso de un PIN dinámico temporal enviado al Jefe.
+3. **Auditoría Permanente:** Cada evento de control de infraestructura se guardará en la tabla `audit_logs` con la fecha, hora y el administrador responsable.
+
+---
+
 # Avance de Desarrollo — 5 de Abril 2026
 
 ## Sesión: Gestión de Usuarios + Auditoría y Hardening de Seguridad
