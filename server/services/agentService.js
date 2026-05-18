@@ -62,6 +62,8 @@ export const handleIncomingWebhook = async (req, res) => {
             messageText = data.message?.conversation || '';
         } else if (messageType === 'extendedTextMessage') {
             messageText = data.message?.extendedTextMessage?.text || '';
+        } else if (messageType === 'imageMessage') {
+            messageText = data.message?.imageMessage?.caption || '';
         }
 
         console.log(`[Agent Service] Message from ${remoteJidAlt} (${pushName}): [${messageType}] "${messageText}"`);
@@ -72,6 +74,11 @@ export const handleIncomingWebhook = async (req, res) => {
         // 2. Handle Admin immediately (no debouncing needed)
         if (isAdmin) {
             const roleName = remoteJidAlt === ADMINS.LA_JEFA ? 'LA_JEFA' : 'EL_JEFE';
+            if (messageType === 'imageMessage') {
+                const messageId = key.id;
+                await processAdminImage(remoteJid, messageId, messageText, roleName, pushName);
+                return res.status(200).json({ status: 'processed', type: 'admin_image' });
+            }
             await processAdminMessage(roleName, remoteJid, messageText, pushName);
             return res.status(200).json({ status: 'processed', type: 'admin' });
         }
@@ -318,6 +325,71 @@ ${process.env.APP_URL || 'http://localhost:3000'}/api/payments/approve/${approva
 };
 
 /**
+ * Handle Admin Image Messages by using Gemini Vision API and feeding result to Agent Reasoning
+ */
+const processAdminImage = async (remoteJid, messageId, captionText, roleName, pushName) => {
+    try {
+        console.log(`[Agent Service] Fetching admin media base64 for message: ${messageId}`);
+        
+        // 1. Fetch base64 media from Evolution API
+        const evolutionUrl = `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${INSTANCE_NAME}/${messageId}`;
+        const response = await axios.get(evolutionUrl, {
+            headers: { 'apikey': EVOLUTION_API_KEY }
+        });
+
+        const base64Data = response.data?.base64 || response.data?.data?.base64;
+        if (!base64Data) {
+            throw new Error('Could not retrieve base64 data for the image message');
+        }
+
+        const mimeType = response.data?.mimeType || 'image/jpeg';
+
+        console.log('[Agent Service] Sending admin image to Gemini Vision API...');
+        
+        // 2. Query Gemini API
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const prompt = `Eres un asistente estricto de extracción de datos de comprobantes de pago financieros. Tu único trabajo es leer la imagen y extraer la información clave en formato de lista (sin saludos, sin justificaciones y sin texto extra):
+* Tipo de pago: [Ej: Pago Móvil BDV, Transferencia Banesco, Zelle, etc.]
+* Monto: [Cantidad exacta, ej: 50]
+* Moneda: [Moneda del pago, ej: USD, VES, etc.]
+* Referencia: [Número de referencia, confirmación u operación]
+* Destinatario: [Nombre de la empresa, persona o correo que recibe]
+* Nota/Memo: [Si aplica, si no, escribe "N/A"]`;
+
+        const geminiPayload = {
+            contents: [
+                {
+                    parts: [
+                        { text: prompt },
+                        {
+                            inlineData: {
+                                mimeType: mimeType,
+                                data: base64Data
+                            }
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const geminiResponse = await axios.post(geminiUrl, geminiPayload, {
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const analysisText = geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        console.log('[Agent Service] Admin Gemini Analysis Result:\n', analysisText);
+
+        // Now, append this analysis to the reasoning cycle of processAdminMessage
+        const injectedMessage = `${captionText}\n\n[SISTEMA - ANÁLISIS DE LA IMAGEN ENVIADA POR EL JEFE]:\nHe detectado que me enviaste una imagen de comprobante. Estos son los datos que extraje de ella visualmente:\n${analysisText}\n\nPor favor, procede a usar tus herramientas para buscar al cliente mencionado y registrar este pago si lo deseas.`;
+        
+        await processAdminMessage(roleName, remoteJid, injectedMessage, pushName);
+    } catch (error) {
+        console.error('[Agent Service] Error processing admin media message:', error.message);
+        await sendMessage(remoteJid, 'Jefe, recibí su imagen pero no pude procesarla con la API de visión. Por favor verifique que la imagen sea nítida o intente enviarla de nuevo.');
+    }
+};
+
+/**
  * Handle Payment Approval Link clicked by Boss
  */
 export const approvePaymentById = async (approvalId) => {
@@ -440,6 +512,8 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - query_client(phone)
 - edit_client(phone, fieldsJSON)
 - get_billing_summary() (Úsala cuando te pidan verificar el estatus de todos los clientes, ver quiénes deben, o un resumen de cobranza general)
+- search_client_by_name(name) (Úsala para buscar clientes por su nombre cuando no tengas su número de teléfono)
+- register_client_payment(clientId, amount, currency, reference, notes) (Úsala para registrar un pago verificado de un cliente, renovar su servicio y notificarle automáticamente por WhatsApp y Correo Electrónico)
 
 3. INSTRUCCIONES DE RESPUESTA EN FORMATO JSON (CRÍTICO)
 Debes responder SIEMPRE con un objeto JSON válido con los siguientes campos:
@@ -540,6 +614,15 @@ MENSAJE DEL USUARIO:
                     case 'get_billing_summary':
                         const billingSummary = await getBillingSummary();
                         toolResult = JSON.stringify(billingSummary);
+                        break;
+                    case 'search_client_by_name':
+                        const searchResult = await searchClientByName(parsed.parameters.name);
+                        toolResult = JSON.stringify(searchResult);
+                        break;
+                    case 'register_client_payment':
+                        const { clientId, amount, currency, reference, notes: paymentNotes } = parsed.parameters;
+                        const regResult = await registerClientPayment(clientId, amount, currency, reference, paymentNotes);
+                        toolResult = JSON.stringify(regResult);
                         break;
                     case 'edit_client':
                         const { phone, fieldsJSON } = parsed.parameters;
@@ -673,6 +756,120 @@ export const getClientContext = async (phone) => {
     } catch (err) {
         console.error('[Agent Service] Error getting client context:', err);
         return { cliente_existe: false, deuda_total: 0, servicios: [] };
+    }
+};
+
+/**
+ * Search clients by name
+ */
+export const searchClientByName = async (name) => {
+    try {
+        const result = await query(
+            'SELECT id, name, phone, email FROM clients WHERE name ILIKE $1 AND is_active = true',
+            [`%${name}%`]
+        );
+        return result.rows;
+    } catch (error) {
+        console.error('[Agent Service] Error searching client by name:', error);
+        return [];
+    }
+};
+
+/**
+ * Register client payment and notify client via email and WhatsApp
+ */
+export const registerClientPayment = async (clientId, amount, currency, reference, notes) => {
+    try {
+        // 1. Fetch client details
+        const clientRes = await query('SELECT id, name, phone, email FROM clients WHERE id = $1', [clientId]);
+        const client = clientRes.rows[0];
+        if (!client) {
+            return { success: false, message: 'Cliente no localizado en la base de datos.' };
+        }
+
+        // 2. Find active service
+        const serviceResult = await query('SELECT id, name FROM services WHERE client_id = $1 AND status = \'ACTIVE\' LIMIT 1', [clientId]);
+        const service = serviceResult.rows[0];
+        const serviceId = service?.id || null;
+
+        // 3. Register payment in database
+        await query(`
+            INSERT INTO payments (client_id, service_id, amount, status, payment_method, due_date, notes)
+            VALUES ($1, $2, $3, 'PAID', 'Transferencia/Móvil', CURRENT_DATE, $4)
+        `, [clientId, serviceId, amount, `Registrado por EVA vía WhatsApp. Ref: ${reference}. Nota: ${notes || 'N/A'}`]);
+
+        // 4. Update service expiration date and last payment date
+        if (serviceId) {
+            await query(`
+                UPDATE services 
+                SET last_payment_date = CURRENT_DATE,
+                    expiration_date = COALESCE(expiration_date, CURRENT_DATE) + INTERVAL '1 month'
+                WHERE id = $1
+            `, [serviceId]);
+        }
+
+        // 5. Send Confirmation WhatsApp to the Client
+        const clientJid = `${client.phone}@s.whatsapp.net`;
+        const whatsappMessage = `¡Hola ${client.name}! ✅ Tu pago de *${amount} ${currency}* (Ref: ${reference}) ha sido recibido y registrado con éxito. \n\nTu servicio se encuentra activo y al día. ¡Gracias por confiar en Adriel's Systems! ✨`;
+        await sendMessage(clientJid, whatsappMessage);
+
+        // 6. Send HTML Confirmation Email to the Client (if email exists)
+        let emailSent = false;
+        if (client.email && client.email.trim() !== '') {
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #e1e8ed; border-radius: 12px; background-color: #ffffff; color: #2C3E50;">
+                    <div style="text-align: center; border-bottom: 2px solid #3498DB; padding-bottom: 15px; margin-bottom: 20px;">
+                        <h2 style="color: #3498DB; margin: 0; font-size: 24px;">Adriel's Systems</h2>
+                        <p style="margin: 5px 0 0 0; font-size: 14px; color: #7F8C8D;">Comprobante de Registro de Pago</p>
+                    </div>
+                    <p style="font-size: 16px; line-height: 1.5;">Estimado/a <strong>${client.name}</strong>,</p>
+                    <p style="font-size: 15px; line-height: 1.5; color: #34495E;">Le confirmamos que hemos recibido y registrado su pago con éxito en nuestro sistema administrativo:</p>
+                    
+                    <div style="background-color: #F8F9FA; border-left: 4px solid #3498DB; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                            <tr>
+                                <td style="padding: 6px 0; font-weight: bold; color: #7F8C8D; width: 40%;">Monto Registrado:</td>
+                                <td style="padding: 6px 0; font-weight: bold; color: #2C3E50; font-size: 16px;">${amount} ${currency}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px 0; font-weight: bold; color: #7F8C8D;">Referencia:</td>
+                                <td style="padding: 6px 0; color: #2C3E50;">${reference}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px 0; font-weight: bold; color: #7F8C8D;">Fecha de Registro:</td>
+                                <td style="padding: 6px 0; color: #2C3E50;">${new Date().toLocaleDateString('es-VE')}</td>
+                            </tr>
+                            ${service ? `
+                            <tr>
+                                <td style="padding: 6px 0; font-weight: bold; color: #7F8C8D;">Servicio Renovado:</td>
+                                <td style="padding: 6px 0; color: #2C3E50;">${service.name}</td>
+                            </tr>
+                            ` : ''}
+                        </table>
+                    </div>
+                    
+                    <p style="font-size: 15px; line-height: 1.5; color: #34495E;">Su servicio ha sido renovado y se encuentra activo y al día. Agradecemos enormemente su puntualidad y confianza en nuestras soluciones.</p>
+                    
+                    <div style="text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #ECF0F1; font-size: 12px; color: #BDC3C7;">
+                        <p style="margin: 0;">Este correo ha sido generado y enviado automáticamente por EVA, la asistente virtual de Adriel's Systems.</p>
+                        <p style="margin: 5px 0 0 0;">© ${new Date().getFullYear()} Adriel's Systems. Todos los derechos reservados.</p>
+                    </div>
+                </div>
+            `;
+
+            try {
+                await googleService.sendEmail('JEFE', client.email, 'Confirmación de Pago - Adriel\'s Systems', emailHtml);
+                emailSent = true;
+                console.log(`[Agent Service] Confirmation email sent to ${client.email}`);
+            } catch (emailErr) {
+                console.error('[Agent Service] Error sending confirmation email:', emailErr.message);
+            }
+        }
+
+        return { success: true, message: 'Pago registrado, servicio extendido y notificaciones enviadas.', email_enviado: emailSent };
+    } catch (error) {
+        console.error('[Agent Service] Error registering client payment:', error);
+        return { success: false, message: error.message };
     }
 };
 
