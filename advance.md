@@ -26,6 +26,14 @@ Se dotó a la asistente virtual **EVA** de herramientas analíticas y de visión
 - **Endpoint Express (`POST /api/chat`):** Registro de la nueva ruta pública en el backend principal para procesar peticiones web de forma segura.
 - **Redirección de Proxy Next.js:** Modificación de `src/app/api/chat/route.ts` en la web pública para actuar como proxy e interactuar con el backend nativo de EVA, eliminando latencias y problemas de CORS.
 
+### 💬 Notificaciones Directas y Personalizadas por WhatsApp (`send_whatsapp`)
+- **Envío Autónomo:** Se creó e implementó la herramienta `send_whatsapp(phone, message)` que dota a EVA de la habilidad de enviar mensajes de WhatsApp directamente a clientes o cualquier número bajo instrucción directa (ej: *"Envíale un mensaje de recordatorio a Julio Borges..."*).
+- **Asociación en Historial (`notification_logs`):** La herramienta realiza búsquedas flexibles en la tabla `clients` mediante coincidencia del sufijo del teléfono. Si el número pertenece a un cliente registrado, asocia la notificación al `client_id` correspondiente con tipo `'manual'`, canal `'whatsapp'`, estado `'SENT'` y el cuerpo exacto del mensaje.
+
+### 🛡️ Hardening de Bucle de Razonamiento del Agente
+- **Evitación de Doble Envío:** Se detectó y corrigió un comportamiento en el cual Gemini, al tener ciclos de razonamiento sobrantes tras completar un envío exitoso, intentaba repetir la llamada a la herramienta `send_whatsapp` con variaciones menores en un mismo turno, resultando en mensajes duplicados.
+- **Reglas de Flujo Estrictas:** Se inyectó una nueva sección de control en el prompt del sistema de EVA (**"4. REGLAS DE CONTROL DE FLUJO Y EVITACIÓN DE BUCLES"**), forzando al modelo a responder directamente al usuario con la acción `'reply'` tan pronto como reciba una confirmación exitosa del sistema, garantizando la ejecución única y segura de las acciones de mensajería.
+
 ---
 
 ## 8. Robustez de Infraestructura y Conectividad
@@ -41,7 +49,7 @@ Se dotó a la asistente virtual **EVA** de herramientas analíticas y de visión
 
 | Archivo | Tipo | Cambio |
 |---------|------|--------|
-| `app-adrielssystems: server/services/agentService.js` | MODIFY | Implementación de `getBillingSummary`, `searchClientByName`, `registerClientPayment`, `processAdminImage`, `processWebChatMessage` y humanización del prompt. |
+| `app-adrielssystems: server/services/agentService.js` | MODIFY | Implementación de `getBillingSummary`, `searchClientByName`, `registerClientPayment`, `processAdminImage`, `processWebChatMessage`, humanización del prompt, herramienta `send_whatsapp` y hardening de bucle contra dobles envíos. |
 | `app-adrielssystems: server/services/automationService.js` | MODIFY | Integración del reporte ejecutivo diario consolidado de cobros para el Jefe. |
 | `app-adrielssystems: server/index.js` | MODIFY | Importación e inicialización del auto-registro de webhooks y el endpoint de chat `/api/chat`. |
 | `web-adrielssystems: src/app/api/chat/route.ts` | MODIFY | Redirección de proxy API del webhook de N8N al motor nativo de EVA del backend. |
