@@ -145,15 +145,18 @@ export const runBillingNotifications = async () => {
 
         let sentCount = 0;
         let errorCount = 0;
+        const summaryLines = [];
 
         for (const record of result.rows) {
             const template = TEMPLATES[record.notification_type];
             if (!template) continue;
 
             const messageText = template(record);
+            const typeLabel = record.notification_type === 'overdue' ? 'Vencido ⚠️' : record.notification_type === 'due_today' ? 'Vence Hoy 📅' : 'Próximo a Vencer 🌟';
 
             if (!record.phone) {
                 console.warn(`[Automation] Client ${record.client_name} has no phone number. Skipping.`);
+                summaryLines.push(`❌ *${record.client_name}* - Sin número telefónico`);
                 continue;
             }
 
@@ -168,11 +171,32 @@ export const runBillingNotifications = async () => {
                 );
 
                 sentCount++;
+                summaryLines.push(`✅ *${record.client_name}* (${typeLabel})`);
                 console.log(`[Automation] Notification sent to ${record.client_name} (${record.notification_type})`);
             } catch (err) {
                 console.error(`[Automation] Error sending to ${record.client_name}:`, err.response?.data || err.message);
                 errorCount++;
+                summaryLines.push(`❌ *${record.client_name}* (${typeLabel}) - Error: ${err.message}`);
             }
+        }
+
+        // Send compiled report to El Jefe (Hector Ollarves)
+        try {
+            let reportText = '';
+            if (summaryLines.length > 0) {
+                reportText = `🤖 *EVA - Reporte de Cobros Diarios* 🤖\n\n` +
+                             `Hola Jefe, he completado el ciclo diario de notificaciones automáticas de cobro a clientes:\n\n` +
+                             summaryLines.join('\n') + `\n\n` +
+                             `📈 *Resumen total:* ${sentCount} enviados con éxito, ${errorCount} errores.`;
+            } else {
+                reportText = `🤖 *EVA - Reporte de Cobros Diarios* 🤖\n\n` +
+                             `Hola Jefe, he revisado las cuentas hoy y todos los servicios activos se encuentran al día. ✨ ¡No fue necesario enviar notificaciones de cobro el día de hoy!`;
+            }
+            
+            await sendMessage('584140108030', reportText);
+            console.log('[Automation] Summary report successfully sent to El Jefe.');
+        } catch (reportErr) {
+            console.error('[Automation] Failed to send summary report to El Jefe:', reportErr.message);
         }
 
         return { sent: sentCount, errors: errorCount };
