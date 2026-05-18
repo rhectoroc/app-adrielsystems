@@ -12,7 +12,7 @@ import { rateLimiter, loginRateLimiter, clearLoginAttempts } from './middleware/
 import multer from 'multer';
 import fs from 'fs';
 import { initAutomation, runBillingNotifications, sendMessage } from './services/automationService.js';
-import { handleIncomingWebhook, approvePaymentById } from './services/agentService.js';
+import { handleIncomingWebhook, approvePaymentById, registerEvolutionWebhook } from './services/agentService.js';
 
 // Uploads Configuration (Volume mounted at /data in production)
 
@@ -1854,6 +1854,8 @@ app.use((req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT} `);
+    // Auto-register webhook in Evolution API
+    await registerEvolutionWebhook();
 });

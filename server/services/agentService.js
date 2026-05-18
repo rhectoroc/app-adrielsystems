@@ -782,3 +782,41 @@ const callLLMJSON = async (prompt) => {
         throw new Error('LLM JSON Service Unavailable');
     }
 };
+
+/**
+ * Automatically configure the webhook on Evolution API
+ */
+export const registerEvolutionWebhook = async () => {
+    try {
+        const appUrl = process.env.APP_URL || 'https://app.adrielssystems.com';
+        const webhookUrl = `${appUrl}/api/webhooks/whatsapp`;
+        
+        console.log(`[Agent Service] Registering webhook in Evolution API... URL: ${webhookUrl}`);
+
+        if (!EVOLUTION_API_KEY) {
+            console.warn('[Agent Service] EVOLUTION_API_KEY is not defined. Webhook auto-registration skipped.');
+            return;
+        }
+
+        const url = `${EVOLUTION_API_URL}/webhook/set/${INSTANCE_NAME}`;
+        const payload = {
+            enabled: true,
+            url: webhookUrl,
+            webhookByEvents: false,
+            events: [
+                "MESSAGES_UPSERT"
+            ]
+        };
+
+        const response = await axios.post(url, payload, {
+            headers: {
+                'apikey': EVOLUTION_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('[Agent Service] Webhook registration response:', response.data);
+    } catch (error) {
+        console.error('[Agent Service] Failed to register webhook in Evolution API:', error.response?.data || error.message);
+    }
+};
