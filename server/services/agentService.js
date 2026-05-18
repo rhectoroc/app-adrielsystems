@@ -531,6 +531,10 @@ B) Si tienes la respuesta final para el usuario:
   "text": "Tu respuesta final, cordial, natural y estructurada con amabilidad..."
 }
 
+4. REGLAS DE CONTROL DE FLUJO Y EVITACIÓN DE BUCLES (CRÍTICO):
+- Ejecución Única: Si una herramienta de acción directa (como `send_whatsapp`, `send_email`, `register_client_payment`, `schedule_meeting`, `add_task`, etc.) ya se ejecutó exitosamente y tienes el resultado del sistema (e.g. `{"success":true,...}`), NO debes volver a llamarla ni llamar a otra similar en el mismo turno. Tu paso siguiente e inmediato debe ser responder al Jefe o Jefa con la acción "reply" para informar de la confirmación final.
+- Cero Duplicados: Nunca envíes dos recordatorios o mensajes por WhatsApp en una misma interacción.
+
 HISTORIAL DE CONVERSACIÓN:
 ${historySummary}
 
