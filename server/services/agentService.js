@@ -514,6 +514,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - get_billing_summary() (Úsala cuando te pidan verificar el estatus de todos los clientes, ver quiénes deben, o un resumen de cobranza general)
 - search_client_by_name(name) (Úsala para buscar clientes por su nombre cuando no tengas su número de teléfono)
 - register_client_payment(clientId, amount, currency, reference, notes) (Úsala para registrar un pago verificado de un cliente, renovar su servicio y notificarle automáticamente por WhatsApp y Correo Electrónico)
+- send_whatsapp(phone, message) (Úsala para enviar un mensaje directo de WhatsApp a un cliente o número. Ej: recordatorios de pago, notificaciones personalizadas o cualquier mensaje que el Jefe o Jefa te solicite enviar por WhatsApp)
 
 3. INSTRUCCIONES DE RESPUESTA EN FORMATO JSON (CRÍTICO)
 Debes responder SIEMPRE con un objeto JSON válido con los siguientes campos:
@@ -624,6 +625,35 @@ MENSAJE DEL USUARIO:
                         const regResult = await registerClientPayment(clientId, amount, currency, reference, paymentNotes);
                         toolResult = JSON.stringify(regResult);
                         break;
+                    case 'send_whatsapp': {
+                        const { phone: waPhone, message: waMessage } = parsed.parameters;
+                        if (!waPhone || !waMessage) {
+                            toolResult = JSON.stringify({ success: false, message: 'Faltan parámetros requeridos: phone o message.' });
+                            break;
+                        }
+                        const cleanPhone = waPhone.replace(/\D/g, '');
+                        await sendMessage(cleanPhone, waMessage);
+                        
+                        let clientId = null;
+                        if (cleanPhone.length >= 7) {
+                            const suffix = cleanPhone.substring(cleanPhone.length - 7);
+                            const clientResult = await query(
+                                'SELECT id FROM clients WHERE phone = $1 OR phone LIKE $2 LIMIT 1',
+                                [cleanPhone, `%${suffix}`]
+                            );
+                            if (clientResult.rows.length > 0) {
+                                clientId = clientResult.rows[0].id;
+                            }
+                        }
+                        
+                        await query(
+                            'INSERT INTO notification_logs (client_id, type, channel, status, message_body) VALUES ($1, $2, $3, $4, $5)',
+                            [clientId, 'manual', 'whatsapp', 'SENT', waMessage]
+                        );
+                        
+                        toolResult = JSON.stringify({ success: true, message: `Mensaje de WhatsApp enviado exitosamente a +${cleanPhone} y registrado en el historial.` });
+                        break;
+                    }
                     case 'edit_client':
                         const { phone, fieldsJSON } = parsed.parameters;
                         // Execute SQL Edit
