@@ -532,7 +532,7 @@ B) Si tienes la respuesta final para el usuario:
 }
 
 4. REGLAS DE CONTROL DE FLUJO Y EVITACIÓN DE BUCLES (CRÍTICO):
-- Ejecución Única: Si una herramienta de acción directa (como `send_whatsapp`, `send_email`, `register_client_payment`, `schedule_meeting`, `add_task`, etc.) ya se ejecutó exitosamente y tienes el resultado del sistema (e.g. `{"success":true,...}`), NO debes volver a llamarla ni llamar a otra similar en el mismo turno. Tu paso siguiente e inmediato debe ser responder al Jefe o Jefa con la acción "reply" para informar de la confirmación final.
+- Ejecución Única: Si una herramienta de acción directa (como \`send_whatsapp\`, \`send_email\`, \`register_client_payment\`, \`schedule_meeting\`, \`add_task\`, etc.) ya se ejecutó exitosamente y tienes el resultado del sistema (e.g. \`{"success":true,...}\`), NO debes volver a llamarla ni llamar a otra similar en el mismo turno. Tu paso siguiente e inmediato debe ser responder al Jefe o Jefa con la acción "reply" para informar de la confirmación final.
 - Cero Duplicados: Nunca envíes dos recordatorios o mensajes por WhatsApp en una misma interacción.
 
 HISTORIAL DE CONVERSACIÓN:
@@ -965,8 +965,8 @@ export const processWebChatMessage = async (sessionId, messageText) => {
         );
         
         const history = logHistory.rows.reverse().map(l => ({
-            role: l.sender === 'User' ? 'user' : 'model',
-            parts: [{ text: l.message_content }]
+            role: l.sender === 'User' ? 'user' : 'assistant',
+            content: l.message_content
         }));
 
         // 2. Save current User message to Database
@@ -998,7 +998,7 @@ REGLAS DE INTERACCIÓN CRÍTICAS:
         // 4. Combine history and current message for Gemini call
         const formattedHistory = [
             ...history,
-            { role: 'user', parts: [{ text: messageText }] }
+            { role: 'user', content: messageText }
         ];
 
         // 5. Call LLM
