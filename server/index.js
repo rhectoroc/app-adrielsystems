@@ -13,6 +13,8 @@ import multer from 'multer';
 import fs from 'fs';
 import { initAutomation, runBillingNotifications, sendMessage } from './services/automationService.js';
 import { handleIncomingWebhook, approvePaymentById, registerEvolutionWebhook, processWebChatMessage } from './services/agentService.js';
+import { getAuthForProfile } from './services/googleService.js';
+import { google } from 'googleapis';
 
 // Uploads Configuration (Volume mounted at /data in production)
 
@@ -1665,6 +1667,143 @@ app.put('/api/users/:id', authenticateToken, authorizeRole('ADMIN'), async (req,
 
 // Webhook for Evolution API
 app.post('/api/webhooks/whatsapp', handleIncomingWebhook);
+
+// ============================================
+// PUBLIC CALENDAR ENDPOINTS (No Auth Required)
+// ============================================
+
+// GET /api/availability - Returns available time slots for the next 7 business days
+app.get('/api/availability', async (req, res) => {
+    try {
+        const auth = await getAuthForProfile('SYSTEM');
+        if (!auth) {
+            return res.status(503).json({ error: 'Calendar service unavailable' });
+        }
+
+        const calendar = google.calendar({ version: 'v3', auth });
+        const now = new Date();
+        const timeMin = now.toISOString();
+        const timeMax = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+        // Get all existing events in the next 14 days
+        const eventsRes = await calendar.events.list({
+            calendarId: 'primary',
+            timeMin,
+            timeMax,
+            singleEvents: true,
+            orderBy: 'startTime'
+        });
+        const busyEvents = eventsRes.data.items || [];
+
+        // Build available slots: Mon-Fri, 9am-6pm (Venezuela time, UTC-4), 1hr slots
+        const slots = [];
+        const SLOT_DURATION_MS = 60 * 60 * 1000;
+        const BUSINESS_START_HOUR = 9;
+        const BUSINESS_END_HOUR = 18;
+        const TZ_OFFSET_MS = -4 * 60 * 60 * 1000;
+
+        const cursor = new Date(now);
+        cursor.setHours(cursor.getHours() + 1, 0, 0, 0); // Start from next full hour
+
+        let slotsGenerated = 0;
+        while (slotsGenerated < 20) {
+            const localHour = ((cursor.getUTCHours() + (-4 + 24)) % 24); // UTC-4
+            const dayOfWeek = cursor.getDay();
+
+            if (dayOfWeek === 0 || dayOfWeek === 6) {
+                // Weekend: skip to Monday
+                cursor.setDate(cursor.getDate() + (dayOfWeek === 6 ? 2 : 1));
+                cursor.setHours(9 - (-4), 0, 0, 0); // 9am VZ = 13 UTC
+                continue;
+            }
+
+            if (localHour < BUSINESS_START_HOUR) {
+                cursor.setUTCHours(BUSINESS_START_HOUR + 4, 0, 0, 0);
+                continue;
+            }
+
+            if (localHour >= BUSINESS_END_HOUR) {
+                cursor.setDate(cursor.getDate() + 1);
+                cursor.setUTCHours(BUSINESS_START_HOUR + 4, 0, 0, 0);
+                continue;
+            }
+
+            const slotStart = new Date(cursor);
+            const slotEnd = new Date(cursor.getTime() + SLOT_DURATION_MS);
+
+            // Check if this slot conflicts with any existing event
+            const isBusy = busyEvents.some(event => {
+                const eStart = new Date(event.start?.dateTime || event.start?.date);
+                const eEnd = new Date(event.end?.dateTime || event.end?.date);
+                return slotStart < eEnd && slotEnd > eStart;
+            });
+
+            if (!isBusy) {
+                // Format for display in Venezuela time (UTC-4)
+                const vzDate = new Date(slotStart.getTime() + TZ_OFFSET_MS);
+                const dateStr = vzDate.toISOString().split('T')[0];
+                const hour = vzDate.getUTCHours();
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                const displayHour = hour % 12 || 12;
+                slots.push({
+                    isoStart: slotStart.toISOString(),
+                    isoEnd: slotEnd.toISOString(),
+                    date: dateStr,
+                    timeLabel: `${displayHour}:00 ${ampm}`,
+                    dayLabel: vzDate.toLocaleDateString('es-VE', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'America/Caracas' })
+                });
+                slotsGenerated++;
+            }
+
+            cursor.setTime(cursor.getTime() + SLOT_DURATION_MS);
+        }
+
+        res.json({ slots });
+    } catch (err) {
+        console.error('[Calendar API] Error getting availability:', err);
+        res.status(500).json({ error: 'Error al consultar disponibilidad' });
+    }
+});
+
+// POST /api/schedule - Book a meeting slot
+app.post('/api/schedule', async (req, res) => {
+    const { name, email, isoStart, isoEnd, notes } = req.body;
+    if (!name || !email || !isoStart || !isoEnd) {
+        return res.status(400).json({ error: 'Faltan campos requeridos: name, email, isoStart, isoEnd' });
+    }
+    try {
+        const auth = await getAuthForProfile('SYSTEM');
+        if (!auth) {
+            return res.status(503).json({ error: 'Calendar service unavailable' });
+        }
+
+        const calendar = google.calendar({ version: 'v3', auth });
+        const event = await calendar.events.insert({
+            calendarId: 'primary',
+            sendUpdates: 'all',
+            requestBody: {
+                summary: `Cita con ${name} — Adriel's Systems`,
+                description: `Cliente: ${name}\nEmail: ${email}\nNota: ${notes || 'Sin nota adicional'}`,
+                start: { dateTime: isoStart, timeZone: 'America/Caracas' },
+                end: { dateTime: isoEnd, timeZone: 'America/Caracas' },
+                attendees: [{ email }],
+                conferenceData: {
+                    createRequest: {
+                        requestId: 'webchat-' + Date.now(),
+                        conferenceSolutionKey: { type: 'hangoutsMeet' }
+                    }
+                }
+            },
+            conferenceDataVersion: 1
+        });
+
+        console.log(`[Calendar API] Meeting scheduled for ${name} (${email}) at ${isoStart}`);
+        res.json({ success: true, eventId: event.data.id, meetLink: event.data.hangoutLink });
+    } catch (err) {
+        console.error('[Calendar API] Error scheduling meeting:', err);
+        res.status(500).json({ error: 'Error al agendar la cita' });
+    }
+});
 
 // Web Chatbot Public Endpoint (Directly connects to EVA's engine)
 app.post('/api/chat', async (req, res) => {
