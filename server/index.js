@@ -1357,6 +1357,36 @@ RETURNING *
         }
 
         await query('COMMIT');
+
+        // Send WhatsApp receipt confirmation if status is PAGADO/PAID
+        if (status === 'PAGADO' || status === 'PAID') {
+            try {
+                const clientRes = await query('SELECT name, phone FROM clients WHERE id = $1', [client_id]);
+                const client = clientRes.rows[0];
+                if (client && client.phone) {
+                    const cleanPhone = client.phone.replace(/\D/g, '');
+                    if (cleanPhone.length >= 10) {
+                        const msg = `Estimado/a *${client.name}*, le confirmamos que hemos recibido y registrado su pago con éxito en nuestro sistema administrativo:
+
+💰 *Monto:* ${amount} ${currency}
+💳 *Método:* ${payment_method || 'N/A'}
+📅 *Fecha:* ${payment_date}
+📝 *Concepto:* ${notes || 'Pago de servicio'}
+
+Su cuenta se encuentra al día. ¡Agradecemos su confianza en Adriel's Systems! ✨`;
+                        
+                        await sendMessage(cleanPhone, msg);
+                        await query(
+                            'INSERT INTO notification_logs (client_id, type, channel, status, message_body) VALUES ($1, $2, $3, $4, $5)',
+                            [client_id, 'receipt', 'whatsapp', 'SENT', msg]
+                        );
+                    }
+                }
+            } catch (sendErr) {
+                console.error('Error sending payment receipt WhatsApp (POST):', sendErr.message);
+            }
+        }
+
         res.status(201).json(result.rows[0]);
     } catch (err) {
         await query('ROLLBACK');
@@ -1373,6 +1403,10 @@ app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), upload.s
 
     try {
         await query('BEGIN');
+
+        // Fetch previous status to prevent double WhatsApp sending
+        const prevPaymentRes = await query('SELECT status FROM payments WHERE id = $1', [id]);
+        const prevStatus = prevPaymentRes.rows[0]?.status;
 
         // Update payment
         const result = await query(`
@@ -1414,6 +1448,36 @@ app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), upload.s
         }
 
         await query('COMMIT');
+
+        // Send WhatsApp receipt confirmation if status changed to PAGADO/PAID
+        if ((prevStatus !== 'PAGADO' && prevStatus !== 'PAID') && (status === 'PAGADO' || status === 'PAID')) {
+            try {
+                const clientRes = await query('SELECT name, phone FROM clients WHERE id = $1', [payment.client_id]);
+                const client = clientRes.rows[0];
+                if (client && client.phone) {
+                    const cleanPhone = client.phone.replace(/\D/g, '');
+                    if (cleanPhone.length >= 10) {
+                        const msg = `Estimado/a *${client.name}*, le confirmamos que hemos recibido y registrado su pago con éxito en nuestro sistema administrativo:
+
+💰 *Monto:* ${amount} ${currency}
+💳 *Método:* ${payment_method || 'N/A'}
+📅 *Fecha:* ${payment_date}
+📝 *Concepto:* ${notes || 'Pago de servicio'}
+
+Su cuenta se encuentra al día. ¡Agradecemos su confianza en Adriel's Systems! ✨`;
+                        
+                        await sendMessage(cleanPhone, msg);
+                        await query(
+                            'INSERT INTO notification_logs (client_id, type, channel, status, message_body) VALUES ($1, $2, $3, $4, $5)',
+                            [payment.client_id, 'receipt', 'whatsapp', 'SENT', msg]
+                        );
+                    }
+                }
+            } catch (sendErr) {
+                console.error('Error sending payment receipt WhatsApp (PUT):', sendErr.message);
+            }
+        }
+
         res.json(payment);
     } catch (err) {
         await query('ROLLBACK');

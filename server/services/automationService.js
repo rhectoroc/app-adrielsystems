@@ -107,8 +107,7 @@ export const runBillingNotifications = async () => {
                 TO_CHAR(s.expiration_date, 'DD/MM/YYYY') as due_date,
                 CASE 
                     WHEN (s.expiration_date + INTERVAL '5 days') < CURRENT_DATE THEN 'overdue'
-                    WHEN s.expiration_date = CURRENT_DATE THEN 'due_today'
-                    ELSE 'upcoming'
+                    ELSE 'due_today'
                 END as notification_type,
                 CASE 
                     WHEN (s.expiration_date + INTERVAL '5 days') < CURRENT_DATE THEN CURRENT_DATE - s.expiration_date
@@ -124,9 +123,6 @@ export const runBillingNotifications = async () => {
                 OR
                 -- Vence hoy
                 (s.expiration_date = CURRENT_DATE)
-                OR
-                -- Próximos 3 días
-                (s.expiration_date > CURRENT_DATE AND s.expiration_date <= CURRENT_DATE + INTERVAL '3 days')
             )
             -- Avoid spamming: Only notify once per type per day if not already notified
             AND NOT EXISTS (
@@ -134,8 +130,7 @@ export const runBillingNotifications = async () => {
                 WHERE nl.client_id = c.id 
                 AND nl.type = CASE 
                     WHEN (s.expiration_date + INTERVAL '5 days') < CURRENT_DATE THEN 'overdue'
-                    WHEN s.expiration_date = CURRENT_DATE THEN 'due_today'
-                    ELSE 'upcoming'
+                    ELSE 'due_today'
                 END
                 AND DATE(nl.sent_at) = CURRENT_DATE
             )
@@ -211,11 +206,14 @@ export const runBillingNotifications = async () => {
  * Initialize Cron Job
  */
 export const initAutomation = () => {
-    // Schedule: Every day at 9:00 AM
+    // Schedule: Every day at 9:00 AM Venezuela time
     // '0 9 * * *'
     cron.schedule('0 9 * * *', async () => {
         await runBillingNotifications();
+    }, {
+        scheduled: true,
+        timezone: "America/Caracas"
     });
 
-    console.log('[Automation] Notification service initialized (Daily at 9:00 AM)');
+    console.log('[Automation] Notification service initialized (Daily at 9:00 AM Venezuela Time)');
 };
