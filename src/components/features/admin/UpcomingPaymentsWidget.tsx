@@ -52,13 +52,20 @@ export const UpcomingPaymentsWidget = () => {
 
     return (
         <div className="glass-card p-4 border border-white/5 bg-white/[0.01]">
-            <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-4 h-4 text-blue-500" />
-                <h3 className="text-sm font-black text-white uppercase tracking-widest">Proximos cobros</h3>
+            <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
+                <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-blue-500" />
+                    <h3 className="text-sm font-black text-white uppercase tracking-widest">Proximos cobros</h3>
+                </div>
                 {upcomingPayments.length > 0 && (
-                    <span className="ml-auto px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-black rounded border border-blue-500/10">
-                        {upcomingPayments.length}
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-black rounded border border-blue-500/20">
+                            USD {upcomingPayments.reduce((sum, p) => sum + Number(p.amount), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ACUM.
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-black rounded border border-blue-500/10">
+                            {upcomingPayments.length}
+                        </span>
+                    </div>
                 )}
             </div>
 
@@ -94,7 +101,7 @@ export const UpcomingPaymentsWidget = () => {
                                         </Link>
                                         <div className="text-right">
                                             <p className="text-sm font-black text-white">
-                                                {payment.currency} {payment.amount}
+                                                {payment.currency} {Number(payment.amount).toFixed(2)}
                                             </p>
                                         </div>
                                     </div>

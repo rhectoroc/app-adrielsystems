@@ -138,7 +138,7 @@ export const AdminDashboard = () => {
                                     </div>
                                     <div className="text-right ml-2">
                                         {activity.amount && (
-                                            <div className="text-primary font-black">{activity.currency} {activity.amount}</div>
+                                            <div className="text-primary font-black">{activity.currency} {Number(activity.amount).toFixed(2)}</div>
                                         )}
                                         <div className="text-[9px] text-gray-600 font-bold">
                                             {new Date(activity.activity_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}

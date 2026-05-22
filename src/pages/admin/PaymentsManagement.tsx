@@ -224,8 +224,8 @@ export const PaymentsManagement = () => {
 
     // --- Payment Form Handlers ---
 
-    const handleClientChange = async (clientId: string) => {
-        setFormData(prev => ({ ...prev, client_id: clientId, service_id: '' }));
+    const handleClientChange = async (clientId: string, clearService: boolean = true) => {
+        setFormData(prev => ({ ...prev, client_id: clientId, ...(clearService ? { service_id: '' } : {}) }));
 
         if (clientId) {
             try {
@@ -322,9 +322,6 @@ export const PaymentsManagement = () => {
                 amount: finalAmount > 0 ? finalAmount.toFixed(2) : '',
                 service_id: value
             }));
-            if (value && value !== 'all') {
-                handleClientChange(formData.client_id || selectedClient?.id.toString() || '');
-            }
         }
 
         if (name === 'months_covered') {
@@ -379,7 +376,7 @@ export const PaymentsManagement = () => {
         setSelectedFile(null);
 
         if (isFromHistory && selectedClient) {
-            handleClientChange(selectedClient.id.toString());
+            handleClientChange(selectedClient.id.toString(), false);
         } else if (!fromHistory) {
             setServices([]);
         }

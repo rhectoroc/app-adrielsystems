@@ -57,7 +57,7 @@ export const PaymentSummaryWidget = () => {
                 <div className="flex items-baseline gap-2">
                     <p className="text-xl font-black text-white">{summary.overdue.count}</p>
                     <p className="text-[10px] text-red-500/60 font-bold uppercase tracking-tight">
-                        ${summary.overdue.totalAmount.toLocaleString()} DEUDA
+                        ${summary.overdue.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DEUDA
                     </p>
                 </div>
             </div>
@@ -73,7 +73,7 @@ export const PaymentSummaryWidget = () => {
                 <div className="flex items-baseline gap-2">
                     <p className="text-xl font-black text-white">{summary.pending.count}</p>
                     <p className="text-[10px] text-amber-500/60 font-bold uppercase tracking-tight">
-                        ${summary.pending.totalAmount.toLocaleString()} TOTAL
+                        ${summary.pending.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TOTAL
                     </p>
                 </div>
             </div>
@@ -89,7 +89,7 @@ export const PaymentSummaryWidget = () => {
                 <div className="flex items-baseline gap-2">
                     <p className="text-xl font-black text-white">{summary.upcoming.count}</p>
                     <p className="text-[10px] text-blue-500/60 font-bold uppercase tracking-tight">
-                        ${summary.upcoming.totalAmount.toLocaleString()} ESPERADO
+                        ${summary.upcoming.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ESPERADO
                     </p>
                 </div>
             </div>

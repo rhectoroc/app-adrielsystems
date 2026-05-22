@@ -318,6 +318,14 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
         const clientsRes = await query('SELECT COUNT(*) FROM clients');
         stats.totalClients = parseInt(clientsRes.rows[0].count);
 
+        // Count active services that are unpaid (due date is null or in the past)
+        const pendingCountRes = await query(`
+            SELECT COUNT(*) FROM services 
+            WHERE status = 'ACTIVE' 
+            AND (expiration_date IS NULL OR expiration_date < CURRENT_DATE)
+        `);
+        stats.pendingPayments = parseInt(pendingCountRes.rows[0].count);
+
         // 2. Overdue Amount (Actual Morosos) - 5 days grace
         const overdueRes = await query(`
             SELECT COALESCE(SUM(
@@ -1007,31 +1015,102 @@ p.*,
 // ============================================
 
 // Get payment summary for dashboard
+// Get payment summary for dashboard
 app.get('/api/payments/summary', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
-SELECT
-    COUNT(CASE WHEN status IN ('VENCIDO', 'OVERDUE') THEN 1 END) as overdue_count,
-    COALESCE(SUM(CASE WHEN status IN ('VENCIDO', 'OVERDUE') THEN amount ELSE 0 END), 0) as overdue_amount,
-    COUNT(CASE WHEN status IN ('PENDIENTE', 'PENDING') THEN 1 END) as pending_count,
-    COALESCE(SUM(CASE WHEN status IN ('PENDIENTE', 'PENDING') THEN amount ELSE 0 END), 0) as pending_amount,
-    COUNT(CASE WHEN status IN ('PENDIENTE', 'PENDING') AND due_date <= CURRENT_DATE + INTERVAL '15 days' THEN 1 END) as upcoming_count,
-    COALESCE(SUM(CASE WHEN status IN ('PENDIENTE', 'PENDING') AND due_date <= CURRENT_DATE + INTERVAL '15 days' THEN amount ELSE 0 END), 0) as upcoming_amount
-FROM payments
-    `);
+            SELECT
+                s.id as service_id,
+                COALESCE(s.special_price, s.cost) as monthly_cost,
+                s.currency,
+                s.expiration_date as due_date,
+                s.created_at,
+                s.renewal_day,
+                c.email as client_email,
+                GREATEST(1, EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)) + 1) as months_overdue
+            FROM services s
+            JOIN clients c ON s.client_id = c.id
+            WHERE s.status = 'ACTIVE'
+        `);
+
+        let overdueCount = 0;
+        let overdueAmount = 0;
+        let pendingCount = 0;
+        let pendingAmount = 0;
+        let upcomingCount = 0;
+        let upcomingAmount = 0;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (const row of result.rows) {
+            const monthlyCost = parseFloat(row.monthly_cost) || 0;
+            if (!row.due_date) {
+                // If expiration_date is NULL, treat as overdue (needs initialization/payment)
+                overdueCount++;
+                overdueAmount += monthlyCost;
+                continue;
+            }
+
+            const dueDate = new Date(row.due_date);
+            dueDate.setHours(0, 0, 0, 0);
+
+            // Calculate grace period date (due_date + 5 days)
+            const graceDate = new Date(dueDate);
+            graceDate.setDate(graceDate.getDate() + 5);
+
+            // Calculate upcoming threshold date (today + 7 days)
+            const upcomingThreshold = new Date(today);
+            upcomingThreshold.setDate(upcomingThreshold.getDate() + 7);
+
+            if (graceDate < today) {
+                // 1. OVERDUE (En Mora) - Exceeded 5 days grace
+                overdueCount++;
+                
+                let calculatedAmount = 0;
+                const monthsOverdue = parseInt(row.months_overdue) || 1;
+
+                if (row.renewal_day === 30 || row.renewal_day === 15) {
+                    const start = new Date(row.created_at);
+                    const end = new Date(row.due_date);
+                    const utcStart = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+                    const utcEnd = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+                    const firstPeriodDays = Math.round((utcEnd - utcStart) / (1000 * 3600 * 24)) + 1;
+                    calculatedAmount = (monthlyCost / 30.0 * firstPeriodDays) + (monthlyCost * (monthsOverdue - 1));
+                } else {
+                    calculatedAmount = monthlyCost * monthsOverdue;
+                }
+
+                // Martha Salazar Special Exception (Historical Pricing)
+                if (row.client_email === 'gentepro80@gmail.com' && dueDate.getFullYear() === 2025 && dueDate.getMonth() === 11) {
+                    calculatedAmount += 10;
+                }
+
+                overdueAmount += Math.round(calculatedAmount * 100) / 100;
+
+            } else if (dueDate < today && graceDate >= today) {
+                // 2. PENDING (Pendiente) - Expired but within 5 days of grace
+                pendingCount++;
+                pendingAmount += monthlyCost;
+            } else if (dueDate >= today && dueDate <= upcomingThreshold) {
+                // 3. UPCOMING (Próximos a pagar) - Expiring in next 7 days
+                upcomingCount++;
+                upcomingAmount += monthlyCost;
+            }
+        }
 
         res.json({
             overdue: {
-                count: parseInt(result.rows[0].overdue_count) || 0,
-                totalAmount: parseFloat(result.rows[0].overdue_amount) || 0
+                count: overdueCount,
+                totalAmount: Math.round(overdueAmount * 100) / 100
             },
             pending: {
-                count: parseInt(result.rows[0].pending_count) || 0,
-                totalAmount: parseFloat(result.rows[0].pending_amount) || 0
+                count: pendingCount,
+                totalAmount: Math.round(pendingAmount * 100) / 100
             },
             upcoming: {
-                count: parseInt(result.rows[0].upcoming_count) || 0,
-                totalAmount: parseFloat(result.rows[0].upcoming_amount) || 0
+                count: upcomingCount,
+                totalAmount: Math.round(upcomingAmount * 100) / 100
             }
         });
     } catch (err) {
@@ -1084,9 +1163,12 @@ app.get('/api/payments/overdue', authenticateToken, authorizeRole('ADMIN'), asyn
             if (row.renewal_day === 30 || row.renewal_day === 15) {
                 // Pro-rated First Month + Full months since
                 const monthlyCost = parseFloat(row.monthly_cost);
-                // First period is handled by the initial months_overdue calculation in SQL if we adjust it, 
-                // but let's do it precisely in JS here.
-                const firstPeriodDays = (new Date(row.due_date).getTime() - new Date(row.created_at).getTime()) / (1000 * 3600 * 24) + 1;
+                // Calculate firstPeriodDays using date-only components (ignoring timezone / time-of-day offsets)
+                const start = new Date(row.created_at);
+                const end = new Date(row.due_date);
+                const utcStart = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+                const utcEnd = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+                const firstPeriodDays = Math.round((utcEnd - utcStart) / (1000 * 3600 * 24)) + 1;
                 calculatedAmount = (monthlyCost / 30.0 * firstPeriodDays) + (monthlyCost * (monthsOverdue - 1));
             } else {
                 calculatedAmount = parseFloat(row.monthly_cost) * monthsOverdue;
@@ -1099,6 +1181,8 @@ app.get('/api/payments/overdue', authenticateToken, authorizeRole('ADMIN'), asyn
             if (row.client_email === 'gentepro80@gmail.com' && dueDate.getFullYear() === 2025 && dueDate.getMonth() === 11) {
                 calculatedAmount += 10; // Adjustment for the $20 month
             }
+
+            calculatedAmount = Math.round(calculatedAmount * 100) / 100;
 
             return {
                 ...row,
@@ -1135,7 +1219,7 @@ app.get('/api/payments/upcoming', authenticateToken, authorizeRole('ADMIN'), asy
             FROM services s
             JOIN clients c ON s.client_id = c.id
             WHERE s.status = 'ACTIVE' 
-            AND s.expiration_date >= (CURRENT_DATE - INTERVAL '15 days') -- Show recently expired and upcoming
+            AND s.expiration_date >= (CURRENT_DATE - INTERVAL '5 days') -- Show recently expired (grace period) and upcoming
             AND s.expiration_date <= (CURRENT_DATE + $1 * INTERVAL '1 day')
             ORDER BY s.expiration_date ASC
     `, [days]);
@@ -1432,7 +1516,7 @@ app.get('/api/contacts/status', authenticateToken, authorizeRole('ADMIN'), async
                 (SELECT COUNT(*) FROM services s WHERE s.client_id = c.id AND s.status = 'ACTIVE') as services_count,
                 (SELECT MAX(sent_at) FROM notification_logs nl WHERE nl.client_id = c.id) as last_contact,
                 -- Dynamic Debt Calculation (Pro-rated for 30th cycle)
-                COALESCE(
+                ROUND(COALESCE(
                     (SELECT SUM(
                         CASE 
                             WHEN s.renewal_day = 30 THEN
@@ -1446,7 +1530,7 @@ app.get('/api/contacts/status', authenticateToken, authorizeRole('ADMIN'), async
                     WHERE s.client_id = c.id 
                     AND s.status = 'ACTIVE' 
                     AND (s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '5 days') < CURRENT_DATE)
-                ), 0) as total_debt,
+                ), 0)::numeric, 2) as total_debt,
                 CASE 
                     WHEN EXISTS (SELECT 1 FROM services s WHERE s.client_id = c.id AND s.status = 'ACTIVE' AND (s.expiration_date IS NULL OR (s.expiration_date + INTERVAL '5 days') < CURRENT_DATE)) THEN 'OVERDUE'
                     ELSE 'PAID'

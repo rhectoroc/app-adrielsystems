@@ -50,13 +50,20 @@ export const OverdueClientsWidget = () => {
 
     return (
         <div className="glass-card p-4 border border-white/5 bg-white/[0.01]">
-            <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="w-4 h-4 text-red-500" />
-                <h3 className="text-sm font-black text-white uppercase tracking-widest">Mora Crítica</h3>
+            <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
+                <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500" />
+                    <h3 className="text-sm font-black text-white uppercase tracking-widest">Mora Crítica</h3>
+                </div>
                 {overdueClients.length > 0 && (
-                    <span className="ml-auto px-1.5 py-0.5 bg-red-500/20 text-red-400 text-[10px] font-black rounded border border-red-500/10">
-                        {overdueClients.length}
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-[10px] font-black rounded border border-red-500/20">
+                            USD {overdueClients.reduce((sum, c) => sum + Number(c.amount), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ACUM.
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-[10px] font-black rounded border border-red-500/10">
+                            {overdueClients.length}
+                        </span>
+                    </div>
                 )}
             </div>
 
@@ -92,7 +99,7 @@ export const OverdueClientsWidget = () => {
                                         </Link>
                                         <div className="text-right">
                                             <p className="text-sm font-black text-red-500">
-                                                {client.currency} {client.amount}
+                                                {client.currency} {Number(client.amount).toFixed(2)}
                                             </p>
                                             <p className="text-[9px] text-red-500/60 font-black uppercase tracking-tighter">
                                                 {client.days_overdue} DÍAS VENC.
