@@ -1,3 +1,41 @@
+# Avance de Desarrollo — 22 de Mayo 2026
+
+## Sesión: Reglas de Cobranza, Horarios de Notificación y Comprobantes Automatizados
+
+Se implementaron y validaron ajustes críticos en la lógica de facturación, la visualización de resúmenes de deuda en el dashboard, la programación horaria de notificaciones por WhatsApp y el envío automatizado de recibos de pago.
+
+### 📅 Ajustes en Reglas de Negocio y Notificaciones Automáticas
+- **Horario Localizado (Venezuela):** Se configuró la zona horaria `"America/Caracas"` en el programador de tareas `node-cron`. Las notificaciones automáticas diarias ahora se disparan exactamente a las **9:00 AM hora de Venezuela** en lugar de a las 5:00 AM (9:00 AM UTC del servidor).
+- **Filtro Estricto de Avisos:** Se eliminó el envío de recordatorios de cobro de 3 días antes (`upcoming`). Ahora la automatización de WhatsApp notifica únicamente en dos instancias para evitar spam:
+  1. **Día de Vencimiento (`due_today`):** El día exacto en que corresponde pagar.
+  2. **Mora Crítica (`overdue`):** Cuando transcurren los 5 días de gracia y se requiere suspender/regularizar.
+
+### 💳 Confirmación Automática de Recibos de Pago (WhatsApp)
+- **Registros Manuales (`POST /api/payments`):** Cuando el administrador ingresa un pago en la interfaz con estado `'PAGADO'`, el backend consulta los datos del cliente y le envía un mensaje de confirmación profesional y amable detallando el monto, moneda, método, fecha y concepto del pago recibido.
+- **Actualización de Pagos (`PUT /api/payments/:id`):** Al cambiar el estado de un pago de `'PENDIENTE'` a `'PAGADO'`, se envía la misma confirmación automática. Se implementó una verificación para evitar duplicados si solo se editan notas u otros datos de un pago que ya estaba marcado como cobrado.
+- **Log de Registro:** Todos estos envíos manuales de confirmación de pago se registran de forma automática en la tabla `notification_logs` con el tipo `'receipt'`.
+
+### 📊 Optimización de Dashboard e Interfaz de Cobranza
+- **Suma Acumulada de Deudas:** 
+  - El widget **Mora Crítica** ahora muestra en su cabecera un badge con el total acumulado de las deudas en mora (ej. `USD X,XXX.XX ACUM.`).
+  - El widget **Próximos Cobros** se alineó estéticamente agregando un borde inferior y un badge con la suma acumulada de cobros programados para los siguientes días (ej. `USD XX.XX ACUM.`).
+- **Formateo Monetario:** Los montos globales del resumen de cobros de las tres tarjetas del dashboard principal se formatearon a dos decimales con separadores de miles de manera uniforme.
+- **Corrección de Métrica de Pendientes:** El contador `stats.pendingPayments` del panel principal ahora calcula correctamente los servicios activos vencidos sin pagar, en lugar de mostrar siempre `0`.
+
+### 🛠️ Archivos Modificados (22 de Mayo)
+
+| Archivo | Tipo | Cambio |
+|---------|------|--------|
+| `server/index.js` | MODIFY | Integración de notificaciones de recibos por WhatsApp en `POST /api/payments` y `PUT /api/payments/:id`, y verificación de estado previo. |
+| `server/services/automationService.js` | MODIFY | Configuración de zona horaria `"America/Caracas"`, exclusión de avisos preventivos (`upcoming`) del flujo cron. |
+| `src/components/features/admin/UpcomingPaymentsWidget.tsx` | MODIFY | Suma acumulada de cobros próximos y rediseño de cabecera para alineación con mora. |
+| `src/components/features/admin/OverdueClientsWidget.tsx` | MODIFY | Añadido el badge con la suma acumulada de las deudas en mora en la cabecera. |
+| `src/components/features/admin/PaymentSummaryWidget.tsx` | MODIFY | Formateo uniforme de montos a dos decimales y separadores de miles en las tarjetas de resumen. |
+| `src/pages/admin/AdminDashboard.tsx` | MODIFY | Formateo del monto de la actividad del cliente a dos decimales. |
+| `src/pages/admin/PaymentsManagement.tsx` | MODIFY | Corrección en el modal de registrar pago que impedía seleccionar el servicio (control de `clearService`). |
+
+---
+
 # Avance de Desarrollo — 18 de Mayo 2026
 
 ## Sesión: Superpoderes de EVA (Visión Computacional, Resumen de Cobranza Global y Notificaciones Multicanal)
