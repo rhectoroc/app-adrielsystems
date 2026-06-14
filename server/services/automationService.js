@@ -179,13 +179,13 @@ export const runBillingNotifications = async () => {
         try {
             let reportText = '';
             if (summaryLines.length > 0) {
-                reportText = `🤖 *EVA - Reporte de Cobros Diarios* 🤖\n\n` +
-                             `Hola Jefe, he completado el ciclo diario de notificaciones automáticas de cobro a clientes:\n\n` +
+                reportText = `🤖 *EVA - Reporte de Cobros (Día de Cobro)* 🤖\n\n` +
+                             `Hola Jefe, he completado el ciclo de notificaciones automáticas de cobro del día ${new Date().getDate()} de este mes:\n\n` +
                              summaryLines.join('\n') + `\n\n` +
                              `📈 *Resumen total:* ${sentCount} enviados con éxito, ${errorCount} errores.`;
             } else {
-                reportText = `🤖 *EVA - Reporte de Cobros Diarios* 🤖\n\n` +
-                             `Hola Jefe, he revisado las cuentas hoy y todos los servicios activos se encuentran al día. ✨ ¡No fue necesario enviar notificaciones de cobro el día de hoy!`;
+                reportText = `🤖 *EVA - Reporte de Cobros (Día de Cobro)* 🤖\n\n` +
+                             `Hola Jefe, he revisado las cuentas el día ${new Date().getDate()} y todos los servicios activos se encuentran al día. ✨ ¡No fue necesario enviar notificaciones de cobro hoy!`;
             }
             
             await sendMessage('584140108030', reportText);
@@ -203,17 +203,37 @@ export const runBillingNotifications = async () => {
 };
 
 /**
+ * Returns true if today is the first or last day of the current month (Venezuela time).
+ */
+const isBillingDay = () => {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Caracas' }));
+    const day = now.getDate();
+
+    // Check first day of month
+    if (day === 1) return true;
+
+    // Check last day of month: tomorrow is a different month
+    const tomorrow = new Date(now);
+    tomorrow.setDate(day + 1);
+    return tomorrow.getMonth() !== now.getMonth();
+};
+
+/**
  * Initialize Cron Job
  */
 export const initAutomation = () => {
-    // Schedule: Every day at 9:00 AM Venezuela time
-    // '0 9 * * *'
+    // Run daily at 9:00 AM Venezuela time, but only execute on the 1st and last day of each month.
     cron.schedule('0 9 * * *', async () => {
+        if (!isBillingDay()) {
+            console.log('[Automation] Skipping — today is not a billing day (1st or last day of month).');
+            return;
+        }
+        console.log('[Automation] Billing day detected — starting notification cycle.');
         await runBillingNotifications();
     }, {
         scheduled: true,
         timezone: "America/Caracas"
     });
 
-    console.log('[Automation] Notification service initialized (Daily at 9:00 AM Venezuela Time)');
+    console.log('[Automation] Notification service initialized (Billing days: 1st and last day of each month at 9:00 AM Venezuela Time)');
 };
