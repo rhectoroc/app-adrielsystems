@@ -1273,9 +1273,9 @@ export const registerEvolutionWebhook = async () => {
  */
 export const getBCVRate = async () => {
     try {
-        const res = await axios.get('https://pydolarvenezuela-api.vercel.app/api/v1/dollar?page=bcv');
-        if (res.data && res.data.monitors && res.data.monitors.usd) {
-            return parseFloat(res.data.monitors.usd.price);
+        const res = await axios.get('https://rates.dolarvzla.com/bcv/current.json');
+        if (res.data && res.data.current && res.data.current.usd) {
+            return parseFloat(res.data.current.usd);
         }
         return null;
     } catch (err) {
