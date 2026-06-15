@@ -516,6 +516,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - register_client_payment(clientId, amount, currency, reference, notes) (Úsala para registrar un pago verificado de un cliente, renovar su servicio y notificarle automáticamente por WhatsApp y Correo Electrónico)
 - send_whatsapp(phone, message) (Úsala para enviar un mensaje directo de WhatsApp a un cliente o número. Ej: recordatorios de pago, notificaciones personalizadas o cualquier mensaje que el Jefe o Jefa te solicite enviar por WhatsApp)
 - create_financial_sheet() (Úsala si el Jefe te pide explícitamente crear o inicializar el documento de Excel/Sheets para llevar los registros financieros desde cero)
+- get_bcv_rate() (Úsala si el Jefe te pregunta cuál es la tasa del dólar actual del BCV)
 - log_transaction(type, concept, amount, currency) (Úsala para registrar entradas y salidas de dinero en el cuadro de control financiero en Google Sheets. type debe ser 'ENTRADA' o 'SALIDA'. currency debe ser 'VES' o 'USD'. NOTA: Si el documento no existe, el sistema lo creará automáticamente por ti la primera vez que registres algo. ¡No digas que no puedes crearlo!)
 
 3. INSTRUCCIONES DE RESPUESTA EN FORMATO JSON (CRÍTICO)
@@ -684,6 +685,15 @@ MENSAJE DEL USUARIO:
                             toolResult = JSON.stringify({ success: true, message: `Documento '${sheetName}' creado exitosamente en tu Google Drive.` });
                         } else {
                             toolResult = JSON.stringify({ success: true, message: `El documento '${sheetName}' ya existe en tu Google Drive.` });
+                        }
+                        break;
+                    }
+                    case 'get_bcv_rate': {
+                        const rate = await getBCVRate();
+                        if (rate) {
+                            toolResult = JSON.stringify({ success: true, rate: rate, message: `La tasa actual del BCV es ${rate} VES por USD.` });
+                        } else {
+                            toolResult = JSON.stringify({ success: false, message: 'No se pudo obtener la tasa en este momento.' });
                         }
                         break;
                     }
