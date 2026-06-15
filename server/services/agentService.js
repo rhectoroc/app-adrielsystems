@@ -2,6 +2,8 @@ import axios from 'axios';
 import { query } from '../db.js';
 import { sendMessage } from './automationService.js';
 import * as googleService from './googleService.js';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * AI Agent Service
@@ -76,7 +78,7 @@ export const handleIncomingWebhook = async (req, res) => {
             const roleName = remoteJidAlt === ADMINS.LA_JEFA ? 'LA_JEFA' : 'EL_JEFE';
             if (messageType === 'imageMessage') {
                 const messageId = key.id;
-                await processAdminImage(remoteJid, messageId, messageText, roleName, pushName);
+                await processAdminImage(remoteJid, messageId, messageText, roleName, pushName, data);
                 return res.status(200).json({ status: 'processed', type: 'admin_image' });
             }
             await processAdminMessage(roleName, remoteJid, messageText, pushName);
@@ -87,7 +89,7 @@ export const handleIncomingWebhook = async (req, res) => {
         if (messageType === 'imageMessage') {
             // Retrieve media base64 from Evolution API and check receipt
             const messageId = key.id;
-            await processClientImage(remoteJid, messageId, pushName);
+            await processClientImage(remoteJid, messageId, pushName, data);
             return res.status(200).json({ status: 'processed', type: 'client_image' });
         }
 
@@ -218,17 +220,31 @@ REGLAS DE RESOLUCIÓN:
 /**
  * Handle Evolution API Media Message and check with Gemini Vision
  */
-const processClientImage = async (remoteJid, messageId, pushName) => {
+const processClientImage = async (remoteJid, messageId, pushName, data) => {
     try {
         console.log(`[Agent Service] Fetching media base64 for message: ${messageId}`);
         
-        // 1. Fetch base64 media from Evolution API
-        const evolutionUrl = `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${INSTANCE_NAME}/${messageId}`;
-        const response = await axios.get(evolutionUrl, {
-            headers: { 'apikey': EVOLUTION_API_KEY }
-        });
+        let base64Data = data?.message?.imageMessage?.base64 || data?.base64;
+        let mimeType = data?.message?.imageMessage?.mimetype || 'image/jpeg';
 
-        const base64Data = response.data?.base64 || response.data?.data?.base64;
+        if (!base64Data) {
+            try {
+                const evolutionUrl = `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${INSTANCE_NAME}`;
+                const response = await axios.post(evolutionUrl, { message: data }, {
+                    headers: { 'apikey': EVOLUTION_API_KEY, 'Content-Type': 'application/json' }
+                });
+                base64Data = response.data?.base64 || response.data?.data?.base64;
+                mimeType = response.data?.mimeType || 'image/jpeg';
+            } catch (postErr) {
+                const evolutionUrlV1 = `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${INSTANCE_NAME}/${messageId}`;
+                const response = await axios.get(evolutionUrlV1, {
+                    headers: { 'apikey': EVOLUTION_API_KEY }
+                });
+                base64Data = response.data?.base64 || response.data?.data?.base64;
+                mimeType = response.data?.mimeType || 'image/jpeg';
+            }
+        }
+
         if (!base64Data) {
             throw new Error('Could not retrieve base64 data for the image message');
         }
@@ -327,17 +343,31 @@ ${process.env.APP_URL || 'http://localhost:3000'}/api/payments/approve/${approva
 /**
  * Handle Admin Image Messages by using Gemini Vision API and feeding result to Agent Reasoning
  */
-const processAdminImage = async (remoteJid, messageId, captionText, roleName, pushName) => {
+const processAdminImage = async (remoteJid, messageId, captionText, roleName, pushName, data) => {
     try {
         console.log(`[Agent Service] Fetching admin media base64 for message: ${messageId}`);
         
-        // 1. Fetch base64 media from Evolution API
-        const evolutionUrl = `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${INSTANCE_NAME}/${messageId}`;
-        const response = await axios.get(evolutionUrl, {
-            headers: { 'apikey': EVOLUTION_API_KEY }
-        });
+        let base64Data = data?.message?.imageMessage?.base64 || data?.base64;
+        let mimeType = data?.message?.imageMessage?.mimetype || 'image/jpeg';
 
-        const base64Data = response.data?.base64 || response.data?.data?.base64;
+        if (!base64Data) {
+            try {
+                const evolutionUrl = `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${INSTANCE_NAME}`;
+                const response = await axios.post(evolutionUrl, { message: data }, {
+                    headers: { 'apikey': EVOLUTION_API_KEY, 'Content-Type': 'application/json' }
+                });
+                base64Data = response.data?.base64 || response.data?.data?.base64;
+                mimeType = response.data?.mimeType || 'image/jpeg';
+            } catch (postErr) {
+                const evolutionUrlV1 = `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${INSTANCE_NAME}/${messageId}`;
+                const response = await axios.get(evolutionUrlV1, {
+                    headers: { 'apikey': EVOLUTION_API_KEY }
+                });
+                base64Data = response.data?.base64 || response.data?.data?.base64;
+                mimeType = response.data?.mimeType || 'image/jpeg';
+            }
+        }
+
         if (!base64Data) {
             throw new Error('Could not retrieve base64 data for the image message');
         }
@@ -383,6 +413,29 @@ const processAdminImage = async (remoteJid, messageId, captionText, roleName, pu
         const captionInst = captionText.trim() ? `Instrucciones del Jefe: "${captionText}"` : "El Jefe no dejó instrucciones de texto. Pregúntale qué desea hacer con este comprobante.";
         const injectedMessage = `${captionInst}\n\n[SISTEMA - ANÁLISIS DE LA IMAGEN ENVIADA POR EL JEFE]:\nHe extraído los siguientes datos visuales de la imagen adjunta:\n${analysisText}\n\nPor favor, atiende la solicitud del Jefe usando los datos extraídos. Si es el pago de un cliente, búscalo y regístralo. Si es un gasto o ingreso para el control financiero, usa 'log_multiple_transactions' con los montos extraídos.`;
         
+        // --- GUARDAR IMAGEN EN EL SERVIDOR ---
+        try {
+            const uploadRoot = process.platform === 'win32' ? path.join(process.cwd(), 'data') : '/data';
+            const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            const currentMonthName = meses[new Date().getMonth()];
+            const uploadDir = path.join(uploadRoot, 'capref', 'Financiera', currentMonthName);
+            
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
+
+            const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+            const filename = `financiera_${Date.now()}_${Math.round(Math.random() * 1E9)}.${ext}`;
+            const filePath = path.join(uploadDir, filename);
+
+            const buffer = Buffer.from(base64Data, 'base64');
+            fs.writeFileSync(filePath, buffer);
+            console.log(`[Agent Service] Admin image saved successfully at: ${filePath}`);
+        } catch (fsErr) {
+            console.error('[Agent Service] Could not save admin image to filesystem:', fsErr.message);
+        }
+        // -------------------------------------
+
         await processAdminMessage(roleName, remoteJid, injectedMessage, pushName);
     } catch (error) {
         console.error('[Agent Service] Error processing admin media message:', error.message);
