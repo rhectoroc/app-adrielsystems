@@ -434,8 +434,12 @@ const processAdminImage = async (remoteJid, messageId, captionText, roleName, pu
 
         await processAdminMessage(roleName, remoteJid, injectedMessage, pushName);
     } catch (error) {
+        let errDetails = error.message;
+        if (error.response) {
+            errDetails = `${error.response.status} at ${error.config.url}`;
+        }
         console.error('[Agent Service] Error processing admin media message:', error.message);
-        await sendMessage(remoteJid, `Jefe, recibí su imagen pero falló el procesamiento. Error interno: ${error.message}`);
+        await sendMessage(remoteJid, `Jefe, recibí su imagen pero falló el procesamiento. Error interno: ${errDetails}`);
     }
 };
 
