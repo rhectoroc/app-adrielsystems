@@ -503,13 +503,60 @@ export const createSpreadsheet = async (profileKey, title) => {
         console.log(`[Google Service] [${profileKey}] Spreadsheet created: ${title} (${spreadsheetId})`);
         
         // Add headers to the new sheet
-        await appendSheetRow(profileKey, spreadsheetId, 'Sheet1', [
+        await appendSheetRow(profileKey, spreadsheetId, 'A1', [
             ['FECHA', 'CONCEPTO', 'ENTRADA', 'SALIDA', 'SALDO', 'TASA', 'DOLARES']
         ]);
 
         return spreadsheetId;
     } catch (error) {
         console.error(`[Google Service] [${profileKey}] Error creating spreadsheet:`, error);
+        throw error;
+    }
+};
+
+export const getSpreadsheetSheets = async (profileKey, spreadsheetId) => {
+    const auth = await getAuthForProfile(profileKey);
+    if (!auth) {
+        console.log(`[Google Service] [${profileKey}] Get Spreadsheet Sheets Simulated.`);
+        return [{ properties: { title: 'Sheet1' } }];
+    }
+
+    try {
+        const sheets = google.sheets({ version: 'v4', auth });
+        const response = await sheets.spreadsheets.get({
+            spreadsheetId,
+            fields: 'sheets.properties.title'
+        });
+        return response.data.sheets || [];
+    } catch (error) {
+        console.error(`[Google Service] [${profileKey}] Error getting sheets:`, error);
+        return [];
+    }
+};
+
+export const addSheet = async (profileKey, spreadsheetId, title) => {
+    const auth = await getAuthForProfile(profileKey);
+    if (!auth) {
+        console.log(`[Google Service] [${profileKey}] Add Sheet Simulated: ${title}`);
+        return true;
+    }
+
+    try {
+        const sheets = google.sheets({ version: 'v4', auth });
+        await sheets.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+                requests: [{
+                    addSheet: {
+                        properties: { title }
+                    }
+                }]
+            }
+        });
+        console.log(`[Google Service] [${profileKey}] Sheet added: ${title}`);
+        return true;
+    } catch (error) {
+        console.error(`[Google Service] [${profileKey}] Error adding sheet:`, error);
         throw error;
     }
 };

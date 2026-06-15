@@ -718,14 +718,61 @@ MENSAJE DEL USUARIO:
                             spreadsheetId = await googleService.createSpreadsheet(profileKey, sheetName);
                         }
 
-                        // Get Last Row to calculate balance
-                        const sheetData = await googleService.getSheetData(profileKey, spreadsheetId, 'Sheet1!A:G');
+                        // Determine Month Names
+                        const now = new Date();
+                        const currentMonthName = now.toLocaleDateString('es-VE', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
+                        
+                        const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                        const previousMonthName = lastMonthDate.toLocaleDateString('es-VE', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
+
+                        // Check if current month sheet exists
+                        const sheets = await googleService.getSpreadsheetSheets(profileKey, spreadsheetId);
+                        const sheetExists = sheets.some(s => s.properties.title === currentMonthName);
+
                         let currentSaldo = 0.0;
-                        if (sheetData && sheetData.length > 1) {
-                            const lastRow = sheetData[sheetData.length - 1];
-                            const lastSaldoStr = lastRow[4] ? lastRow[4].replace(/\./g, '').replace(',', '.') : '0';
-                            const parsedSaldo = parseFloat(lastSaldoStr);
-                            if (!isNaN(parsedSaldo)) currentSaldo = parsedSaldo;
+
+                        if (!sheetExists) {
+                            // Fetch balance from previous month
+                            const prevSheetData = await googleService.getSheetData(profileKey, spreadsheetId, `'${previousMonthName}'!A:G`);
+                            if (prevSheetData && prevSheetData.length > 1) {
+                                const lastRow = prevSheetData[prevSheetData.length - 1];
+                                const lastSaldoStr = lastRow[4] ? lastRow[4].replace(/\./g, '').replace(',', '.') : '0';
+                                const parsedSaldo = parseFloat(lastSaldoStr);
+                                if (!isNaN(parsedSaldo)) currentSaldo = parsedSaldo;
+                            }
+
+                            // Create new sheet
+                            await googleService.addSheet(profileKey, spreadsheetId, currentMonthName);
+                            // Add headers
+                            await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, [
+                                ['FECHA', 'CONCEPTO', 'ENTRADA', 'SALIDA', 'SALDO', 'TASA', 'DOLARES']
+                            ]);
+
+                            // Add initial balance row if there is a balance
+                            if (currentSaldo !== 0) {
+                                const initialSaldoStr = currentSaldo.toFixed(2).replace('.', ',');
+                                const initialDolaresStr = (currentSaldo / rate).toFixed(2).replace('.', ',');
+                                const initialTasaStr = rate.toFixed(2).replace('.', ',');
+                                const initialDateStr = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
+                                await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, [[
+                                    initialDateStr,
+                                    'Saldo del mes anterior',
+                                    '',
+                                    '',
+                                    initialSaldoStr,
+                                    initialTasaStr,
+                                    initialDolaresStr
+                                ]]);
+                            }
+                        } else {
+                            // Get Last Row of CURRENT month to calculate balance
+                            const sheetData = await googleService.getSheetData(profileKey, spreadsheetId, `'${currentMonthName}'!A:G`);
+                            if (sheetData && sheetData.length > 1) {
+                                const lastRow = sheetData[sheetData.length - 1];
+                                const lastSaldoStr = lastRow[4] ? lastRow[4].replace(/\./g, '').replace(',', '.') : '0';
+                                const parsedSaldo = parseFloat(lastSaldoStr);
+                                if (!isNaN(parsedSaldo)) currentSaldo = parsedSaldo;
+                            }
                         }
 
                         // Calculate Math
@@ -755,7 +802,7 @@ MENSAJE DEL USUARIO:
 
                         // Append Row
                         const dateStr = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
-                        await googleService.appendSheetRow(profileKey, spreadsheetId, 'Sheet1', [[
+                        await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, [[
                             dateStr,
                             concept,
                             entrada,
@@ -765,7 +812,7 @@ MENSAJE DEL USUARIO:
                             dolaresStr
                         ]]);
 
-                        toolResult = JSON.stringify({ success: true, message: `Transacción registrada exitosamente en Google Sheets. Nuevo Saldo: ${saldoStr} VES. Tasa BCV usada: ${tasaStr}.` });
+                        toolResult = JSON.stringify({ success: true, message: `Transacción registrada exitosamente en la pestaña '${currentMonthName}'. Nuevo Saldo: ${saldoStr} VES. Tasa BCV usada: ${tasaStr}.` });
                         break;
                     }
                     default:
