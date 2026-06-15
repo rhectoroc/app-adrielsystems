@@ -515,6 +515,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - search_client_by_name(name) (Úsala para buscar clientes por su nombre cuando no tengas su número de teléfono)
 - register_client_payment(clientId, amount, currency, reference, notes) (Úsala para registrar un pago verificado de un cliente, renovar su servicio y notificarle automáticamente por WhatsApp y Correo Electrónico)
 - send_whatsapp(phone, message) (Úsala para enviar un mensaje directo de WhatsApp a un cliente o número. Ej: recordatorios de pago, notificaciones personalizadas o cualquier mensaje que el Jefe o Jefa te solicite enviar por WhatsApp)
+- log_transaction(type, concept, amount, currency) (Úsala para registrar entradas y salidas de dinero en el cuadro de control financiero en Google Sheets. type debe ser 'ENTRADA' o 'SALIDA'. currency debe ser 'VES' o 'USD')
 
 3. INSTRUCCIONES DE RESPUESTA EN FORMATO JSON (CRÍTICO)
 Debes responder SIEMPRE con un objeto JSON válido con los siguientes campos:
@@ -674,6 +675,77 @@ MENSAJE DEL USUARIO:
                         await query(updateQuery, vals);
                         toolResult = 'Cliente actualizado con éxito en Base de Datos.';
                         break;
+                    case 'log_transaction': {
+                        const { type, concept, amount, currency } = parsed.parameters;
+                        if (!type || !concept || !amount || !currency) {
+                            toolResult = JSON.stringify({ success: false, message: 'Faltan parámetros: type, concept, amount, currency' });
+                            break;
+                        }
+
+                        // Get BCV Rate
+                        const rate = await getBCVRate();
+                        if (!rate) {
+                            toolResult = JSON.stringify({ success: false, message: 'No se pudo obtener la tasa BCV actual. Intenta más tarde.' });
+                            break;
+                        }
+
+                        // Find or Create Spreadsheet
+                        const sheetName = 'Registro Financiero EVA';
+                        let spreadsheetId = await googleService.findSpreadsheetByName(profileKey, sheetName);
+                        if (!spreadsheetId) {
+                            spreadsheetId = await googleService.createSpreadsheet(profileKey, sheetName);
+                        }
+
+                        // Get Last Row to calculate balance
+                        const sheetData = await googleService.getSheetData(profileKey, spreadsheetId, 'Sheet1!A:G');
+                        let currentSaldo = 0.0;
+                        if (sheetData && sheetData.length > 1) {
+                            const lastRow = sheetData[sheetData.length - 1];
+                            const lastSaldoStr = lastRow[4] ? lastRow[4].replace(/\./g, '').replace(',', '.') : '0';
+                            const parsedSaldo = parseFloat(lastSaldoStr);
+                            if (!isNaN(parsedSaldo)) currentSaldo = parsedSaldo;
+                        }
+
+                        // Calculate Math
+                        const parsedAmount = parseFloat(amount);
+                        let entrada = '';
+                        let salida = '';
+                        let dolares = 0.0;
+
+                        let amountVES = parsedAmount;
+                        if (currency.toUpperCase() === 'USD') {
+                            amountVES = parsedAmount * rate;
+                        }
+                        
+                        if (type.toUpperCase() === 'ENTRADA') {
+                            entrada = amountVES.toFixed(2).replace('.', ',');
+                            currentSaldo += amountVES;
+                            dolares = amountVES / rate;
+                        } else {
+                            salida = amountVES.toFixed(2).replace('.', ',');
+                            currentSaldo -= amountVES;
+                            dolares = amountVES / rate;
+                        }
+
+                        const saldoStr = currentSaldo.toFixed(2).replace('.', ',');
+                        const tasaStr = rate.toFixed(2).replace('.', ',');
+                        const dolaresStr = dolares.toFixed(2).replace('.', ',');
+
+                        // Append Row
+                        const dateStr = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
+                        await googleService.appendSheetRow(profileKey, spreadsheetId, 'Sheet1', [[
+                            dateStr,
+                            concept,
+                            entrada,
+                            salida,
+                            saldoStr,
+                            tasaStr,
+                            dolaresStr
+                        ]]);
+
+                        toolResult = JSON.stringify({ success: true, message: `Transacción registrada exitosamente en Google Sheets. Nuevo Saldo: ${saldoStr} VES. Tasa BCV usada: ${tasaStr}.` });
+                        break;
+                    }
                     default:
                         toolResult = 'Error: Herramienta no reconocida.';
                 }
@@ -1171,5 +1243,21 @@ export const registerEvolutionWebhook = async () => {
         console.log('[Agent Service] Webhook registration response:', response.data);
     } catch (error) {
         console.error('[Agent Service] Failed to register webhook in Evolution API:', error.response?.data || error.message);
+    }
+};
+
+/**
+ * Fetch Current BCV Exchange Rate
+ */
+export const getBCVRate = async () => {
+    try {
+        const res = await axios.get('https://pydolarvenezuela-api.vercel.app/api/v1/dollar?page=bcv');
+        if (res.data && res.data.monitors && res.data.monitors.usd) {
+            return parseFloat(res.data.monitors.usd.price);
+        }
+        return null;
+    } catch (err) {
+        console.error('[Agent Service] Error getting BCV rate:', err.message);
+        return null;
     }
 };

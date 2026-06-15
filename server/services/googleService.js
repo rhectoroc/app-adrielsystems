@@ -73,7 +73,9 @@ export const getAuthForProfile = async (profileKey = 'SYSTEM') => {
                     'https://www.googleapis.com/auth/calendar',
                     'https://www.googleapis.com/auth/tasks',
                     'https://www.googleapis.com/auth/gmail.modify',
-                    'https://www.googleapis.com/auth/gmail.send'
+                    'https://www.googleapis.com/auth/gmail.send',
+                    'https://www.googleapis.com/auth/spreadsheets',
+                    'https://www.googleapis.com/auth/drive'
                 ]
             );
             return jwtClient;
@@ -448,3 +450,112 @@ export const sendEmail = async (profileKey, to, subject, messageBody) => {
         throw error;
     }
 };
+
+// ==========================================
+// 4. Google Sheets & Drive Operations
+// ==========================================
+
+export const findSpreadsheetByName = async (profileKey, name) => {
+    const auth = await getAuthForProfile(profileKey);
+    if (!auth) {
+        console.log(`[Google Service] [${profileKey}] Find Spreadsheet Simulated for: ${name}`);
+        return null;
+    }
+
+    try {
+        const drive = google.drive({ version: 'v3', auth });
+        const response = await drive.files.list({
+            q: `mimeType='application/vnd.google-apps.spreadsheet' and name='${name}' and trashed=false`,
+            fields: 'files(id, name)',
+            spaces: 'drive',
+            pageSize: 1
+        });
+
+        const files = response.data.files;
+        if (files && files.length > 0) {
+            return files[0].id;
+        }
+        return null;
+    } catch (error) {
+        console.error(`[Google Service] [${profileKey}] Error finding spreadsheet:`, error);
+        throw error;
+    }
+};
+
+export const createSpreadsheet = async (profileKey, title) => {
+    const auth = await getAuthForProfile(profileKey);
+    if (!auth) {
+        console.log(`[Google Service] [${profileKey}] Create Spreadsheet Simulated: ${title}`);
+        return 'mock-spreadsheet-id';
+    }
+
+    try {
+        const sheets = google.sheets({ version: 'v4', auth });
+        const resource = {
+            properties: { title }
+        };
+        const response = await sheets.spreadsheets.create({
+            resource,
+            fields: 'spreadsheetId'
+        });
+
+        const spreadsheetId = response.data.spreadsheetId;
+        console.log(`[Google Service] [${profileKey}] Spreadsheet created: ${title} (${spreadsheetId})`);
+        
+        // Add headers to the new sheet
+        await appendSheetRow(profileKey, spreadsheetId, 'Sheet1', [
+            ['FECHA', 'CONCEPTO', 'ENTRADA', 'SALIDA', 'SALDO', 'TASA', 'DOLARES']
+        ]);
+
+        return spreadsheetId;
+    } catch (error) {
+        console.error(`[Google Service] [${profileKey}] Error creating spreadsheet:`, error);
+        throw error;
+    }
+};
+
+export const getSheetData = async (profileKey, spreadsheetId, range) => {
+    const auth = await getAuthForProfile(profileKey);
+    if (!auth) {
+        console.log(`[Google Service] [${profileKey}] Get Sheet Data Simulated.`);
+        return [];
+    }
+
+    try {
+        const sheets = google.sheets({ version: 'v4', auth });
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range
+        });
+        return response.data.values || [];
+    } catch (error) {
+        console.error(`[Google Service] [${profileKey}] Error reading sheet:`, error);
+        return [];
+    }
+};
+
+export const appendSheetRow = async (profileKey, spreadsheetId, range, values) => {
+    const auth = await getAuthForProfile(profileKey);
+    if (!auth) {
+        console.log(`[Google Service] [${profileKey}] Append Sheet Row Simulated:`, values);
+        return { updates: { updatedRows: 1 } };
+    }
+
+    try {
+        const sheets = google.sheets({ version: 'v4', auth });
+        const resource = { values };
+        const response = await sheets.spreadsheets.values.append({
+            spreadsheetId,
+            range,
+            valueInputOption: 'USER_ENTERED',
+            insertDataOption: 'INSERT_ROWS',
+            resource
+        });
+        console.log(`[Google Service] [${profileKey}] Appended row to sheet.`);
+        return response.data;
+    } catch (error) {
+        console.error(`[Google Service] [${profileKey}] Error appending to sheet:`, error);
+        throw error;
+    }
+};
+
