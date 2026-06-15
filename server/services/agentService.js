@@ -320,7 +320,7 @@ ${process.env.APP_URL || 'http://localhost:3000'}/api/payments/approve/${approva
 
     } catch (error) {
         console.error('[Agent Service] Error processing media message:', error.message);
-        await sendMessage(remoteJid, 'Lo siento, no pude procesar la imagen enviada. Por favor envíala de nuevo o comunícate con soporte.');
+        await sendMessage(remoteJid, `Lo siento, no pude procesar la imagen enviada. Error interno: ${error.message}. Por favor comunícate con soporte.`);
     }
 };
 
@@ -386,7 +386,7 @@ const processAdminImage = async (remoteJid, messageId, captionText, roleName, pu
         await processAdminMessage(roleName, remoteJid, injectedMessage, pushName);
     } catch (error) {
         console.error('[Agent Service] Error processing admin media message:', error.message);
-        await sendMessage(remoteJid, 'Jefe, recibí su imagen pero no pude procesarla con la API de visión. Por favor verifique que la imagen sea nítida o intente enviarla de nuevo.');
+        await sendMessage(remoteJid, `Jefe, recibí su imagen pero falló el procesamiento. Error interno: ${error.message}`);
     }
 };
 
