@@ -1,3 +1,27 @@
+# Avance de Desarrollo — 15 de Junio 2026
+
+## Sesión: Generalización de Procesamiento Visual, Automatización de Google Sheets y Fixes Críticos
+
+En esta sesión se amplió la capacidad de la asistente virtual EVA para procesar cualquier tipo de comprobante financiero (no solo pagos de clientes) y se resolvieron bugs críticos relacionados con integraciones de APIs de terceros y permisos de Google.
+
+### 📸 Expansión de Procesamiento de Imágenes (Control Financiero)
+- **Prompt Generalizado en Gemini:** Se modificó `processAdminImage` para que EVA interprete imágenes no solo como pagos de clientes, sino también como gastos o comprobantes financieros arbitrarios enviados por el Administrador. 
+- **Conexión Directa a Herramientas Financieras:** EVA ahora analiza si la imagen representa un ingreso/gasto interno y la canaliza automáticamente hacia la herramienta `log_multiple_transactions` si se detecta como tal.
+- **Respaldo Físico de Imágenes:** Se implementó lógica en `agentService.js` para que cada vez que el Administrador envíe una imagen, esta se guarde automáticamente en el disco local (`/data/capref/Financiera/{MesActual}`) antes de ser enviada a la API de Inteligencia Artificial, manteniendo un respaldo estructurado y ordenado.
+
+### 🐛 Resolución de Bugs de Conectividad (APIs Externas)
+- **Corrección de Endpoints Evolution API:** Se diagnosticó un error 404 al intentar descargar las imágenes en base64. Se definió como solución definitiva que el Administrador active la opción `webhookBase64: true` en su instancia de Evolution API v2 para que los webhooks incluyan las imágenes empaquetadas, eludiendo rutas deprecadas.
+- **Reversión de Modelo Gemini:** Se revirtió un intento fallido de migrar el modelo visual a `gemini-1.5-flash` (modelo deprecado que arrojaba error 404) regresando al modelo moderno y robusto original `gemini-2.5-flash`.
+- **Manejo de SyntaxError:** Se solucionó una caída del servidor (`SyntaxError: Identifier 'mimeType' has already been declared`) limpiando declaraciones redundantes que quedaron de refactorizaciones previas.
+- **Log de URLs de Error:** Se inyectó código al bloque de `catch` de `axios` en `agentService.js` para que EVA responda en WhatsApp con el `status` exacto y la `url` específica que causó un error HTTP, facilitando el diagnóstico rápido (ej. `503 Service Unavailable`).
+
+### 📊 Automatización Robusta de Cálculos en Google Sheets
+- **Fórmulas Matriciales (`ARRAYFORMULA`):** Se modificó la creación de pestañas mensuales (`log_multiple_transactions`) para inyectar Fórmulas Matriciales dinámicas directamente en los títulos de las columnas SALDO (`E1`) y DÓLARES (`G1`). Esto asegura que cuando el usuario escriba transacciones *manualmente*, los saldos continuos (`SUMIF`) y las tasas se calculen mágicamente hacia el infinito sin necesidad de arrastrar fórmulas.
+- **Resolución de "Simulation Mode" Fantasma:** Se diagnosticó y reparó un "bug" crítico donde el Administrador principal (`JEFE`) estaba operando silenciosamente en Modo Simulación debido a la ausencia de un `GOOGLE_REFRESH_TOKEN_JEFE`.
+- **Fallback Automático de Tokens:** Se modificó `getAuthForProfile` en `googleService.js` para que, si el token de un perfil específico (como el JEFE) no se encuentra, haga un "fallback" automático al token maestro del sistema (`REFRESH_TOKENS['SYSTEM']`). Esto garantiza que los gastos dictados por el Administrador ahora sí se escriban permanentemente en el documento real de Google Sheets.
+
+---
+
 # Avance de Desarrollo — 22 de Mayo 2026
 
 ## Sesión: Reglas de Cobranza, Horarios de Notificación y Comprobantes Automatizados

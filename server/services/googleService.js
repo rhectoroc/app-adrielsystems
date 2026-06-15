@@ -46,7 +46,7 @@ export const getAuthForProfile = async (profileKey = 'SYSTEM') => {
     const key = profileKey.toUpperCase();
 
     // 1. Try OAuth2 Refresh Token (Best for personal @gmail.com accounts)
-    const token = REFRESH_TOKENS[key];
+    const token = REFRESH_TOKENS[key] || REFRESH_TOKENS['SYSTEM'];
     if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && token) {
         try {
             const oauth2Client = new google.auth.OAuth2(

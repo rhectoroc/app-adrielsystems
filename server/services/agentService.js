@@ -799,9 +799,9 @@ MENSAJE DEL USUARIO:
 
                             // Create new sheet
                             await googleService.addSheet(profileKey, spreadsheetId, currentMonthName);
-                            // Add headers
+                            // Add headers with ARRAYFORMULAS
                             await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, [
-                                ['FECHA', 'CONCEPTO', 'ENTRADA', 'SALIDA', 'SALDO', 'TASA', 'DOLARES']
+                                ['FECHA', 'CONCEPTO', 'ENTRADA', 'SALIDA', '={"SALDO"; ARRAYFORMULA(IF(C2:C&D2:D="", "", SUMIF(ROW(C2:C), "<="&ROW(C2:C), C2:C) - SUMIF(ROW(D2:D), "<="&ROW(D2:D), D2:D)))}', 'TASA', '={"DOLARES"; ARRAYFORMULA(IF(E2:E&F2:F="", "", IF(F2:F>0, E2:E/F2:F, "")))}']
                             ]);
 
                             // Add initial balance row if there is a balance
@@ -812,9 +812,9 @@ MENSAJE DEL USUARIO:
                                     'Saldo del mes anterior',
                                     currentSaldo > 0 ? currentSaldo : 0,
                                     currentSaldo < 0 ? Math.abs(currentSaldo) : 0,
-                                    `=C2-D2`,
+                                    '',
                                     rate,
-                                    `=IF(F2>0, E2/F2, 0)`
+                                    ''
                                 ]]);
                                 nextRowIndex = 3;
                             }
@@ -860,24 +860,14 @@ MENSAJE DEL USUARIO:
                             const rowIdx = nextRowIndex++;
                             const prevRowIdx = rowIdx - 1;
 
-                            let saldoFormula = '';
-                            if (prevRowIdx === 1) { // First data row
-                                saldoFormula = `=C${rowIdx}-D${rowIdx}`;
-                            } else {
-                                saldoFormula = `=E${prevRowIdx}+C${rowIdx}-D${rowIdx}`;
-                            }
-
-                            const dolaresFormula = `=IF(F${rowIdx}>0, E${rowIdx}/F${rowIdx}, 0)`;
-                            const dateStr = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
-
                             rowsToAppend.push([
                                 dateStr,
                                 concept,
                                 entrada === 0 ? '' : entrada,
                                 salida === 0 ? '' : salida,
-                                saldoFormula,
+                                '', // SALDO calculated by ArrayFormula in header
                                 rate,
-                                dolaresFormula
+                                ''  // DOLARES calculated by ArrayFormula in header
                             ]);
                         }
 
