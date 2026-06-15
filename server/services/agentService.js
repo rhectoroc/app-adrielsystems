@@ -249,8 +249,6 @@ const processClientImage = async (remoteJid, messageId, pushName, data) => {
             throw new Error('Could not retrieve base64 data for the image message');
         }
 
-        const mimeType = response.data?.mimeType || 'image/jpeg';
-
         console.log('[Agent Service] Sending image to Gemini Vision API for payment verification...');
         
         // 2. Query Gemini API
@@ -371,8 +369,6 @@ const processAdminImage = async (remoteJid, messageId, captionText, roleName, pu
         if (!base64Data) {
             throw new Error('Could not retrieve base64 data for the image message');
         }
-
-        const mimeType = response.data?.mimeType || 'image/jpeg';
 
         console.log('[Agent Service] Sending admin image to Gemini Vision API...');
         
