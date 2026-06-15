@@ -515,6 +515,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - search_client_by_name(name) (Úsala para buscar clientes por su nombre cuando no tengas su número de teléfono)
 - register_client_payment(clientId, amount, currency, reference, notes) (Úsala para registrar un pago verificado de un cliente, renovar su servicio y notificarle automáticamente por WhatsApp y Correo Electrónico)
 - send_whatsapp(phone, message) (Úsala para enviar un mensaje directo de WhatsApp a un cliente o número. Ej: recordatorios de pago, notificaciones personalizadas o cualquier mensaje que el Jefe o Jefa te solicite enviar por WhatsApp)
+- create_financial_sheet() (Úsala si el Jefe te pide explícitamente crear o inicializar el documento de Excel/Sheets para llevar los registros financieros desde cero)
 - log_transaction(type, concept, amount, currency) (Úsala para registrar entradas y salidas de dinero en el cuadro de control financiero en Google Sheets. type debe ser 'ENTRADA' o 'SALIDA'. currency debe ser 'VES' o 'USD'. NOTA: Si el documento no existe, el sistema lo creará automáticamente por ti la primera vez que registres algo. ¡No digas que no puedes crearlo!)
 
 3. INSTRUCCIONES DE RESPUESTA EN FORMATO JSON (CRÍTICO)
@@ -675,6 +676,17 @@ MENSAJE DEL USUARIO:
                         await query(updateQuery, vals);
                         toolResult = 'Cliente actualizado con éxito en Base de Datos.';
                         break;
+                    case 'create_financial_sheet': {
+                        const sheetName = 'Registro Financiero EVA';
+                        let spreadsheetId = await googleService.findSpreadsheetByName(profileKey, sheetName);
+                        if (!spreadsheetId) {
+                            spreadsheetId = await googleService.createSpreadsheet(profileKey, sheetName);
+                            toolResult = JSON.stringify({ success: true, message: `Documento '${sheetName}' creado exitosamente en tu Google Drive.` });
+                        } else {
+                            toolResult = JSON.stringify({ success: true, message: `El documento '${sheetName}' ya existe en tu Google Drive.` });
+                        }
+                        break;
+                    }
                     case 'log_transaction': {
                         const { type, concept, amount, currency } = parsed.parameters;
                         if (!type || !concept || !amount || !currency) {
