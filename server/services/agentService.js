@@ -252,7 +252,7 @@ const processClientImage = async (remoteJid, messageId, pushName, data) => {
         console.log('[Agent Service] Sending image to Gemini Vision API for payment verification...');
         
         // 2. Query Gemini API
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
         const prompt = `Eres un asistente estricto de extracción de datos. Tu único trabajo es leer imágenes de comprobantes de pago, transferencias bancarias o recibos (Zelle, Pago Móvil, Banesco, BDV, Binance, etc.) y extraer su información textual.
 
 REGLA CRÍTICA: NO juzgues la autenticidad, la fecha ni el estatus del pago. NO importa si la fecha es pasada/futura, si dice "en proceso", o si sospechas que la imagen está alterada. Si la imagen tiene la estructura visual de un pago o transferencia, asume que es un pago y extrae los datos obligatoriamente.
@@ -373,7 +373,7 @@ const processAdminImage = async (remoteJid, messageId, captionText, roleName, pu
         console.log('[Agent Service] Sending admin image to Gemini Vision API...');
         
         // 2. Query Gemini API
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
         const prompt = `Eres un asistente estricto de extracción de datos de comprobantes de pago financieros. Tu único trabajo es leer la imagen y extraer la información clave en formato de lista (sin saludos, sin justificaciones y sin texto extra):
 * Tipo de pago: [Ej: Pago Móvil BDV, Transferencia Banesco, Zelle, etc.]
 * Monto: [Cantidad exacta, ej: 50]
@@ -1249,7 +1249,7 @@ const callLLM = async (systemPrompt, messages) => {
     // If Gemini key exists, default to Gemini (flash) for fast & free/low cost
     if (GEMINI_API_KEY && GEMINI_API_KEY.trim() !== '') {
         try {
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
             
             // Format messages for Gemini API
             const contents = [
@@ -1311,7 +1311,7 @@ const callLLM = async (systemPrompt, messages) => {
 const callLLMJSON = async (prompt) => {
     if (GEMINI_API_KEY && GEMINI_API_KEY.trim() !== '') {
         try {
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
