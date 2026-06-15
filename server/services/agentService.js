@@ -380,7 +380,8 @@ const processAdminImage = async (remoteJid, messageId, captionText, roleName, pu
         console.log('[Agent Service] Admin Gemini Analysis Result:\n', analysisText);
 
         // Now, append this analysis to the reasoning cycle of processAdminMessage
-        const injectedMessage = `${captionText}\n\n[SISTEMA - ANÁLISIS DE LA IMAGEN ENVIADA POR EL JEFE]:\nHe detectado que me enviaste una imagen de comprobante. Estos son los datos que extraje de ella visualmente:\n${analysisText}\n\nPor favor, procede a usar tus herramientas para buscar al cliente mencionado y registrar este pago si lo deseas.`;
+        const captionInst = captionText.trim() ? `Instrucciones del Jefe: "${captionText}"` : "El Jefe no dejó instrucciones de texto. Pregúntale qué desea hacer con este comprobante.";
+        const injectedMessage = `${captionInst}\n\n[SISTEMA - ANÁLISIS DE LA IMAGEN ENVIADA POR EL JEFE]:\nHe extraído los siguientes datos visuales de la imagen adjunta:\n${analysisText}\n\nPor favor, atiende la solicitud del Jefe usando los datos extraídos. Si es el pago de un cliente, búscalo y regístralo. Si es un gasto o ingreso para el control financiero, usa 'log_multiple_transactions' con los montos extraídos.`;
         
         await processAdminMessage(roleName, remoteJid, injectedMessage, pushName);
     } catch (error) {
@@ -731,6 +732,7 @@ MENSAJE DEL USUARIO:
 
                         let currentSaldo = 0.0;
                         const rowsToAppend = [];
+                        let nextRowIndex = 2; // Default to row 2 for the first transaction if no initial balance
 
                         if (!sheetExists) {
                             // Fetch balance from previous month
@@ -751,27 +753,29 @@ MENSAJE DEL USUARIO:
 
                             // Add initial balance row if there is a balance
                             if (currentSaldo !== 0) {
-                                const initialSaldoStr = currentSaldo.toFixed(2).replace('.', ',');
-                                const initialDolaresStr = (currentSaldo / rate).toFixed(2).replace('.', ',');
-                                const initialTasaStr = rate.toFixed(2).replace('.', ',');
                                 const initialDateStr = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
                                 await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, [[
                                     initialDateStr,
                                     'Saldo del mes anterior',
-                                    '',
-                                    '',
-                                    initialSaldoStr,
-                                    initialTasaStr,
-                                    initialDolaresStr
+                                    currentSaldo > 0 ? currentSaldo : 0,
+                                    currentSaldo < 0 ? Math.abs(currentSaldo) : 0,
+                                    `=C2-D2`,
+                                    rate,
+                                    `=IF(F2>0, E2/F2, 0)`
                                 ]]);
+                                nextRowIndex = 3;
                             }
                         } else {
                             // Get Last Row of CURRENT month to calculate balance
                             const sheetData = await googleService.getSheetData(profileKey, spreadsheetId, `'${currentMonthName}'!A:G`);
+                            if (sheetData && sheetData.length > 0) {
+                                nextRowIndex = sheetData.length + 1;
+                            }
+                            
                             if (sheetData && sheetData.length > 1) {
                                 const lastRow = sheetData[sheetData.length - 1];
-                                const lastSaldoStr = lastRow[4] ? lastRow[4].replace(/\./g, '').replace(',', '.') : '0';
-                                const parsedSaldo = parseFloat(lastSaldoStr);
+                                const lastSaldoStr = lastRow[4] && typeof lastRow[4] === 'string' ? lastRow[4].replace(/\./g, '').replace(',', '.') : lastRow[4];
+                                const parsedSaldo = parseFloat(lastSaldoStr || '0');
                                 if (!isNaN(parsedSaldo)) currentSaldo = parsedSaldo;
                             }
                         }
@@ -784,8 +788,8 @@ MENSAJE DEL USUARIO:
                             const parsedAmount = parseFloat(amount);
                             if (isNaN(parsedAmount)) continue;
 
-                            let entrada = '';
-                            let salida = '';
+                            let entrada = 0;
+                            let salida = 0;
 
                             let amountVES = parsedAmount;
                             if (currency.toUpperCase() === 'USD') {
@@ -793,27 +797,34 @@ MENSAJE DEL USUARIO:
                             }
                             
                             if (type.toUpperCase() === 'ENTRADA') {
-                                entrada = amountVES.toFixed(2).replace('.', ',');
+                                entrada = amountVES;
                                 currentSaldo += amountVES;
                             } else if (type.toUpperCase() === 'SALIDA') {
-                                salida = amountVES.toFixed(2).replace('.', ',');
+                                salida = amountVES;
                                 currentSaldo -= amountVES;
                             }
 
-                            const dolares = currentSaldo / rate;
-                            const saldoStr = currentSaldo.toFixed(2).replace('.', ',');
-                            const dolaresStr = dolares.toFixed(2).replace('.', ',');
-                            const tasaStr = rate.toFixed(2).replace('.', ',');
+                            const rowIdx = nextRowIndex++;
+                            const prevRowIdx = rowIdx - 1;
+
+                            let saldoFormula = '';
+                            if (prevRowIdx === 1) { // First data row
+                                saldoFormula = `=C${rowIdx}-D${rowIdx}`;
+                            } else {
+                                saldoFormula = `=E${prevRowIdx}+C${rowIdx}-D${rowIdx}`;
+                            }
+
+                            const dolaresFormula = `=IF(F${rowIdx}>0, E${rowIdx}/F${rowIdx}, 0)`;
                             const dateStr = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
 
                             rowsToAppend.push([
                                 dateStr,
                                 concept,
-                                entrada,
-                                salida,
-                                saldoStr,
-                                tasaStr,
-                                dolaresStr
+                                entrada === 0 ? '' : entrada,
+                                salida === 0 ? '' : salida,
+                                saldoFormula,
+                                rate,
+                                dolaresFormula
                             ]);
                         }
 
