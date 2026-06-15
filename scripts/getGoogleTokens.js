@@ -24,7 +24,9 @@ const SCOPES = [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/tasks',
     'https://www.googleapis.com/auth/gmail.modify',
-    'https://www.googleapis.com/auth/gmail.send'
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive'
 ];
 
 const profiles = [
@@ -118,9 +120,9 @@ const run = async () => {
     console.log("   4. Guarda los cambios.\n");
     console.log("==========================================================================");
     
-    // Prompt to begin
-    console.log("Presiona cualquier tecla cuando hayas configurado la URI en Google Cloud...");
-    await new Promise(resolve => process.stdin.once('data', resolve));
+    // Prompt to begin removed to prevent terminal hang
+    console.log("Iniciando servidor local y abriendo el navegador en 3 segundos...");
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     const results = {};
 
