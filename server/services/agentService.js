@@ -517,7 +517,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - send_whatsapp(phone, message) (Úsala para enviar un mensaje directo de WhatsApp a un cliente o número. Ej: recordatorios de pago, notificaciones personalizadas o cualquier mensaje que el Jefe o Jefa te solicite enviar por WhatsApp)
 - create_financial_sheet() (Úsala si el Jefe te pide explícitamente crear o inicializar el documento de Excel/Sheets para llevar los registros financieros desde cero)
 - get_bcv_rate() (Úsala si el Jefe te pregunta cuál es la tasa del dólar actual del BCV)
-- log_transaction(type, concept, amount, currency) (Úsala para registrar entradas y salidas de dinero en el cuadro de control financiero en Google Sheets. type debe ser 'ENTRADA' o 'SALIDA'. currency debe ser 'VES' o 'USD'. NOTA: Si el documento no existe, el sistema lo creará automáticamente por ti la primera vez que registres algo. ¡No digas que no puedes crearlo!)
+- log_multiple_transactions(transactions) (Úsala para registrar UNA o MÚLTIPLES entradas y salidas de dinero en Google Sheets. El parámetro 'transactions' debe ser un ARREGLO de objetos JSON con la estructura [{"type": "ENTRADA" o "SALIDA", "concept": "...", "amount": número, "currency": "VES" o "USD"}]. ¡Si el usuario te da varios gastos a la vez o sumas aritméticas, SÚMALOS TÚ y agrupa todos los registros en esta única llamada! NOTA: Si el documento no existe, se creará automáticamente)
 
 3. INSTRUCCIONES DE RESPUESTA EN FORMATO JSON (CRÍTICO)
 Debes responder SIEMPRE con un objeto JSON válido con los siguientes campos:
@@ -697,10 +697,10 @@ MENSAJE DEL USUARIO:
                         }
                         break;
                     }
-                    case 'log_transaction': {
-                        const { type, concept, amount, currency } = parsed.parameters;
-                        if (!type || !concept || !amount || !currency) {
-                            toolResult = JSON.stringify({ success: false, message: 'Faltan parámetros: type, concept, amount, currency' });
+                    case 'log_multiple_transactions': {
+                        const { transactions } = parsed.parameters;
+                        if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+                            toolResult = JSON.stringify({ success: false, message: 'Faltan transacciones o el formato no es un arreglo.' });
                             break;
                         }
 
@@ -730,6 +730,7 @@ MENSAJE DEL USUARIO:
                         const sheetExists = sheets.some(s => s.properties.title === currentMonthName);
 
                         let currentSaldo = 0.0;
+                        const rowsToAppend = [];
 
                         if (!sheetExists) {
                             // Fetch balance from previous month
@@ -775,44 +776,57 @@ MENSAJE DEL USUARIO:
                             }
                         }
 
-                        // Calculate Math
-                        const parsedAmount = parseFloat(amount);
-                        let entrada = '';
-                        let salida = '';
-                        let dolares = 0.0;
+                        // Process each transaction
+                        for (const tx of transactions) {
+                            const { type, concept, amount, currency } = tx;
+                            if (!type || !concept || amount === undefined || !currency) continue;
 
-                        let amountVES = parsedAmount;
-                        if (currency.toUpperCase() === 'USD') {
-                            amountVES = parsedAmount * rate;
+                            const parsedAmount = parseFloat(amount);
+                            if (isNaN(parsedAmount)) continue;
+
+                            let entrada = '';
+                            let salida = '';
+
+                            let amountVES = parsedAmount;
+                            if (currency.toUpperCase() === 'USD') {
+                                amountVES = parsedAmount * rate;
+                            }
+                            
+                            if (type.toUpperCase() === 'ENTRADA') {
+                                entrada = amountVES.toFixed(2).replace('.', ',');
+                                currentSaldo += amountVES;
+                            } else if (type.toUpperCase() === 'SALIDA') {
+                                salida = amountVES.toFixed(2).replace('.', ',');
+                                currentSaldo -= amountVES;
+                            }
+
+                            const dolares = currentSaldo / rate;
+                            const saldoStr = currentSaldo.toFixed(2).replace('.', ',');
+                            const dolaresStr = dolares.toFixed(2).replace('.', ',');
+                            const tasaStr = rate.toFixed(2).replace('.', ',');
+                            const dateStr = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
+
+                            rowsToAppend.push([
+                                dateStr,
+                                concept,
+                                entrada,
+                                salida,
+                                saldoStr,
+                                tasaStr,
+                                dolaresStr
+                            ]);
+                        }
+
+                        if (rowsToAppend.length > 0) {
+                            // Append all rows at once
+                            await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, rowsToAppend);
+                            
+                            const finalSaldo = currentSaldo.toFixed(2).replace('.', ',');
+                            toolResult = JSON.stringify({ success: true, message: `Se registraron ${rowsToAppend.length} transacciones exitosamente en la pestaña '${currentMonthName}'. Nuevo Saldo final: ${finalSaldo} VES. Tasa BCV usada: ${rate.toFixed(2).replace('.', ',')}.` });
+                        } else {
+                            toolResult = JSON.stringify({ success: false, message: 'Ninguna transacción fue válida para registrar.' });
                         }
                         
-                        if (type.toUpperCase() === 'ENTRADA') {
-                            entrada = amountVES.toFixed(2).replace('.', ',');
-                            currentSaldo += amountVES;
-                            dolares = amountVES / rate;
-                        } else {
-                            salida = amountVES.toFixed(2).replace('.', ',');
-                            currentSaldo -= amountVES;
-                            dolares = amountVES / rate;
-                        }
-
-                        const saldoStr = currentSaldo.toFixed(2).replace('.', ',');
-                        const tasaStr = rate.toFixed(2).replace('.', ',');
-                        const dolaresStr = dolares.toFixed(2).replace('.', ',');
-
-                        // Append Row
-                        const dateStr = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
-                        await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, [[
-                            dateStr,
-                            concept,
-                            entrada,
-                            salida,
-                            saldoStr,
-                            tasaStr,
-                            dolaresStr
-                        ]]);
-
-                        toolResult = JSON.stringify({ success: true, message: `Transacción registrada exitosamente en la pestaña '${currentMonthName}'. Nuevo Saldo: ${saldoStr} VES. Tasa BCV usada: ${tasaStr}.` });
                         break;
                     }
                     default:
