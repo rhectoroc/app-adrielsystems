@@ -219,6 +219,26 @@ const isBillingDay = () => {
 };
 
 /**
+ * Fetch Current BCV Exchange Rate and save to database
+ */
+export const fetchAndSaveBCVRate = async () => {
+    try {
+        const res = await axios.get('https://rates.dolarvzla.com/bcv/current.json');
+        if (res.data && res.data.current && res.data.current.usd) {
+            const rate = parseFloat(res.data.current.usd);
+            await query(`
+                INSERT INTO exchange_rates_history (date, rate_ves, source) 
+                VALUES (CURRENT_DATE, $1, 'BCV')
+                ON CONFLICT (date) DO UPDATE SET rate_ves = EXCLUDED.rate_ves
+            `, [rate]);
+            console.log(`[Automation] BCV rate saved for today: ${rate}`);
+        }
+    } catch (err) {
+        console.error('[Automation] Error fetching/saving BCV rate:', err.message);
+    }
+};
+
+/**
  * Initialize Cron Job
  */
 export const initAutomation = () => {
@@ -235,5 +255,19 @@ export const initAutomation = () => {
         timezone: "America/Caracas"
     });
 
-    console.log('[Automation] Notification service initialized (Billing days: 1st and last day of each month at 9:00 AM Venezuela Time)');
+    // El BCV publica sus actualizaciones de martes a viernes después de las 6:00 PM.
+    // El monto publicado el viernes es la tasa del lunes.
+    // Para asegurar tener siempre la tasa correcta, consultamos a las 8 AM, 1 PM y 7 PM todos los días.
+    cron.schedule('0 8,13,19 * * *', async () => {
+        console.log('[Automation] Fetching daily BCV rate...');
+        await fetchAndSaveBCVRate();
+    }, {
+        scheduled: true,
+        timezone: "America/Caracas"
+    });
+
+    // Also fetch it right now on startup to ensure we have a rate for today
+    fetchAndSaveBCVRate();
+
+    console.log('[Automation] Notification service initialized (Billing days: 1st and last day of each month. BCV fetch: 8 AM, 1 PM & 7 PM)');
 };

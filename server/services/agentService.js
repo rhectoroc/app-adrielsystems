@@ -571,7 +571,10 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - send_whatsapp(phone, message) (Úsala para enviar un mensaje directo de WhatsApp a un cliente o número. Ej: recordatorios de pago, notificaciones personalizadas o cualquier mensaje que el Jefe o Jefa te solicite enviar por WhatsApp)
 - create_financial_sheet() (Úsala si el Jefe te pide explícitamente crear o inicializar el documento de Excel/Sheets para llevar los registros financieros desde cero)
 - get_bcv_rate() (Úsala si el Jefe te pregunta cuál es la tasa del dólar actual del BCV)
-- log_multiple_transactions(transactions) (Úsala para registrar UNA o MÚLTIPLES entradas y salidas de dinero en Google Sheets. El parámetro 'transactions' debe ser un ARREGLO de objetos JSON con la estructura [{"type": "ENTRADA" o "SALIDA", "concept": "...", "amount": número, "currency": "VES" o "USD"}]. ¡Si el usuario te da varios gastos a la vez o sumas aritméticas, SÚMALOS TÚ y agrupa todos los registros en esta única llamada! NOTA: Si el documento no existe, se creará automáticamente)
+- log_multiple_transactions(transactions) (Úsala para registrar UNA o MÚLTIPLES entradas y salidas de dinero. El parámetro 'transactions' es un ARREGLO de objetos JSON [{"type": "ENTRADA" o "SALIDA", "concept": "...", "amount": número, "currency": "VES" o "USD"}])
+- get_current_balance() (Úsala para consultar el saldo total y exacto de la cuenta en Postgres)
+- get_historical_bcv_rate(date_string) (Úsala para consultar a cómo estaba la tasa del BCV en una fecha pasada. Formato YYYY-MM-DD o referencias relativas como "hace 3 dias")
+- convert_currency(amount, from_currency, to_currency, use_historical_date) (Úsala SIEMPRE que te pidan calcular equivalencias como "Cuántos dólares son 5000 bolívares hoy" para hacer cálculos matemáticos infalibles. from/to pueden ser "USD" o "VES". use_historical_date es opcional)
 
 3. INSTRUCCIONES DE RESPUESTA EN FORMATO JSON (CRÍTICO)
 Debes responder SIEMPRE con un objeto JSON válido con los siguientes campos:
@@ -751,6 +754,60 @@ MENSAJE DEL USUARIO:
                         }
                         break;
                     }
+                    case 'get_current_balance': {
+                        // Query Postgres
+                        const balanceRes = await query(`
+                            SELECT 
+                                COALESCE(SUM(CASE WHEN type = 'ENTRADA' THEN amount_usd ELSE -amount_usd END), 0) as balance_usd,
+                                COALESCE(SUM(CASE WHEN type = 'ENTRADA' THEN amount_ves ELSE -amount_ves END), 0) as balance_ves
+                            FROM financial_ledger
+                        `);
+                        const b = balanceRes.rows[0];
+                        toolResult = JSON.stringify({ success: true, balance_usd: parseFloat(b.balance_usd).toFixed(2), balance_ves: parseFloat(b.balance_ves).toFixed(2) });
+                        break;
+                    }
+                    case 'get_historical_bcv_rate': {
+                        let queryDate = parsed.parameters.date_string;
+                        try {
+                            let result = await query(`SELECT rate_ves, date FROM exchange_rates_history WHERE date = $1::date`, [queryDate]);
+                            if (result.rows.length > 0) {
+                                toolResult = JSON.stringify({ success: true, rate: result.rows[0].rate_ves, date: result.rows[0].date });
+                            } else {
+                                toolResult = JSON.stringify({ success: false, message: 'No hay registro de la tasa BCV para esa fecha en la base de datos.' });
+                            }
+                        } catch (e) {
+                            toolResult = JSON.stringify({ success: false, message: 'Formato de fecha inválido o error en consulta. Usa YYYY-MM-DD.' });
+                        }
+                        break;
+                    }
+                    case 'convert_currency': {
+                        const { amount, from_currency, to_currency, use_historical_date } = parsed.parameters;
+                        let rate = null;
+                        if (use_historical_date) {
+                            try {
+                                let r = await query(`SELECT rate_ves FROM exchange_rates_history WHERE date = $1::date`, [use_historical_date]);
+                                if (r.rows.length > 0) rate = parseFloat(r.rows[0].rate_ves);
+                            } catch (e) {}
+                        }
+                        if (!rate) {
+                            rate = await getBCVRate();
+                        }
+                        if (!rate) {
+                            toolResult = JSON.stringify({ success: false, message: 'No se pudo obtener la tasa BCV.' });
+                            break;
+                        }
+                        const amt = parseFloat(amount);
+                        let resultAmt = 0;
+                        if (from_currency.toUpperCase() === 'VES' && to_currency.toUpperCase() === 'USD') {
+                            resultAmt = amt / rate;
+                        } else if (from_currency.toUpperCase() === 'USD' && to_currency.toUpperCase() === 'VES') {
+                            resultAmt = amt * rate;
+                        } else {
+                            resultAmt = amt; // Same
+                        }
+                        toolResult = JSON.stringify({ success: true, original: `${amt} ${from_currency}`, converted: `${resultAmt.toFixed(2)} ${to_currency}`, rate_used: rate });
+                        break;
+                    }
                     case 'log_multiple_transactions': {
                         const { transactions } = parsed.parameters;
                         if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
@@ -765,75 +822,8 @@ MENSAJE DEL USUARIO:
                             break;
                         }
 
-                        // Find or Create Spreadsheet
-                        const sheetName = 'Registro Financiero EVA';
-                        let spreadsheetId = await googleService.findSpreadsheetByName(profileKey, sheetName);
-                        if (!spreadsheetId) {
-                            spreadsheetId = await googleService.createSpreadsheet(profileKey, sheetName);
-                        }
-
-                        // Determine Month Names
-                        const now = new Date();
-                        const currentMonthName = now.toLocaleDateString('es-VE', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
-                        
-                        const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                        const previousMonthName = lastMonthDate.toLocaleDateString('es-VE', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
-
-                        // Check if current month sheet exists
-                        const sheets = await googleService.getSpreadsheetSheets(profileKey, spreadsheetId);
-                        const sheetExists = sheets.some(s => s.properties.title === currentMonthName);
-
-                        let currentSaldo = 0.0;
-                        const rowsToAppend = [];
-                        let nextRowIndex = 2; // Default to row 2 for the first transaction if no initial balance
-
-                        if (!sheetExists) {
-                            // Fetch balance from previous month
-                            const prevSheetData = await googleService.getSheetData(profileKey, spreadsheetId, `'${previousMonthName}'!A:G`);
-                            if (prevSheetData && prevSheetData.length > 1) {
-                                const lastRow = prevSheetData[prevSheetData.length - 1];
-                                const lastSaldoStr = lastRow[4] ? lastRow[4].replace(/\./g, '').replace(',', '.') : '0';
-                                const parsedSaldo = parseFloat(lastSaldoStr);
-                                if (!isNaN(parsedSaldo)) currentSaldo = parsedSaldo;
-                            }
-
-                            // Create new sheet
-                            await googleService.addSheet(profileKey, spreadsheetId, currentMonthName);
-                            // Add headers with ARRAYFORMULAS
-                            await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, [
-                                ['FECHA', 'CONCEPTO', 'ENTRADA', 'SALIDA', '={"SALDO"; ARRAYFORMULA(IF(C2:C&D2:D="", "", SUMIF(ROW(C2:C), "<="&ROW(C2:C), C2:C) - SUMIF(ROW(D2:D), "<="&ROW(D2:D), D2:D)))}', 'TASA', '={"DOLARES"; ARRAYFORMULA(IF(E2:E&F2:F="", "", IF(F2:F>0, E2:E/F2:F, "")))}']
-                            ]);
-
-                            // Add initial balance row if there is a balance
-                            if (currentSaldo !== 0) {
-                                const initialDateStr = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
-                                await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, [[
-                                    initialDateStr,
-                                    'Saldo del mes anterior',
-                                    currentSaldo > 0 ? currentSaldo : 0,
-                                    currentSaldo < 0 ? Math.abs(currentSaldo) : 0,
-                                    '',
-                                    rate,
-                                    ''
-                                ]]);
-                                nextRowIndex = 3;
-                            }
-                        } else {
-                            // Get Last Row of CURRENT month to calculate balance
-                            const sheetData = await googleService.getSheetData(profileKey, spreadsheetId, `'${currentMonthName}'!A:G`);
-                            if (sheetData && sheetData.length > 0) {
-                                nextRowIndex = sheetData.length + 1;
-                            }
-                            
-                            if (sheetData && sheetData.length > 1) {
-                                const lastRow = sheetData[sheetData.length - 1];
-                                const lastSaldoStr = lastRow[4] && typeof lastRow[4] === 'string' ? lastRow[4].replace(/\./g, '').replace(',', '.') : lastRow[4];
-                                const parsedSaldo = parseFloat(lastSaldoStr || '0');
-                                if (!isNaN(parsedSaldo)) currentSaldo = parsedSaldo;
-                            }
-                        }
-
-                        // Process each transaction
+                        // ----- STEP 1: Postgres -----
+                        let successCount = 0;
                         for (const tx of transactions) {
                             const { type, concept, amount, currency } = tx;
                             if (!type || !concept || amount === undefined || !currency) continue;
@@ -841,42 +831,64 @@ MENSAJE DEL USUARIO:
                             const parsedAmount = parseFloat(amount);
                             if (isNaN(parsedAmount)) continue;
 
-                            let entrada = 0;
-                            let salida = 0;
+                            let amountVES = currency.toUpperCase() === 'USD' ? parsedAmount * rate : parsedAmount;
+                            let amountUSD = currency.toUpperCase() === 'VES' ? parsedAmount / rate : parsedAmount;
 
-                            let amountVES = parsedAmount;
-                            if (currency.toUpperCase() === 'USD') {
-                                amountVES = parsedAmount * rate;
+                            await query(`
+                                INSERT INTO financial_ledger (type, concept, amount_ves, amount_usd, exchange_rate)
+                                VALUES ($1, $2, $3, $4, $5)
+                            `, [type.toUpperCase(), concept, amountVES, amountUSD, rate]);
+                            successCount++;
+                        }
+                        
+                        // ----- STEP 2: Google Sheets Backup -----
+                        try {
+                            const sheetName = 'Registro Financiero EVA';
+                            let spreadsheetId = await googleService.findSpreadsheetByName(profileKey, sheetName);
+                            if (!spreadsheetId) {
+                                spreadsheetId = await googleService.createSpreadsheet(profileKey, sheetName);
                             }
-                            
-                            if (type.toUpperCase() === 'ENTRADA') {
-                                entrada = amountVES;
-                                currentSaldo += amountVES;
-                            } else if (type.toUpperCase() === 'SALIDA') {
-                                salida = amountVES;
-                                currentSaldo -= amountVES;
+
+                            const now = new Date();
+                            const currentMonthName = now.toLocaleDateString('es-VE', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
+                            const sheets = await googleService.getSpreadsheetSheets(profileKey, spreadsheetId);
+                            const sheetExists = sheets.some(s => s.properties.title === currentMonthName);
+
+                            if (!sheetExists) {
+                                await googleService.addSheet(profileKey, spreadsheetId, currentMonthName);
+                                await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, [
+                                    ['FECHA', 'CONCEPTO', 'ENTRADA', 'SALIDA', '={"SALDO"; ARRAYFORMULA(IF(C2:C&D2:D="", "", SUMIF(ROW(C2:C), "<="&ROW(C2:C), C2:C) - SUMIF(ROW(D2:D), "<="&ROW(D2:D), D2:D)))}', 'TASA', '={"DOLARES"; ARRAYFORMULA(IF(E2:E&F2:F="", "", IF(F2:F>0, E2:E/F2:F, "")))}']
+                                ]);
                             }
 
-                            const rowIdx = nextRowIndex++;
-                            const prevRowIdx = rowIdx - 1;
+                            const rowsToAppend = [];
+                            const dateStr = now.toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
+                            for (const tx of transactions) {
+                                const { type, concept, amount, currency } = tx;
+                                if (!type || !concept || amount === undefined || !currency) continue;
+                                const parsedAmount = parseFloat(amount);
+                                if (isNaN(parsedAmount)) continue;
 
-                            rowsToAppend.push([
-                                dateStr,
-                                concept,
-                                entrada === 0 ? '' : entrada,
-                                salida === 0 ? '' : salida,
-                                '', // SALDO calculated by ArrayFormula in header
-                                rate,
-                                ''  // DOLARES calculated by ArrayFormula in header
-                            ]);
+                                let amountVES = currency.toUpperCase() === 'USD' ? parsedAmount * rate : parsedAmount;
+                                let entrada = type.toUpperCase() === 'ENTRADA' ? amountVES : '';
+                                let salida = type.toUpperCase() === 'SALIDA' ? amountVES : '';
+
+                                rowsToAppend.push([dateStr, concept, entrada, salida, '', rate, '']);
+                            }
+
+                            if (rowsToAppend.length > 0) {
+                                await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, rowsToAppend);
+                            }
+                        } catch (sheetErr) {
+                            console.error('[Agent Loop] Sheets backup failed:', sheetErr.message);
                         }
 
-                        if (rowsToAppend.length > 0) {
-                            // Append all rows at once
-                            await googleService.appendSheetRow(profileKey, spreadsheetId, `'${currentMonthName}'!A1`, rowsToAppend);
-                            
-                            const finalSaldo = currentSaldo.toFixed(2).replace('.', ',');
-                            toolResult = JSON.stringify({ success: true, message: `Se registraron ${rowsToAppend.length} transacciones exitosamente en la pestaña '${currentMonthName}'. Nuevo Saldo final: ${finalSaldo} VES. Tasa BCV usada: ${rate.toFixed(2).replace('.', ',')}.` });
+                        // ----- RETURN RESULT -----
+                        if (successCount > 0) {
+                            // Fetch fresh balance
+                            const balanceRes = await query(`SELECT COALESCE(SUM(CASE WHEN type = 'ENTRADA' THEN amount_usd ELSE -amount_usd END), 0) as balance_usd FROM financial_ledger`);
+                            const b = balanceRes.rows[0];
+                            toolResult = JSON.stringify({ success: true, message: `Se registraron ${successCount} transacciones en la Base de Datos y Sheets. Nuevo Saldo: $${parseFloat(b.balance_usd).toFixed(2)} USD.` });
                         } else {
                             toolResult = JSON.stringify({ success: false, message: 'Ninguna transacción fue válida para registrar.' });
                         }
