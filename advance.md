@@ -1,3 +1,24 @@
+# Avance de Desarrollo — 19 de Junio 2026
+
+## Sesión: Arquitectura Híbrida Financiera y Evolución de EVA a Rol CFO
+
+En esta sesión se migró el motor contable principal a PostgreSQL manteniendo Google Sheets como panel secundario, y se dotó a la asistente virtual EVA de herramientas matemáticas y de memoria histórica para funcionar como Directora Financiera (CFO) automatizada.
+
+### 💰 Motor de Doble Escritura (Postgres + Sheets)
+- **Persistencia Híbrida (`log_multiple_transactions`):** Se reescribió la herramienta para que guarde las entradas y salidas instantáneamente en la nueva tabla `financial_ledger` de Postgres, y de forma asíncrona sincronice la fila en el Google Sheets actual.
+- **Consultas a Velocidad de la Luz (`get_current_balance`):** EVA ahora calcula el saldo en milisegundos haciendo un `SELECT SUM` en Postgres en vez de leer celdas, erradicando tiempos de espera y garantizando precisión contable.
+- **Cálculos Matemáticos Seguros (`convert_currency`):** Se delegó la matemática de divisas a funciones exactas de JavaScript en lugar del razonamiento del LLM, protegiendo las conversiones de alucinaciones.
+
+### 📈 Histórico y Proyección de Divisas Automatizado
+- **Cron Job Inteligente del BCV (`fetchAndSaveBCVRate`):** Se programó una recolección automática de la tasa oficial del dólar en 3 horarios clave: **8:00 AM, 1:00 PM y 7:00 PM**. El horario de las 7:00 PM garantiza capturar la tasa de cierre de los viernes que rige durante el fin de semana.
+- **Base de Datos Histórica (`exchange_rates_history`):** Todas las tasas capturadas se almacenan persistentemente para proveer un registro perpetuo.
+
+### 🧠 Inteligencia Analítica Avanzada (Fluctuaciones)
+- **Extracción Estricta de Fechas:** Se actualizaron los prompts del agente para forzar a EVA a deducir fechas en formato estricto `YYYY-MM-DD` usando su propio reloj interno, evitando errores de casting en Postgres.
+- **Herramientas de Análisis (`get_historical_bcv_rate` y `get_bcv_rate_range`):** Se le otorgó a EVA la capacidad de extraer bloques de historia cambiaria en una sola consulta. Esto desbloqueó su capacidad analítica para calcular promedios de inflación diaria y proyectar porcentajes de pérdida del poder adquisitivo.
+
+---
+
 # Avance de Desarrollo — 15 de Junio 2026
 
 ## Sesión: Generalización de Procesamiento Visual, Automatización de Google Sheets y Fixes Críticos
