@@ -1,4 +1,4 @@
-import { googleService } from '../services/googleService.js';
+import * as googleService from '../services/googleService.js';
 import { query } from '../db.js';
 
 const parseDate = (dateStr) => {
