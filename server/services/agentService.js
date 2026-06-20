@@ -574,6 +574,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - log_multiple_transactions(transactions) (Úsala para registrar UNA o MÚLTIPLES entradas y salidas de dinero. El parámetro 'transactions' es un ARREGLO de objetos JSON [{"type": "ENTRADA" o "SALIDA", "concept": "...", "amount": número, "currency": "VES" o "USD"}])
 - get_current_balance() (Úsala para consultar el saldo total y exacto de la cuenta en Postgres)
 - get_historical_bcv_rate(date_string) (Úsala para consultar a cómo estaba la tasa del BCV en una fecha pasada. FORMATO ESTRICTO YYYY-MM-DD. NO envíes frases relativas, deduce matemáticamente la fecha usando la HORA ACTUAL)
+- get_bcv_rate_range(start_date, end_date) (Úsala para pedir las tasas del dólar en un periodo de tiempo y hacer análisis de fluctuación. FORMATOS ESTRICTOS YYYY-MM-DD)
 - convert_currency(amount, from_currency, to_currency, use_historical_date) (Úsala SIEMPRE que te pidan calcular equivalencias como "Cuántos dólares son 5000 bolívares hoy" para hacer cálculos matemáticos infalibles. from/to pueden ser "USD" o "VES". use_historical_date es opcional pero debe ser estrictamente YYYY-MM-DD)
 
 3. INSTRUCCIONES DE RESPUESTA EN FORMATO JSON (CRÍTICO)
@@ -777,6 +778,20 @@ MENSAJE DEL USUARIO:
                             }
                         } catch (e) {
                             toolResult = JSON.stringify({ success: false, message: 'Formato de fecha inválido o error en consulta. Usa YYYY-MM-DD.' });
+                        }
+                        break;
+                    }
+                    case 'get_bcv_rate_range': {
+                        const { start_date, end_date } = parsed.parameters;
+                        try {
+                            let result = await query(`SELECT date, rate_ves FROM exchange_rates_history WHERE date >= $1::date AND date <= $2::date ORDER BY date ASC`, [start_date, end_date]);
+                            if (result.rows.length > 0) {
+                                toolResult = JSON.stringify({ success: true, rates: result.rows });
+                            } else {
+                                toolResult = JSON.stringify({ success: false, message: 'No se encontraron tasas para ese rango de fechas.' });
+                            }
+                        } catch (e) {
+                            toolResult = JSON.stringify({ success: false, message: 'Formato de fecha inválido. Usa YYYY-MM-DD.' });
                         }
                         break;
                     }
