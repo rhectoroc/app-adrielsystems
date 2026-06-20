@@ -573,8 +573,8 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - get_bcv_rate() (Úsala si el Jefe te pregunta cuál es la tasa del dólar actual del BCV)
 - log_multiple_transactions(transactions) (Úsala para registrar UNA o MÚLTIPLES entradas y salidas de dinero. El parámetro 'transactions' es un ARREGLO de objetos JSON [{"type": "ENTRADA" o "SALIDA", "concept": "...", "amount": número, "currency": "VES" o "USD"}])
 - get_current_balance() (Úsala para consultar el saldo total y exacto de la cuenta en Postgres)
-- get_historical_bcv_rate(date_string) (Úsala para consultar a cómo estaba la tasa del BCV en una fecha pasada. Formato YYYY-MM-DD o referencias relativas como "hace 3 dias")
-- convert_currency(amount, from_currency, to_currency, use_historical_date) (Úsala SIEMPRE que te pidan calcular equivalencias como "Cuántos dólares son 5000 bolívares hoy" para hacer cálculos matemáticos infalibles. from/to pueden ser "USD" o "VES". use_historical_date es opcional)
+- get_historical_bcv_rate(date_string) (Úsala para consultar a cómo estaba la tasa del BCV en una fecha pasada. FORMATO ESTRICTO YYYY-MM-DD. NO envíes frases relativas, deduce matemáticamente la fecha usando la HORA ACTUAL)
+- convert_currency(amount, from_currency, to_currency, use_historical_date) (Úsala SIEMPRE que te pidan calcular equivalencias como "Cuántos dólares son 5000 bolívares hoy" para hacer cálculos matemáticos infalibles. from/to pueden ser "USD" o "VES". use_historical_date es opcional pero debe ser estrictamente YYYY-MM-DD)
 
 3. INSTRUCCIONES DE RESPUESTA EN FORMATO JSON (CRÍTICO)
 Debes responder SIEMPRE con un objeto JSON válido con los siguientes campos:
