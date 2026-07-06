@@ -329,12 +329,12 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
         // 2. Overdue Amount (Actual Morosos) - 5 days grace
         const overdueRes = await query(`
             SELECT COALESCE(SUM(
+                COALESCE(s.special_price, s.cost) * 
                 CASE 
-                    WHEN s.renewal_day = 30 THEN
-                        (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
-                        (COALESCE(s.special_price, s.cost) * FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
-                    ELSE
-                        COALESCE(s.special_price, s.cost) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                    WHEN s.expiration_date IS NULL THEN 1
+                    WHEN CURRENT_DATE >= s.expiration_date THEN 
+                        (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)) + 1)
+                    ELSE 0
                 END
             ), 0) as total 
             FROM services s
@@ -350,12 +350,7 @@ app.get('/api/stats', authenticateToken, authorizeRole('ADMIN'), async (req, res
         // 3. Pending Amount (Upcoming + Grace Period) - 5 days grace
         const pendingRes = await query(`
             SELECT COALESCE(SUM(
-                CASE 
-                    WHEN s.renewal_day = 30 THEN
-                        (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1))
-                    ELSE
-                        COALESCE(s.special_price, s.cost)
-                END
+                COALESCE(s.special_price, s.cost)
             ), 0) as total 
             FROM services s
             WHERE s.status = 'ACTIVE' 
@@ -524,11 +519,8 @@ app.get('/api/bot/client-context', botRateLimit, async (req, res) => {
                 -- Debt calculation (same logic as main app)
                 CASE 
                     WHEN s.expiration_date >= CURRENT_DATE THEN 0
-                    WHEN s.renewal_day IN (15, 30) THEN
-                        (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
-                        (COALESCE(s.special_price, s.cost) * FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
-                    ELSE
-                        COALESCE(s.special_price, s.cost) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                    WHEN s.expiration_date IS NULL THEN COALESCE(s.special_price, s.cost)
+                    ELSE COALESCE(s.special_price, s.cost) * (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)) + 1)
                 END as deuda,
                 -- Payment status
                 CASE 
@@ -636,23 +628,18 @@ app.get('/api/clients', authenticateToken, authorizeRole('ADMIN'), async (req, r
                             CASE 
                                 WHEN c.name = 'Martha Salazar' THEN
                                     (CASE WHEN (EXTRACT(YEAR FROM s.expiration_date) = 2023 AND EXTRACT(MONTH FROM s.expiration_date) = 12) THEN 20 
-                                     ELSE 10 END) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
-                                WHEN s.renewal_day IN (15, 30) THEN
-                                    CASE 
-                                        WHEN s.expiration_date <= CURRENT_DATE THEN
-                                            (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
-                                            (COALESCE(s.special_price, s.cost) * FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
-                                        ELSE 0
-                                    END
-                                ELSE COALESCE(s.special_price, s.cost) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                                     ELSE 10 END) * (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)) + 1)
+                                WHEN s.expiration_date <= CURRENT_DATE THEN
+                                    COALESCE(s.special_price, s.cost) * (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)) + 1)
+                                ELSE 0
                             END
                         ),
                         'months_overdue', (
                             CASE 
-                                WHEN s.renewal_day IN (15, 30) THEN 
+                                WHEN s.expiration_date IS NULL THEN 1
+                                WHEN s.expiration_date <= CURRENT_DATE THEN 
                                     FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))) + 1
-                                ELSE
-                                    GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                                ELSE 0
                             END
                         ),
                         'status', s.status,
@@ -1582,12 +1569,12 @@ app.get('/api/contacts/status', authenticateToken, authorizeRole('ADMIN'), async
                 -- Dynamic Debt Calculation (Pro-rated for 30th cycle)
                 ROUND(COALESCE(
                     (SELECT SUM(
+                        COALESCE(s.special_price, s.cost) * 
                         CASE 
-                            WHEN s.renewal_day = 30 THEN
-                                (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
-                                (COALESCE(s.special_price, s.cost) * FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
-                            ELSE
-                                COALESCE(s.special_price, s.cost) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                            WHEN s.expiration_date IS NULL THEN 1
+                            WHEN CURRENT_DATE >= s.expiration_date THEN 
+                                (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)) + 1)
+                            ELSE 0
                         END
                     )
                     FROM services s

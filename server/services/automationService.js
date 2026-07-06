@@ -95,12 +95,12 @@ export const runBillingNotifications = async () => {
                 s.name as service_name,
                 -- Intelligent debt calculation (same as GET /api/clients)
                 (
+                    COALESCE(s.special_price, s.cost) * 
                     CASE 
-                        WHEN s.renewal_day = 30 THEN
-                            (COALESCE(s.special_price, s.cost) / 30.0 * (s.expiration_date - s.created_at::DATE + 1)) +
-                            (COALESCE(s.special_price, s.cost) * FLOOR(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
-                        ELSE
-                            COALESCE(s.special_price, s.cost) * GREATEST(1, (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date))))
+                        WHEN s.expiration_date IS NULL THEN 1
+                        WHEN CURRENT_DATE >= s.expiration_date THEN 
+                            (EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)) + 1)
+                        ELSE 0
                     END
                 ) as amount_due,
                 s.currency,
