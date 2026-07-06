@@ -1057,16 +1057,7 @@ app.get('/api/payments/summary', authenticateToken, authorizeRole('ADMIN'), asyn
                 let calculatedAmount = 0;
                 const monthsOverdue = parseInt(row.months_overdue) || 1;
 
-                if (row.renewal_day === 30 || row.renewal_day === 15) {
-                    const start = new Date(row.created_at);
-                    const end = new Date(row.due_date);
-                    const utcStart = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
-                    const utcEnd = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
-                    const firstPeriodDays = Math.round((utcEnd - utcStart) / (1000 * 3600 * 24)) + 1;
-                    calculatedAmount = (monthlyCost / 30.0 * firstPeriodDays) + (monthlyCost * (monthsOverdue - 1));
-                } else {
-                    calculatedAmount = monthlyCost * monthsOverdue;
-                }
+                calculatedAmount = monthlyCost * monthsOverdue;
 
                 // Martha Salazar Special Exception (Historical Pricing)
                 if (row.client_email === 'gentepro80@gmail.com' && dueDate.getFullYear() === 2025 && dueDate.getMonth() === 11) {
@@ -1147,19 +1138,7 @@ app.get('/api/payments/overdue', authenticateToken, authorizeRole('ADMIN'), asyn
             let calculatedAmount = 0;
             const monthsOverdue = parseInt(row.months_overdue);
 
-            if (row.renewal_day === 30 || row.renewal_day === 15) {
-                // Pro-rated First Month + Full months since
-                const monthlyCost = parseFloat(row.monthly_cost);
-                // Calculate firstPeriodDays using date-only components (ignoring timezone / time-of-day offsets)
-                const start = new Date(row.created_at);
-                const end = new Date(row.due_date);
-                const utcStart = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
-                const utcEnd = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
-                const firstPeriodDays = Math.round((utcEnd - utcStart) / (1000 * 3600 * 24)) + 1;
-                calculatedAmount = (monthlyCost / 30.0 * firstPeriodDays) + (monthlyCost * (monthsOverdue - 1));
-            } else {
-                calculatedAmount = parseFloat(row.monthly_cost) * monthsOverdue;
-            }
+            calculatedAmount = parseFloat(row.monthly_cost) * monthsOverdue;
 
             // Martha Salazar Special Exception (Historical Pricing)
             // User context: Dec 2025 was $20, Jan 2026+ is $10.
