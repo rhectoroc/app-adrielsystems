@@ -1,3 +1,20 @@
+# Avance de Desarrollo — 7 de Julio 2026
+
+## Sesión: Corrección Crítica del Algoritmo de Cálculo de Deuda y Prorrateo Fantasma
+
+En esta sesión se identificó y solucionó un bug crítico en la lógica contable del sistema que calculaba saldos vencidos incorrectos (exagerados) para clientes con ciclos de facturación de 30 días, debido a una fórmula que acumulaba el prorrateo sumando todos los días transcurridos desde la creación del servicio.
+
+### 🐛 Resolución del "Prorrateo Fantasma" en Base de Datos (SQL)
+- **Eliminación del Acumulado Histórico:** Se refactorizaron las consultas SQL en `server/index.js`, `server/services/automationService.js` y `server/services/agentService.js` (específicamente la rama condicional `renewal_day = 30`).
+- **Lógica Universal de Meses Vencidos:** Se reemplazó la fórmula prorrateada por una lógica matemática estricta: `(EXTRACT(YEAR FROM AGE(CURRENT_DATE, s.expiration_date)) * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, s.expiration_date)) + 1)`. Ahora el sistema simplemente cuenta cuántos meses exactos han transcurrido desde el vencimiento y los multiplica por el costo mensual.
+
+### 🖥️ Consistencia en el Dashboard (JavaScript)
+- **Purgado de Fórmulas Redundantes:** Se descubrió que los endpoints `/api/payments/summary` y `/api/dashboard` replicaban el mismo error a nivel de código JavaScript (líneas ~1060 y ~1150 de `server/index.js`), sobreescribiendo el valor que venía de la base de datos.
+- **Asignación Directa:** Se eliminó la evaluación `(monthlyCost / 30.0 * firstPeriodDays)` y se forzó a que el frontend reciba y respete la métrica limpia: `calculatedAmount = monthlyCost * monthsOverdue`.
+- Con esto, los clientes (como Daniel Gallo) que debían $200 pasaron de mostrar errores inflados (ej. $613.33) a reflejar de forma exacta su mora real de un solo mes.
+
+---
+
 # Avance de Desarrollo — 19 de Junio 2026
 
 ## Sesión: Arquitectura Híbrida Financiera y Evolución de EVA a Rol CFO
