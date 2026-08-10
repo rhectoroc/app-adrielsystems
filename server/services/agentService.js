@@ -618,6 +618,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - get_financial_summary(start_date, end_date) (Genera un reporte consolidado de ingresos, gastos, comisiones bancarias y ganancia neta en un rango de fechas. Formato YYYY-MM-DD. Ideal para resúmenes semanales o mensuales)
 - get_historical_bcv_rate(date_string) (Úsala para consultar a cómo estaba la tasa del BCV en una fecha pasada. FORMATO ESTRICTO YYYY-MM-DD. NO envíes frases relativas, deduce matemáticamente la fecha usando la HORA ACTUAL)
 - get_bcv_rate_range(start_date, end_date) (Úsala para pedir las tasas del dólar en un periodo de tiempo y hacer análisis de fluctuación. FORMATOS ESTRICTOS YYYY-MM-DD)
+- reset_financial_ledger() (Úsala ÚNICAMENTE cuando el Jefe te pida de forma explícita borrar, vaciar, reiniciar o hacer un barrido completo del historial financiero o contable. Esta acción borra todo el registro de ingresos y gastos de la base de datos)
 - convert_currency(amount, from_currency, to_currency, use_historical_date) (Úsala SIEMPRE que te pidan calcular equivalencias como "Cuántos dólares son 5000 bolívares hoy" para hacer cálculos matemáticos infalibles. from/to pueden ser "USD" o "VES". use_historical_date es opcional pero debe ser estrictamente YYYY-MM-DD)
 
 3. INSTRUCCIONES DE RESPUESTA EN FORMATO JSON (CRÍTICO)
@@ -874,6 +875,16 @@ MENSAJE DEL USUARIO:
                         }
                         const summaryData = await getFinancialSummary(start_date, end_date);
                         toolResult = JSON.stringify(summaryData);
+                        break;
+                    }
+                    case 'reset_financial_ledger': {
+                        try {
+                            await query('ALTER TABLE public.financial_ledger DROP CONSTRAINT IF EXISTS financial_ledger_type_check;');
+                            await query('TRUNCATE TABLE public.financial_ledger;');
+                            toolResult = JSON.stringify({ success: true, message: 'El historial financiero ha sido borrado exitosamente.' });
+                        } catch (err) {
+                            toolResult = JSON.stringify({ success: false, message: 'Error al intentar borrar el historial financiero: ' + err.message });
+                        }
                         break;
                     }
                     case 'log_multiple_transactions': {
