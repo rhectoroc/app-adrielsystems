@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Database, Settings as SettingsIcon } from 'lucide-react';
 import BackupSection from '../../components/settings/BackupSection';
