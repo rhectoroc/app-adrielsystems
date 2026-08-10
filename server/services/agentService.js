@@ -1230,8 +1230,10 @@ SERVICIOS (en palabras simples si preguntan):
 
 REGLAS DE NEGOCIO:
 1. Pagos: PayPal, Zelle, Pago Móvil y Binance. No des números; al agendar, el equipo los contactará.
-2. Agendar: Cuando el usuario quiera contratar, hablar con alguien o agendar, responde con entusiasmo en 1-2 oraciones y termina EXACTAMENTE con la palabra clave: [MOSTRAR_CALENDARIO]
-3. Después de confirmar la cita: Si dice "listo" o "ya agendé", pídele su correo para enviarle la confirmación.`;
+2. Rutas de Contacto (Calendario vs WhatsApp): Analiza la intención del cliente:
+   - Si quiere una cotización detallada, asesoría profunda o habla de un proyecto complejo: ofrécele una reunión y es OBLIGATORIO que termines tu mensaje con este formato exacto: [MOSTRAR_CALENDARIO][MOTIVO: Resumen corto]. (Ejemplo: [MOSTRAR_CALENDARIO][MOTIVO: Cotización página web]).
+   - Si tiene una duda muy rápida, sencilla, o exige inmediatez: ofrécele escribir a nuestro WhatsApp compartiendo este enlace: https://wa.me/584222476127?text=Hola,%20tengo%20una%20consulta (¡NUNCA uses [MOSTRAR_CALENDARIO] en este caso!).
+3. Cita confirmada: Si el usuario dice "listo", "ya agendé" o da las gracias, asume que el sistema ya guardó la cita y envió el correo. Solo despídete amablemente. NUNCA vuelvas a usar [MOSTRAR_CALENDARIO] en esa situación.`;
 
         // 4. Combine history and current message for Gemini call
         const formattedHistory = [
@@ -1244,7 +1246,13 @@ REGLAS DE NEGOCIO:
 
         // 6. Detect calendar intent from EVA's response
         const showCalendar = replyText.includes('[MOSTRAR_CALENDARIO]');
-        const cleanReply = replyText.replace('[MOSTRAR_CALENDARIO]', '').trim();
+        let reason = '';
+        const reasonMatch = replyText.match(/\[MOTIVO:\s*([\s\S]*?)\]/i);
+        if (reasonMatch) {
+            reason = reasonMatch[1].trim();
+        }
+        
+        const cleanReply = replyText.replace(/\[MOSTRAR_CALENDARIO\]/gi, '').replace(/\[MOTIVO:.*?\]/gi, '').trim();
 
         // 7. Save Eva's clean reply to Database
         await query(
@@ -1252,7 +1260,7 @@ REGLAS DE NEGOCIO:
             [sessionId, 'Eva', cleanReply]
         );
 
-        return { response: cleanReply, showCalendar };
+        return { response: cleanReply, showCalendar, reason };
     } catch (error) {
         console.error('[Agent Service] Error in web chat processing:', error);
         return { response: '¡Disculpa! Tuve un inconveniente técnico. Intenta de nuevo en un momento. 😊', showCalendar: false };

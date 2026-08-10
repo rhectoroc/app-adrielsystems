@@ -1823,7 +1823,8 @@ app.get('/api/availability', async (req, res) => {
         const TZ_OFFSET_MS = -4 * 60 * 60 * 1000;
 
         const cursor = new Date(now);
-        cursor.setHours(cursor.getHours() + 1, 0, 0, 0); // Start from next full hour
+        cursor.setDate(cursor.getDate() + 1); // Start from the next day
+        cursor.setUTCHours(BUSINESS_START_HOUR + 4, 0, 0, 0); // 9am VZ = 13 UTC
 
         let slotsGenerated = 0;
         while (slotsGenerated < 20) {
