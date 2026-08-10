@@ -34,8 +34,7 @@ export const AdminLayout = () => {
             `}>
                 <div className="p-3 mt-14 md:mt-0 border-b border-white/5 bg-white/[0.02]">
                     <div className="flex items-center gap-2">
-                        <img src="/logo.png" alt="Logo" className="h-4 opacity-100 brightness-110" />
-                        <h1 className="text-xs font-black font-heading tracking-[0.15em] text-white uppercase">Sistemas</h1>
+                        <img src="/logo.png" alt="Logo" className="h-16 opacity-100 brightness-110" />
                     </div>
                 </div>
                 <nav className="mt-4 flex-1 px-2 space-y-0.5">

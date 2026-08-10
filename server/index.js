@@ -15,6 +15,7 @@ import { initAutomation, runBillingNotifications, sendMessage } from './services
 import { handleIncomingWebhook, approvePaymentById, registerEvolutionWebhook, processWebChatMessage } from './services/agentService.js';
 import { getAuthForProfile } from './services/googleService.js';
 import { google } from 'googleapis';
+import backupRoutes from './routes/backup.js';
 
 // Uploads Configuration (Volume mounted at /data in production)
 
@@ -69,6 +70,8 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 // Dashboard Activity Endpoint
+app.use('/api/backup', authenticateToken, authorizeRole('ADMIN'), backupRoutes);
+
 app.get('/api/activity', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
@@ -187,6 +190,9 @@ app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled for SPA compa
 const ALLOWED_ORIGINS = [
     process.env.APP_URL, // e.g. https://app.adrielssystems.com
     'http://localhost:5173', // Vite dev
+    'http://localhost:5174', // Vite dev fallback
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
     'http://localhost:3000'  // Local server
 ].filter(Boolean);
 

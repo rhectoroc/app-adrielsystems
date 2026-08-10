@@ -16,6 +16,7 @@ import { PaymentsManagement } from './pages/admin/PaymentsManagement';
 import { PlansManagement } from './pages/admin/PlansManagement';
 import { ContactsManagement } from './pages/admin/ContactsManagement';
 import { UsersManagement } from './pages/admin/UsersManagement';
+import Settings from './pages/admin/Settings';
 import { ClientDashboard } from './pages/client/ClientDashboard';
 
 import { Toaster } from './components/ui/sonner';
@@ -58,7 +59,7 @@ function App() {
                                 <Route path="payments" element={<PaymentsManagement />} />
                                 <Route path="plans" element={<PlansManagement />} />
                                 <Route path="users" element={<UsersManagement />} />
-                                <Route path="settings" element={<div>Settings Placeholder</div>} />
+                                <Route path="settings" element={<Settings />} />
                             </Route>
                         </Route>
 

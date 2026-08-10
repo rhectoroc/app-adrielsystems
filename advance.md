@@ -1,3 +1,23 @@
+# Avance de Desarrollo — 4 de Agosto 2026
+
+## Sesión: Entorno de Desarrollo, Base de Datos Local y Variables de Entorno
+
+En esta sesión se preparó el entorno local de desarrollo, abarcando la clonación del proyecto, la orquestación de la base de datos de manera local con Docker y la configuración de variables de entorno seguras.
+
+### 📥 Clonación y Setup del Entorno
+- **Clonación:** Se clonaron los repositorios `web-adrielssystems` y `app-adrielsystems` en las carpetas `Web_AdrielsSystems` y `App_AdrielsSystems`.
+
+### 🗄️ Base de Datos Local (PostgreSQL)
+- **Exportación desde Producción:** Se instruyó el método para exportar el esquema y los datos mediante **DbGate** directamente desde el panel de Easypanel en el VPS (generando un archivo `.sql`).
+- **Orquestación con Docker:** Se creó un archivo `docker-compose.yml` en la raíz del backend (`App_AdrielsSystems`) para levantar una instancia local de PostgreSQL 15, permitiendo un desarrollo aislado de producción.
+- **Importación Local:** Se documentó cómo conectar DbGate/DBeaver a la base de datos Docker local (`localhost:5432`) para importar el archivo `.sql` de producción.
+
+### 🔐 Gestión de Variables de Entorno
+- Se construyó el archivo `.env` configurando las credenciales (base de datos, tokens de Google, Evolution API, DeepSeek y Gemini).
+- Se validó explícitamente en el archivo `.gitignore` que el archivo `.env` está excluido del control de versiones, previniendo así la fuga de secretos o credenciales.
+
+---
+
 # Avance de Desarrollo — 7 de Julio 2026
 
 ## Sesión: Corrección Crítica del Algoritmo de Cálculo de Deuda y Prorrateo Fantasma
@@ -241,5 +261,20 @@ Se realizó una auditoría completa de los 35+ endpoints del backend, aplicando 
 | `src/context/AuthContext.tsx` | MODIFY | Soporte para rol `EMPLOYEE`. |
 | `src/App.tsx` | MODIFY | Rutas protegidas para staff, redirección de roles. |
 | `package.json` | MODIFY | Añadido `helmet`. |
+
+---
+
+## Sesión: Configuración General y Sistema de Backups
+
+### Frontend
+- **Configuración (`Settings.tsx`):** Creación de un panel principal de configuración escalable usando diseño horizontal de pestañas (Tabs).
+- **Módulo de Backups (`BackupSection.tsx`):** Interfaz para exportar e importar la base de datos completa. Incluye advertencias visuales de seguridad para evitar pérdida de datos accidental.
+- **Diseño UI:** Implementación estricta de la guía de estilo (Glassmorphism, Dark Theme, botones neón) con animaciones suaves usando Framer Motion.
+
+### Backend & Infraestructura
+- **Endpoint de Exportación (`GET /api/backup/download`):** Ejecuta `pg_dump` (vía comandos nativos o Docker), comprime el `.sql` en formato `.zip` al vuelo utilizando `adm-zip` y lo envía al usuario.
+- **Endpoint de Restauración (`POST /api/backup/restore`):** Recibe un archivo `.zip`, lo descomprime, purga la base de datos actual (CASCADE) e inyecta la data del backup.
+- **Compatibilidad Local/Producción:** Lógica inteligente en Node.js que detecta si el usuario corre el sistema en Windows localmente (usando Docker exec) o en producción.
+- **Dockerfile Mejorado:** Se añadió la instalación de `postgresql-client` al Stage 2 para permitir respaldos nativos en el VPS (Easypanel).
 
 ---

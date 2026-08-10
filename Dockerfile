@@ -20,6 +20,7 @@ FROM node:22-alpine
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN apk add --no-cache postgresql-client
 
 # Copiar archivos de dependencias e instalar solo producción
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* ./
