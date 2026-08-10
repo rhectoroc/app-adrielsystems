@@ -55,9 +55,9 @@ const BackupSection = () => {
         formData.append('backup', selectedFile);
 
         try {
-            await api.post('/api/backup/restore', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const response = await api.post('/api/backup/restore', formData);
+            if (!response.ok) throw new Error('Error al restaurar');
+
             toast.success('Sistema restaurado exitosamente. Recargando...', { duration: 5000 });
             setTimeout(() => {
                 window.location.reload();
