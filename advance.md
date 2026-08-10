@@ -1,3 +1,34 @@
+# Avance de Desarrollo — 10 de Agosto 2026
+
+## Sesión: Panel de Finanzas Bidireccional, KPI Cambiario y Corrección de Backups
+
+En esta sesión se transformó la sección de Finanzas en un Centro de Control Financiero completo con capacidades CRUD bidireccionales, además de resolver bugs críticos en la infraestructura de la base de datos y la funcionalidad de Backups.
+
+### 💰 Finanzas y Cuentas Bancarias (CRUD Bidireccional)
+- **Cuentas Bancarias:** Se rediseñó la UI de `Finances.tsx` para mostrar tarjetas independientes con los saldos de cada cuenta (Zelle, PayPal, Banesco, Banco de Venezuela, Banca Amiga y Efectivo).
+- **CRUD Completo:** Implementación de modales interactivos para Añadir, Editar y Eliminar transacciones.
+- **Lógica de Transferencias Internas:** Se añadieron 2 nuevos tipos de transacción (`TRANSFERENCIA_ENTRADA` y `TRANSFERENCIA_SALIDA`) para permitir movimientos de saldo entre cuentas sin alterar la contabilidad real de Ingresos y Gastos de la empresa.
+- **KPI Cambiario y Total Liquidez:** 
+  - Se agregó una 5ta tarjeta en el dashboard que consulta y muestra automáticamente el valor de la **Tasa BCV del día**.
+  - Se implementó un "Badge" inteligente (`Total Liquidez`) que suma el capital de todas las cuentas en USD y lo proyecta automáticamente en su equivalente en Bolívares usando la tasa BCV real.
+
+### 🐛 Correcciones de Infraestructura y Base de Datos
+- **Ampliación de Límite VARCHAR:** Se diagnosticó un error 500 al intentar registrar la palabra `TRANSFERENCIA_ENTRADA` (21 caracteres) debido a una restricción antigua de la base de datos. Se actualizó la lógica en `initDb` para ampliar la columna `type` a `VARCHAR(50)` y remover el constraint limitante (`financial_ledger_type_check`).
+- **Fix de Backup en Producción:** Se corrigió el detector de entornos (`isProd`) en `backup.js` para que utilice de forma exitosa el comando nativo `pg_dump` en Easypanel, independientemente de la variable `NODE_ENV`.
+- **Fix de Restauración Local Silenciosa:** Se solucionó un bug en `BackupSection.tsx` donde el navegador enviaba el archivo ZIP con un `Content-Type` manual erróneo, provocando un fallo `Multipart: Boundary not found` en el backend. Se eliminó el encabezado forzado y se añadió validación estricta para evitar falsos positivos de éxito en la interfaz.
+
+### 🛠️ Archivos Modificados (10 de Agosto)
+
+| Archivo | Tipo | Cambio |
+|---------|------|--------|
+| `src/pages/admin/Finances.tsx` | MODIFY | Rediseño completo a CRUD, tarjetas de cuentas bancarias, KPI BCV y Total Liquidez. |
+| `src/components/settings/BackupSection.tsx` | MODIFY | Fix en encabezados de formulario multipart para correcta restauración del archivo ZIP. |
+| `server/index.js` | MODIFY | Refactor del endpoint `GET /api/finances` (Cálculo de cuentas e integración BCV). Ampliación de columnas SQL. Implementación de POST, PUT, DELETE para Finanzas. |
+| `server/routes/backup.js` | MODIFY | Optimización de detección `isProd` para compatibilidad total con VPS y Docker local. |
+| `server/services/agentService.js` | MODIFY | Actualización del prompt de EVA para registrar transacciones y saldos bancarios. |
+
+---
+
 # Avance de Desarrollo — 4 de Agosto 2026
 
 ## Sesión: Entorno de Desarrollo, Base de Datos Local y Variables de Entorno
