@@ -114,7 +114,7 @@ app.get('/api/activity', authenticateToken, authorizeRole('ADMIN'), async (req, 
 app.get('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`
-            SELECT id, date, type, concept, amount_usd, amount_ves, created_at 
+            SELECT id, date, type, concept, amount_usd, amount_ves, exchange_rate, created_at, account_name 
             FROM financial_ledger 
             ORDER BY created_at DESC 
             LIMIT 1000
@@ -123,12 +123,24 @@ app.get('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, 
         let total_ingresos = 0;
         let total_gastos = 0;
         let total_comisiones = 0;
+        let account_balances = {};
 
         for (const row of result.rows) {
             const amount = parseFloat(row.amount_usd);
-            if (row.type === 'INGRESO' || row.type === 'ENTRADA') total_ingresos += amount;
-            else if (row.type === 'GASTO' || row.type === 'SALIDA') total_gastos += amount;
-            else if (row.type === 'COMISION_BANCARIA') total_comisiones += amount;
+            const account = row.account_name || 'Efectivo';
+            
+            if (!account_balances[account]) account_balances[account] = 0;
+
+            if (row.type === 'INGRESO' || row.type === 'ENTRADA' || row.type === 'TRANSFERENCIA_ENTRADA') {
+                account_balances[account] += amount;
+                if (row.type !== 'TRANSFERENCIA_ENTRADA') total_ingresos += amount;
+            } else if (row.type === 'GASTO' || row.type === 'SALIDA' || row.type === 'TRANSFERENCIA_SALIDA') {
+                account_balances[account] -= amount;
+                if (row.type !== 'TRANSFERENCIA_SALIDA') total_gastos += amount;
+            } else if (row.type === 'COMISION_BANCARIA') {
+                account_balances[account] -= amount;
+                total_comisiones += amount;
+            }
         }
 
         const ganancia_neta = total_ingresos - total_gastos - total_comisiones;
@@ -140,11 +152,58 @@ app.get('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, 
                 total_comisiones,
                 ganancia_neta
             },
+            account_balances,
             transactions: result.rows
         });
     } catch (err) {
         console.error('Error fetching finances:', err);
         res.status(500).json({ message: 'Error fetching finances' });
+    }
+});
+
+// Create Finance Transaction
+app.post('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const { type, concept, amount_usd, account_name, amount_ves, exchange_rate, created_at } = req.body;
+        const result = await query(`
+            INSERT INTO financial_ledger (type, concept, amount_usd, amount_ves, exchange_rate, account_name, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+        `, [type, concept, amount_usd, amount_ves || 0, exchange_rate || 0, account_name || 'Efectivo', created_at || new Date()]);
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error('Error creating finance tx:', err);
+        res.status(500).json({ message: 'Error creating transaction' });
+    }
+});
+
+// Update Finance Transaction
+app.put('/api/finances/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { type, concept, amount_usd, account_name, amount_ves, exchange_rate, created_at } = req.body;
+        const result = await query(`
+            UPDATE financial_ledger 
+            SET type = $1, concept = $2, amount_usd = $3, amount_ves = $4, exchange_rate = $5, account_name = $6, created_at = $7
+            WHERE id = $8 RETURNING *
+        `, [type, concept, amount_usd, amount_ves || 0, exchange_rate || 0, account_name || 'Efectivo', created_at || new Date(), id]);
+        if (result.rows.length === 0) return res.status(404).json({ message: 'Not found' });
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Error updating finance tx:', err);
+        res.status(500).json({ message: 'Error updating transaction' });
+    }
+});
+
+// Delete Finance Transaction
+app.delete('/api/finances/:id', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await query('DELETE FROM financial_ledger WHERE id = $1 RETURNING *', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ message: 'Not found' });
+        res.json({ message: 'Deleted' });
+    } catch (err) {
+        console.error('Error deleting finance tx:', err);
+        res.status(500).json({ message: 'Error deleting transaction' });
     }
 });
 

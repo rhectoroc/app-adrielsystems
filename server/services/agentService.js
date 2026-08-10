@@ -613,7 +613,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - send_whatsapp(phone, message) (Úsala para enviar un mensaje directo de WhatsApp a un cliente o número. Ej: recordatorios de pago, notificaciones personalizadas o cualquier mensaje que el Jefe te solicite enviar por WhatsApp)
 - create_financial_sheet() (Úsala si el Jefe te pide explícitamente crear o inicializar el documento de Excel/Sheets para llevar los registros financieros desde cero)
 - get_bcv_rate() (Úsala si el Jefe te pregunta cuál es la tasa del dólar actual del BCV)
-- log_multiple_transactions(transactions) (Usa esta herramienta cuando el Jefe indique que realizó un gasto, recibió un pago o pagó una comisión. Debes extraer el monto, clasificarlo como INGRESO, GASTO o COMISION_BANCARIA, y asignar una categoría coherente basada en el mensaje. El parámetro 'transactions' es un ARREGLO de objetos JSON [{"type": "INGRESO"|"GASTO"|"COMISION_BANCARIA", "concept": "...", "amount": número, "currency": "VES"|"USD"}]. ¡ATENCIÓN! Si el comprobante o mensaje indica un monto retenido por el banco, registra el INGRESO bruto y la COMISION_BANCARIA separados)
+- log_multiple_transactions(transactions) (Usa esta herramienta cuando el Jefe indique que realizó un gasto, recibió un pago, pagó una comisión o hizo una transferencia entre cuentas. Debes extraer el monto, clasificarlo como INGRESO, GASTO, COMISION_BANCARIA, TRANSFERENCIA_SALIDA o TRANSFERENCIA_ENTRADA, y asignar una categoría. El parámetro 'transactions' es un ARREGLO de objetos JSON [{"type": "INGRESO"|"GASTO"|"COMISION_BANCARIA"|"TRANSFERENCIA_SALIDA"|"TRANSFERENCIA_ENTRADA", "concept": "...", "amount": número, "currency": "VES"|"USD", "account": "Zelle"|"PayPal"|"Banco de Venezuela"|"Banesco"|"Banca Amiga"|"Efectivo"}]. IMPORTANTE: Si cambia Zelle a Bolívares, haz dos transacciones: una TRANSFERENCIA_SALIDA de Zelle y otra TRANSFERENCIA_ENTRADA a Banesco/Venezuela. Si no sabes la cuenta, usa "Efectivo".)
 - get_current_balance() (Úsala para consultar el saldo total y exacto de la cuenta en Postgres)
 - get_financial_summary(start_date, end_date) (Genera un reporte consolidado de ingresos, gastos, comisiones bancarias y ganancia neta en un rango de fechas. Formato YYYY-MM-DD. Ideal para resúmenes semanales o mensuales)
 - get_historical_bcv_rate(date_string) (Úsala para consultar a cómo estaba la tasa del BCV en una fecha pasada. FORMATO ESTRICTO YYYY-MM-DD. NO envíes frases relativas, deduce matemáticamente la fecha usando la HORA ACTUAL)
@@ -904,7 +904,7 @@ MENSAJE DEL USUARIO:
                         // ----- STEP 1: Postgres -----
                         let successCount = 0;
                         for (const tx of transactions) {
-                            const { type, concept, amount, currency } = tx;
+                            const { type, concept, amount, currency, account } = tx;
                             if (!type || !concept || amount === undefined || !currency) continue;
 
                             const parsedAmount = parseFloat(amount);
@@ -912,11 +912,12 @@ MENSAJE DEL USUARIO:
 
                             let amountVES = currency.toUpperCase() === 'USD' ? parsedAmount * rate : parsedAmount;
                             let amountUSD = currency.toUpperCase() === 'VES' ? parsedAmount / rate : parsedAmount;
+                            let accountName = account || 'Efectivo';
 
                             await query(`
-                                INSERT INTO financial_ledger (type, concept, amount_ves, amount_usd, exchange_rate)
-                                VALUES ($1, $2, $3, $4, $5)
-                            `, [type.toUpperCase(), concept, amountVES, amountUSD, rate]);
+                                INSERT INTO financial_ledger (type, concept, amount_ves, amount_usd, exchange_rate, account_name)
+                                VALUES ($1, $2, $3, $4, $5, $6)
+                            `, [type.toUpperCase(), concept, amountVES, amountUSD, rate, accountName]);
                             successCount++;
                         }
                         
