@@ -521,7 +521,7 @@ const getFinancialSummary = async (startDate, endDate) => {
         const result = await query(`
             SELECT type, concept, amount_usd 
             FROM financial_ledger 
-            WHERE DATE(timestamp) >= $1 AND DATE(timestamp) <= $2
+            WHERE DATE(created_at) >= $1 AND DATE(created_at) <= $2
         `, [startDate, endDate]);
         
         let total_ingresos = 0;
