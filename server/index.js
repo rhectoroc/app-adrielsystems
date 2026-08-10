@@ -111,6 +111,43 @@ app.get('/api/activity', authenticateToken, authorizeRole('ADMIN'), async (req, 
     }
 });
 
+app.get('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const result = await query(`
+            SELECT id, date, type, concept, amount_usd, amount_ves, created_at 
+            FROM financial_ledger 
+            ORDER BY created_at DESC 
+            LIMIT 1000
+        `);
+        
+        let total_ingresos = 0;
+        let total_gastos = 0;
+        let total_comisiones = 0;
+
+        for (const row of result.rows) {
+            const amount = parseFloat(row.amount_usd);
+            if (row.type === 'INGRESO' || row.type === 'ENTRADA') total_ingresos += amount;
+            else if (row.type === 'GASTO' || row.type === 'SALIDA') total_gastos += amount;
+            else if (row.type === 'COMISION_BANCARIA') total_comisiones += amount;
+        }
+
+        const ganancia_neta = total_ingresos - total_gastos - total_comisiones;
+
+        res.json({
+            summary: {
+                total_ingresos,
+                total_gastos,
+                total_comisiones,
+                ganancia_neta
+            },
+            transactions: result.rows
+        });
+    } catch (err) {
+        console.error('Error fetching finances:', err);
+        res.status(500).json({ message: 'Error fetching finances' });
+    }
+});
+
 // Initialize Database Table
 const initDb = async () => {
     try {

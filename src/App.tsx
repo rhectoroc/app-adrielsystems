@@ -16,6 +16,7 @@ import { PaymentsManagement } from './pages/admin/PaymentsManagement';
 import { PlansManagement } from './pages/admin/PlansManagement';
 import { ContactsManagement } from './pages/admin/ContactsManagement';
 import { UsersManagement } from './pages/admin/UsersManagement';
+import { Finances } from './pages/admin/Finances';
 import Settings from './pages/admin/Settings';
 import { ClientDashboard } from './pages/client/ClientDashboard';
 
@@ -59,6 +60,7 @@ function App() {
                                 <Route path="payments" element={<PaymentsManagement />} />
                                 <Route path="plans" element={<PlansManagement />} />
                                 <Route path="users" element={<UsersManagement />} />
+                                <Route path="finances" element={<Finances />} />
                                 <Route path="settings" element={<Settings />} />
                             </Route>
                         </Route>
