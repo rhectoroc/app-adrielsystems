@@ -25,7 +25,6 @@ const DEBOUNCE_TIME = 7000; // 7 seconds
 
 // Defined Admin Phone Numbers
 const ADMINS = {
-    LA_JEFA: '584148175382@s.whatsapp.net', // Oxarellys Urbaneja
     EL_JEFE: '584140108030@s.whatsapp.net'  // Hector Ollarves
 };
 
@@ -75,7 +74,7 @@ export const handleIncomingWebhook = async (req, res) => {
 
         // 2. Handle Admin immediately (no debouncing needed)
         if (isAdmin) {
-            const roleName = remoteJidAlt === ADMINS.LA_JEFA ? 'LA_JEFA' : 'EL_JEFE';
+            const roleName = 'EL_JEFE';
             if (messageType === 'imageMessage') {
                 const messageId = key.id;
                 await processAdminImage(remoteJid, messageId, messageText, roleName, pushName, data);
@@ -515,13 +514,56 @@ export const approvePaymentById = async (approvalId) => {
 };
 
 /**
- * Handle Admin Agent (Hector / Oxarellys) using Prompts and custom Tool Calling Loop
+ * Fetch Financial Summary for a date range
+ */
+const getFinancialSummary = async (startDate, endDate) => {
+    try {
+        const result = await query(`
+            SELECT type, concept, amount_usd 
+            FROM financial_ledger 
+            WHERE DATE(timestamp) >= $1 AND DATE(timestamp) <= $2
+        `, [startDate, endDate]);
+        
+        let total_ingresos = 0;
+        let total_gastos = 0;
+        let total_comisiones = 0;
+        const desglose_gastos = [];
+
+        for (const row of result.rows) {
+            const amount = parseFloat(row.amount_usd);
+            if (row.type === 'INGRESO' || row.type === 'ENTRADA') {
+                total_ingresos += amount;
+            } else if (row.type === 'GASTO' || row.type === 'SALIDA') {
+                total_gastos += amount;
+                desglose_gastos.push({ categoria: row.concept, monto: amount });
+            } else if (row.type === 'COMISION_BANCARIA') {
+                total_comisiones += amount;
+            }
+        }
+
+        const ganancia_neta = total_ingresos - total_gastos - total_comisiones;
+
+        return {
+            total_ingresos: parseFloat(total_ingresos.toFixed(2)),
+            total_gastos: parseFloat(total_gastos.toFixed(2)),
+            total_comisiones: parseFloat(total_comisiones.toFixed(2)),
+            ganancia_neta: parseFloat(ganancia_neta.toFixed(2)),
+            desglose_gastos
+        };
+    } catch (err) {
+        console.error('[Agent Service] Error in getFinancialSummary:', err);
+        return { error: err.message };
+    }
+};
+
+/**
+ * Handle Admin Agent (Hector) using Prompts and custom Tool Calling Loop
  */
 const processAdminMessage = async (roleName, remoteJid, messageText, pushName) => {
     try {
         const sessionId = remoteJid.replace(/\D/g, '');
         const nowCaracas = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' });
-        const profileKey = roleName === 'LA_JEFA' ? 'JEFA' : 'JEFE';
+        const profileKey = 'JEFE';
 
         // Save Admin Input to logs
         await query(
@@ -540,12 +582,12 @@ const processAdminMessage = async (roleName, remoteJid, messageText, pushName) =
 
         // Setup Agent System Instruction with JSON-based Tool Calling definition
         const systemMessage = `=0. ROL Y OBJETIVO PRINCIPAL
-Actúas como EVA, la asistente virtual inteligente y ejecutiva personal de ${roleName === 'LA_JEFA' ? 'la Jefa (Oxarellys Urbaneja)' : 'el Jefe (Hector Ollarves)'}. Tu misión es asistirlos con la máxima calidez, cortesía y eficiencia en el día a día.
+Actúas como EVA, la asistente virtual inteligente y ejecutiva personal de el Jefe (Hector Ollarves). Tu misión es asistirle con la máxima calidez, cortesía y eficiencia en el día a día.
 
 HORA ACTUAL: ${nowCaracas}
 
 1. TONO Y PERSONALIDAD
-- Jerarquía: Te diriges al usuario con aprecio y respeto como "${roleName === 'LA_JEFA' ? 'Jefa' : 'Jefe'}".
+- Jerarquía: Te diriges al usuario con aprecio y respeto como "Jefe".
 - Tono: Sumamente humano, cálido, servicial y empático. Habla de forma natural y cordial, como una asistente ejecutiva de alto nivel de total confianza. Evita a toda costa sonar fría, rígida, distante o robótica.
 - Estilo: Amigable, cordial y profesional. Puedes usar emojis de forma sutil y elegante (😊, ✨, 📝, 📅, 👍) para dar calidez y cercanía a tus respuestas. Utiliza saludos amables y frases de cortesía sinceras.
 - Idioma: Español.
@@ -568,11 +610,12 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - get_billing_summary() (Úsala cuando te pidan verificar el estatus de todos los clientes, ver quiénes deben, o un resumen de cobranza general)
 - search_client_by_name(name) (Úsala para buscar clientes por su nombre cuando no tengas su número de teléfono)
 - register_client_payment(clientId, amount, currency, reference, notes) (Úsala para registrar un pago verificado de un cliente, renovar su servicio y notificarle automáticamente por WhatsApp y Correo Electrónico)
-- send_whatsapp(phone, message) (Úsala para enviar un mensaje directo de WhatsApp a un cliente o número. Ej: recordatorios de pago, notificaciones personalizadas o cualquier mensaje que el Jefe o Jefa te solicite enviar por WhatsApp)
+- send_whatsapp(phone, message) (Úsala para enviar un mensaje directo de WhatsApp a un cliente o número. Ej: recordatorios de pago, notificaciones personalizadas o cualquier mensaje que el Jefe te solicite enviar por WhatsApp)
 - create_financial_sheet() (Úsala si el Jefe te pide explícitamente crear o inicializar el documento de Excel/Sheets para llevar los registros financieros desde cero)
 - get_bcv_rate() (Úsala si el Jefe te pregunta cuál es la tasa del dólar actual del BCV)
-- log_multiple_transactions(transactions) (Úsala para registrar UNA o MÚLTIPLES entradas y salidas de dinero. El parámetro 'transactions' es un ARREGLO de objetos JSON [{"type": "ENTRADA" o "SALIDA", "concept": "...", "amount": número, "currency": "VES" o "USD"}])
+- log_multiple_transactions(transactions) (Usa esta herramienta cuando el Jefe indique que realizó un gasto, recibió un pago o pagó una comisión. Debes extraer el monto, clasificarlo como INGRESO, GASTO o COMISION_BANCARIA, y asignar una categoría coherente basada en el mensaje. El parámetro 'transactions' es un ARREGLO de objetos JSON [{"type": "INGRESO"|"GASTO"|"COMISION_BANCARIA", "concept": "...", "amount": número, "currency": "VES"|"USD"}]. ¡ATENCIÓN! Si el comprobante o mensaje indica un monto retenido por el banco, registra el INGRESO bruto y la COMISION_BANCARIA separados)
 - get_current_balance() (Úsala para consultar el saldo total y exacto de la cuenta en Postgres)
+- get_financial_summary(start_date, end_date) (Genera un reporte consolidado de ingresos, gastos, comisiones bancarias y ganancia neta en un rango de fechas. Formato YYYY-MM-DD. Ideal para resúmenes semanales o mensuales)
 - get_historical_bcv_rate(date_string) (Úsala para consultar a cómo estaba la tasa del BCV en una fecha pasada. FORMATO ESTRICTO YYYY-MM-DD. NO envíes frases relativas, deduce matemáticamente la fecha usando la HORA ACTUAL)
 - get_bcv_rate_range(start_date, end_date) (Úsala para pedir las tasas del dólar en un periodo de tiempo y hacer análisis de fluctuación. FORMATOS ESTRICTOS YYYY-MM-DD)
 - convert_currency(amount, from_currency, to_currency, use_historical_date) (Úsala SIEMPRE que te pidan calcular equivalencias como "Cuántos dólares son 5000 bolívares hoy" para hacer cálculos matemáticos infalibles. from/to pueden ser "USD" o "VES". use_historical_date es opcional pero debe ser estrictamente YYYY-MM-DD)
@@ -593,7 +636,7 @@ B) Si tienes la respuesta final para el usuario:
 }
 
 4. REGLAS DE CONTROL DE FLUJO Y EVITACIÓN DE BUCLES (CRÍTICO):
-- Ejecución Única: Si una herramienta de acción directa (como \`send_whatsapp\`, \`send_email\`, \`register_client_payment\`, \`schedule_meeting\`, \`add_task\`, etc.) ya se ejecutó exitosamente y tienes el resultado del sistema (e.g. \`{"success":true,...}\`), NO debes volver a llamarla ni llamar a otra similar en el mismo turno. Tu paso siguiente e inmediato debe ser responder al Jefe o Jefa con la acción "reply" para informar de la confirmación final.
+- Ejecución Única: Si una herramienta de acción directa (como \`send_whatsapp\`, \`send_email\`, \`register_client_payment\`, \`schedule_meeting\`, \`add_task\`, etc.) ya se ejecutó exitosamente y tienes el resultado del sistema (e.g. \`{"success":true,...}\`), NO debes volver a llamarla ni llamar a otra similar en el mismo turno. Tu paso siguiente e inmediato debe ser responder al Jefe con la acción "reply" para informar de la confirmación final.
 - Cero Duplicados: Nunca envíes dos recordatorios o mensajes por WhatsApp en una misma interacción.
 
 HISTORIAL DE CONVERSACIÓN:
@@ -821,6 +864,16 @@ MENSAJE DEL USUARIO:
                             resultAmt = amt; // Same
                         }
                         toolResult = JSON.stringify({ success: true, original: `${amt} ${from_currency}`, converted: `${resultAmt.toFixed(2)} ${to_currency}`, rate_used: rate });
+                        break;
+                    }
+                    case 'get_financial_summary': {
+                        const { start_date, end_date } = parsed.parameters;
+                        if (!start_date || !end_date) {
+                            toolResult = JSON.stringify({ success: false, message: 'Faltan parámetros start_date o end_date.' });
+                            break;
+                        }
+                        const summaryData = await getFinancialSummary(start_date, end_date);
+                        toolResult = JSON.stringify(summaryData);
                         break;
                     }
                     case 'log_multiple_transactions': {
