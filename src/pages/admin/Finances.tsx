@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Activity, AlertCircle, Plus, Edit2, Trash2, X, Wallet, Landmark, CreditCard } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Activity, AlertCircle, Plus, Edit2, Trash2, X, Wallet, Landmark, CreditCard, ArrowRightLeft } from 'lucide-react';
 import { api } from '../../utils/api';
 
 export const Finances = () => {
@@ -153,7 +153,7 @@ export const Finances = () => {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="bg-white/5 border border-white/10 p-4 rounded-xl flex items-center justify-between hover:bg-white/[0.07] transition-colors">
                     <div>
                         <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Ingresos</p>
@@ -195,14 +195,45 @@ export const Finances = () => {
                         <DollarSign className={`w-5 h-5 ${data.summary.ganancia_neta >= 0 ? 'text-primary' : 'text-red-400'}`} />
                     </div>
                 </div>
+                
+                <div className="bg-white/5 border border-white/10 p-4 rounded-xl flex items-center justify-between hover:bg-white/[0.07] transition-colors">
+                    <div>
+                        <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Tasa BCV</p>
+                        <p className="text-2xl font-bold text-blue-400">Bs. {data.summary.bcv_rate ? data.summary.bcv_rate.toFixed(2) : '---'}</p>
+                    </div>
+                    <div className="p-3 bg-blue-500/10 rounded-lg">
+                        <ArrowRightLeft className="w-5 h-5 text-blue-400" />
+                    </div>
+                </div>
             </div>
             
             {/* Bank Accounts Section */}
-            <div>
-                <h2 className="font-bold mb-4 flex items-center gap-2">
-                    <Landmark className="w-5 h-5 text-primary" /> 
-                    Saldos por Cuenta
-                </h2>
+            {(() => {
+                const totalUSD = Object.values(data.account_balances || {}).reduce((acc, val) => acc + (val as number), 0);
+                const totalVES = totalUSD * (data.summary.bcv_rate || 0);
+                
+                return (
+                    <div>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="font-bold flex items-center gap-2">
+                                <Landmark className="w-5 h-5 text-primary" /> 
+                                Saldos por Cuenta
+                            </h2>
+                            <div className="text-sm font-bold bg-white/5 border border-white/10 px-4 py-2 rounded-lg hidden sm:block">
+                                Total Liquidez: <span className="text-primary">{formatMoney(totalUSD)}</span> 
+                                <span className="text-gray-400 font-normal ml-2">
+                                    (~ Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalVES)})
+                                </span>
+                            </div>
+                        </div>
+                        
+                        {/* Mobile total badge */}
+                        <div className="text-sm font-bold bg-white/5 border border-white/10 px-4 py-3 rounded-lg sm:hidden mb-4 text-center">
+                            Total Liquidez: <span className="text-primary">{formatMoney(totalUSD)}</span> <br/>
+                            <span className="text-gray-400 font-normal text-xs">
+                                (~ Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalVES)})
+                            </span>
+                        </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     {Object.entries(data.account_balances || {}).map(([account, balance]) => (
                         <div key={account} className="bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/[0.07] transition-colors flex flex-col items-center text-center">
@@ -222,6 +253,7 @@ export const Finances = () => {
                     )}
                 </div>
             </div>
+            );})()}
 
             {/* Transactions Table */}
             <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden backdrop-blur-sm">

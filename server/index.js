@@ -12,7 +12,7 @@ import { rateLimiter, loginRateLimiter, clearLoginAttempts } from './middleware/
 import multer from 'multer';
 import fs from 'fs';
 import { initAutomation, runBillingNotifications, sendMessage } from './services/automationService.js';
-import { handleIncomingWebhook, approvePaymentById, registerEvolutionWebhook, processWebChatMessage } from './services/agentService.js';
+import { handleIncomingWebhook, approvePaymentById, registerEvolutionWebhook, processWebChatMessage, getBCVRate } from './services/agentService.js';
 import { getAuthForProfile } from './services/googleService.js';
 import { google } from 'googleapis';
 import backupRoutes from './routes/backup.js';
@@ -144,13 +144,15 @@ app.get('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, 
         }
 
         const ganancia_neta = total_ingresos - total_gastos - total_comisiones;
+        const bcv_rate = await getBCVRate();
 
         res.json({
             summary: {
                 total_ingresos,
                 total_gastos,
                 total_comisiones,
-                ganancia_neta
+                ganancia_neta,
+                bcv_rate
             },
             account_balances,
             transactions: result.rows

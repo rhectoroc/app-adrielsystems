@@ -11,7 +11,7 @@ const router = express.Router();
 const execPromise = util.promisify(exec);
 const upload = multer({ dest: os.tmpdir() });
 
-const isProd = process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL?.includes('localhost') && process.platform !== 'win32';
+const isProd = !process.env.DATABASE_URL?.includes('localhost') && process.platform !== 'win32';
 
 router.get('/download', async (req, res) => {
     try {
