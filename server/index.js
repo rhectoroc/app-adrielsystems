@@ -225,6 +225,11 @@ const initDb = async () => {
             
             ALTER TABLE clients 
             ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+            
+            -- Financial Ledger: Add account_name and fix type length
+            ALTER TABLE financial_ledger ADD COLUMN IF NOT EXISTS account_name VARCHAR(100) DEFAULT 'Efectivo';
+            ALTER TABLE financial_ledger ALTER COLUMN type TYPE VARCHAR(50);
+            ALTER TABLE financial_ledger DROP CONSTRAINT IF EXISTS financial_ledger_type_check;
 
             -- User Management: Add new columns and update role constraint
             ALTER TABLE users ADD COLUMN IF NOT EXISTS receive_notifications BOOLEAN DEFAULT FALSE;
