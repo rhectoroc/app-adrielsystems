@@ -163,18 +163,29 @@ app.get('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, 
     }
 });
 
-// Create Finance Transaction
+// Create or Update Finance Transaction
 app.post('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
-        const { type, concept, amount_usd, account_name, amount_ves, exchange_rate, created_at } = req.body;
+        const { id, type, concept, amount_usd, account_name, amount_ves, exchange_rate, created_at } = req.body;
+        
+        if (id) {
+            const result = await query(`
+                UPDATE financial_ledger 
+                SET type = $1, concept = $2, amount_usd = $3, amount_ves = COALESCE($4, amount_ves), exchange_rate = COALESCE($5, exchange_rate), account_name = $6, created_at = $7
+                WHERE id = $8 RETURNING *
+            `, [type, concept, amount_usd, amount_ves !== undefined ? amount_ves : null, exchange_rate !== undefined ? exchange_rate : null, account_name || 'Efectivo', created_at || new Date(), id]);
+            if (result.rows.length === 0) return res.status(404).json({ message: 'Not found' });
+            return res.json(result.rows[0]);
+        }
+
         const result = await query(`
             INSERT INTO financial_ledger (type, concept, amount_usd, amount_ves, exchange_rate, account_name, created_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
         `, [type, concept, amount_usd, amount_ves || 0, exchange_rate || 0, account_name || 'Efectivo', created_at || new Date()]);
         res.status(201).json(result.rows[0]);
     } catch (err) {
-        console.error('Error creating finance tx:', err);
-        res.status(500).json({ message: 'Error creating transaction' });
+        console.error('Error creating/updating finance tx:', err);
+        res.status(500).json({ message: 'Error processing transaction', error: err.message });
     }
 });
 

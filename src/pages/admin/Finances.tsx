@@ -65,25 +65,28 @@ export const Finances = () => {
             const payload = {
                 ...formData,
                 amount_usd: parseFloat(formData.amount_usd),
-                created_at: new Date(formData.created_at).toISOString()
+                created_at: new Date(formData.created_at).toISOString(),
+                ...(editingTx ? { id: editingTx.id } : {})
             };
             
-            let res;
-            if (editingTx) {
-                res = await api.put(`/api/finances/${editingTx.id}`, payload);
-            } else {
-                res = await api.post('/api/finances', payload);
-            }
+            const res = await api.post('/api/finances', payload);
 
             if (!res || !res.ok) {
-                throw new Error(res ? `HTTP ${res.status}` : 'Unknown Error');
+                let errorMsg = res ? `HTTP ${res.status}` : 'Error de red';
+                try {
+                    if (res) {
+                        const errData = await res.json();
+                        if (errData.message) errorMsg += `: ${errData.message}`;
+                    }
+                } catch(e) {}
+                throw new Error(errorMsg);
             }
 
             setIsModalOpen(false);
             fetchFinances();
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error saving transaction', err);
-            alert('Error al guardar la transacción');
+            alert(`Error al guardar la transacción: ${err.message || ''}`);
         }
     };
 
