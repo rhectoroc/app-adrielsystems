@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Activity, AlertCircle, Plus, Edit2, Trash2, X, Wallet, Landmark, CreditCard, ArrowRightLeft } from 'lucide-react';
 import { api } from '../../utils/api';
+import { toast } from 'sonner';
 
 export const Finances = () => {
     const [data, setData] = useState<{ summary: any, account_balances: Record<string, number>, transactions: any[] } | null>(null);
@@ -84,9 +85,10 @@ export const Finances = () => {
 
             setIsModalOpen(false);
             fetchFinances();
+            toast.success(editingTx ? 'Transacción actualizada exitosamente' : 'Transacción registrada exitosamente');
         } catch (err: any) {
             console.error('Error saving transaction', err);
-            alert(`Error al guardar la transacción: ${err.message || ''}`);
+            toast.error(`Error al guardar la transacción: ${err.message || ''}`);
         }
     };
 
@@ -95,9 +97,10 @@ export const Finances = () => {
         try {
             await api.delete(`/api/finances/${id}`);
             fetchFinances();
+            toast.success('Transacción eliminada exitosamente');
         } catch (err) {
             console.error('Error deleting transaction', err);
-            alert('Error al eliminar la transacción');
+            toast.error('Error al eliminar la transacción');
         }
     };
 

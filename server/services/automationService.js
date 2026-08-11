@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import axios from 'axios';
 import { query } from '../db.js';
+import * as googleTTS from 'google-tts-api';
 
 /**
  * Automation Service
@@ -71,6 +72,48 @@ export const sendMessage = async (number, text) => {
             'Content-Type': 'application/json'
         }
     });
+};
+
+/**
+ * Sends a Voice Note (Audio) via Evolution API using Google TTS
+ */
+export const sendVoiceNote = async (number, text) => {
+    if (!EVOLUTION_API_KEY) {
+        throw new Error('EVOLUTION_API_KEY is not defined');
+    }
+
+    const cleanPhone = number.replace(/\D/g, '');
+    const evolutionUrl = `${EVOLUTION_API_URL}/message/sendWhatsAppAudio/${INSTANCE_NAME}`;
+
+    try {
+        // Generate Audio Base64 from Google TTS (Max 200 chars for free API, we chunk it if necessary, but here we just pass the text. google-tts-api supports getAudioBase64 up to 200 chars. For longer texts, getAudioUrl can be used, but since we just need simple replies, we use getAudioBase64. Wait, getAllAudioBase64 supports longer).
+        const audioBase64Array = await googleTTS.getAllAudioBase64(text, {
+            lang: 'es',
+            slow: false,
+            host: 'https://translate.google.com',
+            splitPunct: ',.?'
+        });
+        
+        // Take the first chunk for simplicity or combine them. But actually, for WhatsApp, sending multiple audios is weird. Let's just assume the text is short, or we send only the first one if it's too long, or we send multiple messages.
+        // Actually, if we send the text in chunks as multiple WhatsApp audios, it works. Let's loop and send them in order.
+        for (const chunk of audioBase64Array) {
+            await axios.post(evolutionUrl, {
+                number: cleanPhone,
+                audio: chunk.base64,
+                delay: 500,
+                encoding: true // Tells Evolution API to encode as Voice Note (PTT)
+            }, {
+                headers: {
+                    'apikey': EVOLUTION_API_KEY,
+                    'Content-Type': 'application/json'
+                }
+            });
+        }
+        return { success: true };
+    } catch (error) {
+        console.error('[Automation Service] Error sending Voice Note:', error);
+        throw error;
+    }
 };
 
 /**

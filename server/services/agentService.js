@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { query } from '../db.js';
-import { sendMessage } from './automationService.js';
+import { sendMessage, sendVoiceNote } from './automationService.js';
 import * as googleService from './googleService.js';
 import fs from 'fs';
 import path from 'path';
@@ -58,6 +58,7 @@ export const handleIncomingWebhook = async (req, res) => {
         const messageType = data.messageType || 'conversation';
         const sessionId = remoteJid.replace(/\D/g, '');
 
+        let isAudio = false;
         let messageText = '';
         if (messageType === 'conversation') {
             messageText = data.message?.conversation || '';
@@ -65,6 +66,64 @@ export const handleIncomingWebhook = async (req, res) => {
             messageText = data.message?.extendedTextMessage?.text || '';
         } else if (messageType === 'imageMessage') {
             messageText = data.message?.imageMessage?.caption || '';
+        } else if (messageType === 'audioMessage' || messageType === 'ptvMessage') {
+            isAudio = true;
+            const messageId = key.id;
+            console.log(`[Agent Service] Fetching audio base64 for message: ${messageId}`);
+            
+            let base64Audio = data?.message?.audioMessage?.base64 || data?.message?.ptvMessage?.base64 || data?.base64;
+            let mimeType = data?.message?.audioMessage?.mimetype || data?.message?.ptvMessage?.mimetype || 'audio/ogg';
+
+            if (!base64Audio) {
+                try {
+                    const evolutionUrl = `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${INSTANCE_NAME}`;
+                    const response = await axios.post(evolutionUrl, { message: data }, {
+                        headers: { 'apikey': EVOLUTION_API_KEY, 'Content-Type': 'application/json' }
+                    });
+                    base64Audio = response.data?.base64 || response.data?.data?.base64;
+                } catch (postErr) {
+                    try {
+                        const evolutionUrlV1 = `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${INSTANCE_NAME}/${messageId}`;
+                        const response = await axios.get(evolutionUrlV1, {
+                            headers: { 'apikey': EVOLUTION_API_KEY }
+                        });
+                        base64Audio = response.data?.base64 || response.data?.data?.base64;
+                    } catch (e) {}
+                }
+            }
+
+            if (base64Audio) {
+                console.log('[Agent Service] Sending audio to Gemini for transcription...');
+                const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+                const prompt = `Transcribe exactamente el siguiente mensaje de voz al español sin agregar comentarios ni justificaciones. Escribe solo lo que escuches.`;
+                
+                const geminiPayload = {
+                    contents: [
+                        {
+                            parts: [
+                                { text: prompt },
+                                {
+                                    inlineData: {
+                                        mimeType: mimeType.split(';')[0],
+                                        data: base64Audio
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                };
+
+                try {
+                    const geminiResponse = await axios.post(geminiUrl, geminiPayload, {
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const transcript = geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                    messageText = transcript.trim();
+                    console.log(`[Agent Service] Audio transcribed: "${messageText}"`);
+                } catch (geminiErr) {
+                    console.error('[Agent Service] Error transcribing audio:', geminiErr.message);
+                }
+            }
         }
 
         console.log(`[Agent Service] Message from ${remoteJidAlt} (${pushName}): [${messageType}] "${messageText}"`);
@@ -80,7 +139,7 @@ export const handleIncomingWebhook = async (req, res) => {
                 await processAdminImage(remoteJid, messageId, messageText, roleName, pushName, data);
                 return res.status(200).json({ status: 'processed', type: 'admin_image' });
             }
-            await processAdminMessage(roleName, remoteJid, messageText, pushName);
+            await processAdminMessage(roleName, remoteJid, messageText, pushName, isAudio);
             return res.status(200).json({ status: 'processed', type: 'admin' });
         }
 
@@ -102,6 +161,7 @@ export const handleIncomingWebhook = async (req, res) => {
             const existing = messageBuffers.get(remoteJid);
             clearTimeout(existing.timeout);
             existing.messages.push(messageText);
+            if (isAudio) existing.isAudio = true;
             
             // Set new timeout
             existing.timeout = setTimeout(() => {
@@ -112,6 +172,7 @@ export const handleIncomingWebhook = async (req, res) => {
         } else {
             const buffer = {
                 messages: [messageText],
+                isAudio: isAudio,
                 timeout: setTimeout(() => {
                     triggerClientResponse(remoteJid, pushName);
                 }, DEBOUNCE_TIME)
@@ -199,11 +260,21 @@ REGLAS DE RESOLUCIÓN:
 - Si responde "Listo" tras agendar: Pide su correo y dile que en breve confirmaremos su cita.
 - Nunca inventes datos de facturación ni reveles variables internas.`;
 
-        // 4. LLM API Call
-        const replyText = await callLLM(systemMessage, history);
+        // 4. Connect to DeepSeek / LLM
+        const llmResponse = await callLLMText(systemMessage, history, combinedMessage);
+        const agentReply = llmResponse.replace('<think>', '').replace('</think>', '').trim(); // Fallback clean
 
-        // 5. Send Response via WhatsApp
-        await sendMessage(remoteJid, replyText);
+        console.log(`[Agent Service] Response for ${remoteJid}:\n"${agentReply}"`);
+
+        // Send Text and Voice (if audio)
+        await sendMessage(remoteJid, agentReply);
+        if (buffer.isAudio) {
+            try {
+                await sendVoiceNote(remoteJid, agentReply);
+            } catch (e) {
+                console.error('[Agent Service] Failed to send voice note to client', e);
+            }
+        }
 
         // 6. Save Bot Reply to History
         await query(
@@ -559,7 +630,7 @@ const getFinancialSummary = async (startDate, endDate) => {
 /**
  * Handle Admin Agent (Hector) using Prompts and custom Tool Calling Loop
  */
-const processAdminMessage = async (roleName, remoteJid, messageText, pushName) => {
+const processAdminMessage = async (roleName, remoteJid, messageText, pushName, isAudio = false) => {
     try {
         const sessionId = remoteJid.replace(/\D/g, '');
         const nowCaracas = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' });
@@ -609,7 +680,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - edit_client(phone, fieldsJSON)
 - get_billing_summary() (Úsala cuando te pidan verificar el estatus de todos los clientes, ver quiénes deben, o un resumen de cobranza general)
 - search_client_by_name(name) (Úsala para buscar clientes por su nombre cuando no tengas su número de teléfono)
-- register_client_payment(clientId, amount, currency, reference, notes) (Úsala para registrar un pago verificado de un cliente, renovar su servicio y notificarle automáticamente por WhatsApp y Correo Electrónico)
+- register_client_payment(clientId, amount, currency, reference, notes, account_name) (Úsala para registrar un pago verificado de un cliente. Esto renueva su servicio, le notifica por WhatsApp y automáticamente registra el ingreso en la base de datos financiera bajo la cuenta bancaria especificada o "Efectivo")
 - send_whatsapp(phone, message) (Úsala para enviar un mensaje directo de WhatsApp a un cliente o número. Ej: recordatorios de pago, notificaciones personalizadas o cualquier mensaje que el Jefe te solicite enviar por WhatsApp)
 - create_financial_sheet() (Úsala si el Jefe te pide explícitamente crear o inicializar el documento de Excel/Sheets para llevar los registros financieros desde cero)
 - get_bcv_rate() (Úsala si el Jefe te pregunta cuál es la tasa del dólar actual del BCV)
@@ -730,8 +801,8 @@ MENSAJE DEL USUARIO:
                         toolResult = JSON.stringify(searchResult);
                         break;
                     case 'register_client_payment':
-                        const { clientId, amount, currency, reference, notes: paymentNotes } = parsed.parameters;
-                        const regResult = await registerClientPayment(clientId, amount, currency, reference, paymentNotes);
+                        const { clientId, amount, currency, reference, notes: paymentNotes, account_name } = parsed.parameters;
+                        const regResult = await registerClientPayment(clientId, amount, currency, reference, paymentNotes, account_name);
                         toolResult = JSON.stringify(regResult);
                         break;
                     case 'send_whatsapp': {
@@ -1000,6 +1071,13 @@ Continúa razonando y devuelve el JSON correspondiente.`;
 
         // Send response back to Admin
         await sendMessage(remoteJid, finalResponse);
+        if (isAudio) {
+            try {
+                await sendVoiceNote(remoteJid, finalResponse);
+            } catch (e) {
+                console.error('[Agent Service] Failed to send admin voice note:', e);
+            }
+        }
 
         // Save Eva reply to history logs
         await query(
@@ -1113,7 +1191,7 @@ export const searchClientByName = async (name) => {
 /**
  * Register client payment and notify client via email and WhatsApp
  */
-export const registerClientPayment = async (clientId, amount, currency, reference, notes) => {
+export const registerClientPayment = async (clientId, amount, currency, reference, notes, accountName = 'Efectivo') => {
     try {
         // 1. Fetch client details
         const clientRes = await query('SELECT id, name, phone, email FROM clients WHERE id = $1', [clientId]);
@@ -1130,8 +1208,8 @@ export const registerClientPayment = async (clientId, amount, currency, referenc
         // 3. Register payment in database
         await query(`
             INSERT INTO payments (client_id, service_id, amount, status, payment_method, due_date, notes)
-            VALUES ($1, $2, $3, 'PAID', 'Transferencia/Móvil', CURRENT_DATE, $4)
-        `, [clientId, serviceId, amount, `Registrado por EVA vía WhatsApp. Ref: ${reference}. Nota: ${notes || 'N/A'}`]);
+            VALUES ($1, $2, $3, 'PAID', $4, CURRENT_DATE, $5)
+        `, [clientId, serviceId, amount, accountName, `Registrado por EVA vía WhatsApp. Ref: ${reference}. Nota: ${notes || 'N/A'}`]);
 
         // 4. Update service expiration date and last payment date
         if (serviceId) {
@@ -1143,7 +1221,28 @@ export const registerClientPayment = async (clientId, amount, currency, referenc
             `, [serviceId]);
         }
 
-        // 5. Send Confirmation WhatsApp to the Client
+        // 5. Register in Financial Ledger
+        let amount_usd = 0;
+        let amount_ves = 0;
+        let rate = 0;
+        
+        if (currency.toUpperCase() === 'VES') {
+            rate = await getBCVRate() || 1;
+            amount_ves = amount;
+            amount_usd = amount / rate;
+        } else {
+            rate = await getBCVRate() || 1;
+            amount_usd = amount;
+            amount_ves = amount * rate;
+        }
+
+        const concept = `Pago de servicio: ${client.name} ${service ? '(' + service.name + ')' : ''}`;
+        await query(`
+            INSERT INTO financial_ledger (type, concept, amount_usd, amount_ves, exchange_rate, account_name, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+        `, ['INGRESO', concept, amount_usd, amount_ves, rate, accountName]);
+
+        // 6. Send Confirmation WhatsApp to the Client
         const clientJid = `${client.phone}@s.whatsapp.net`;
         const whatsappMessage = `¡Hola ${client.name}! ✅ Tu pago de *${amount} ${currency}* (Ref: ${reference}) ha sido recibido y registrado con éxito. \n\nTu servicio se encuentra activo y al día. ¡Gracias por confiar en Adriel's Systems! ✨`;
         await sendMessage(clientJid, whatsappMessage);
