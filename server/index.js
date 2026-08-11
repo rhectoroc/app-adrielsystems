@@ -69,6 +69,35 @@ const PORT = process.env.PORT || 3000;
 // FIX-02: Trust proxy for correct IP detection behind Easypanel/Nginx
 app.set('trust proxy', 1);
 
+// Middleware
+// FIX-10: Helmet for security headers (XSS protection, Content-Type sniffing, etc.)
+app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled for SPA compatibility
+
+// FIX-01: CORS restricted to allowed origins only
+const ALLOWED_ORIGINS = [
+    process.env.APP_URL, // e.g. https://app.adrielssystems.com
+    'http://localhost:5173', // Vite dev
+    'http://localhost:5174', // Vite dev fallback
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'http://localhost:3000'  // Local server
+].filter(Boolean);
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, server-to-server)
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
+
+app.use(express.json({ limit: '1mb' })); // Limit body size
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
 // Dashboard Activity Endpoint
 app.use('/api/backup', authenticateToken, authorizeRole('ADMIN'), backupRoutes);
 
@@ -296,34 +325,6 @@ const initDb = async () => {
 initDb();
 initAutomation();
 
-// Middleware
-// FIX-10: Helmet for security headers (XSS protection, Content-Type sniffing, etc.)
-app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled for SPA compatibility
-
-// FIX-01: CORS restricted to allowed origins only
-const ALLOWED_ORIGINS = [
-    process.env.APP_URL, // e.g. https://app.adrielssystems.com
-    'http://localhost:5173', // Vite dev
-    'http://localhost:5174', // Vite dev fallback
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'http://localhost:3000'  // Local server
-].filter(Boolean);
-
-app.use(cors({
-    origin: (origin, callback) => {
-        // Allow requests with no origin (mobile apps, curl, server-to-server)
-        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true
-}));
-
-app.use(express.json({ limit: '1mb' })); // Limit body size
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Static Serving for Uploads
 app.use('/uploads/capref', express.static(uploadDir));
