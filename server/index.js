@@ -185,9 +185,9 @@ app.put('/api/finances/:id', authenticateToken, authorizeRole('ADMIN'), async (r
         const { type, concept, amount_usd, account_name, amount_ves, exchange_rate, created_at } = req.body;
         const result = await query(`
             UPDATE financial_ledger 
-            SET type = $1, concept = $2, amount_usd = $3, amount_ves = $4, exchange_rate = $5, account_name = $6, created_at = $7
+            SET type = $1, concept = $2, amount_usd = $3, amount_ves = COALESCE($4, amount_ves), exchange_rate = COALESCE($5, exchange_rate), account_name = $6, created_at = $7
             WHERE id = $8 RETURNING *
-        `, [type, concept, amount_usd, amount_ves || 0, exchange_rate || 0, account_name || 'Efectivo', created_at || new Date(), id]);
+        `, [type, concept, amount_usd, amount_ves !== undefined ? amount_ves : null, exchange_rate !== undefined ? exchange_rate : null, account_name || 'Efectivo', created_at || new Date(), id]);
         if (result.rows.length === 0) return res.status(404).json({ message: 'Not found' });
         res.json(result.rows[0]);
     } catch (err) {

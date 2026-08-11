@@ -24,7 +24,7 @@ export const Finances = () => {
     const fetchFinances = async () => {
         setIsLoading(true);
         try {
-            const response = await api.get('/api/finances');
+            const response = await api.get(`/api/finances?t=${new Date().getTime()}`);
             if (response.ok) {
                 const json = await response.json();
                 setData(json);
@@ -68,11 +68,17 @@ export const Finances = () => {
                 created_at: new Date(formData.created_at).toISOString()
             };
             
+            let res;
             if (editingTx) {
-                await api.put(`/api/finances/${editingTx.id}`, payload);
+                res = await api.put(`/api/finances/${editingTx.id}`, payload);
             } else {
-                await api.post('/api/finances', payload);
+                res = await api.post('/api/finances', payload);
             }
+
+            if (!res || !res.ok) {
+                throw new Error(res ? `HTTP ${res.status}` : 'Unknown Error');
+            }
+
             setIsModalOpen(false);
             fetchFinances();
         } catch (err) {
