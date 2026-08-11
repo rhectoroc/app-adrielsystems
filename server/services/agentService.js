@@ -266,14 +266,16 @@ REGLAS DE RESOLUCIÓN:
 
         console.log(`[Agent Service] Response for ${remoteJid}:\n"${agentReply}"`);
 
-        // Send Text and Voice (if audio)
-        await sendMessage(remoteJid, agentReply);
+        // Send Response
         if (buffer.isAudio) {
             try {
                 await sendVoiceNote(remoteJid, agentReply);
             } catch (e) {
                 console.error('[Agent Service] Failed to send voice note to client', e);
+                await sendMessage(remoteJid, agentReply); // fallback
             }
+        } else {
+            await sendMessage(remoteJid, agentReply);
         }
 
         // 6. Save Bot Reply to History
@@ -1070,13 +1072,15 @@ Continúa razonando y devuelve el JSON correspondiente.`;
         }
 
         // Send response back to Admin
-        await sendMessage(remoteJid, finalResponse);
         if (isAudio) {
             try {
                 await sendVoiceNote(remoteJid, finalResponse);
             } catch (e) {
                 console.error('[Agent Service] Failed to send admin voice note:', e);
+                await sendMessage(remoteJid, finalResponse); // fallback
             }
+        } else {
+            await sendMessage(remoteJid, finalResponse);
         }
 
         // Save Eva reply to history logs
