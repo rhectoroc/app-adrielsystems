@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import axios from 'axios';
 import { query } from '../db.js';
 import OpenAI from 'openai';
+import * as googleTTS from 'google-tts-api';
 
 /**
  * Automation Service
@@ -75,32 +76,64 @@ export const sendMessage = async (number, text) => {
 };
 
 /**
- * Sends a Voice Note (Audio) via Evolution API using OpenAI TTS
+ * Sends a Voice Note (Audio) via Evolution API using OpenAI TTS (with Google TTS fallback)
  */
 export const sendVoiceNote = async (number, text) => {
     if (!EVOLUTION_API_KEY) {
         throw new Error('EVOLUTION_API_KEY is not defined');
     }
-    if (!process.env.OPENAI_API_KEY) {
-        throw new Error('OPENAI_API_KEY is not defined');
-    }
 
     const cleanPhone = number.replace(/\D/g, '');
     const evolutionUrl = `${EVOLUTION_API_URL}/message/sendWhatsAppAudio/${INSTANCE_NAME}`;
 
+    let base64Audio = null;
+
+    // 1. Try OpenAI TTS first (if key exists)
+    if (process.env.OPENAI_API_KEY) {
+        try {
+            const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+            const mp3 = await openai.audio.speech.create({
+                model: "tts-1",
+                voice: "nova", // Highly realistic female voice
+                input: text,
+            });
+            const buffer = Buffer.from(await mp3.arrayBuffer());
+            base64Audio = `data:audio/mp3;base64,${buffer.toString('base64')}`;
+            console.log('[Automation Service] Successfully generated Voice Note using OpenAI.');
+        } catch (error) {
+            console.warn('[Automation Service] OpenAI TTS failed (possibly no credits). Falling back to Google TTS...', error.message);
+        }
+    } else {
+        console.warn('[Automation Service] No OPENAI_API_KEY found. Using Google TTS fallback.');
+    }
+
+    // 2. Fallback to Google TTS (Free) if OpenAI failed or is not configured
+    if (!base64Audio) {
+        try {
+            const audioBase64Array = await googleTTS.getAllAudioBase64(text, {
+                lang: 'es',
+                slow: false,
+                host: 'https://translate.google.com',
+                splitPunct: ',.?'
+            });
+            
+            // For WhatsApp voice notes, it's best to send the first chunk if it's short, or send multiple.
+            // Since we just need the fallback to work, we'll use the first chunk.
+            base64Audio = audioBase64Array[0].base64;
+            // Note: google-tts-api returns base64 without the mime prefix, so we add it if needed, 
+            // but Evolution API usually accepts raw base64 or prefixed. Let's prefix it to be safe.
+            if (!base64Audio.startsWith('data:')) {
+                base64Audio = `data:audio/mp3;base64,${base64Audio}`;
+            }
+            console.log('[Automation Service] Successfully generated Voice Note using Google TTS.');
+        } catch (error) {
+            console.error('[Automation Service] Google TTS Fallback also failed:', error);
+            throw error; // If both fail, we throw so the agent falls back to Text Message
+        }
+    }
+
+    // 3. Send the generated audio to WhatsApp
     try {
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        
-        // Generate Audio Buffer from OpenAI TTS
-        const mp3 = await openai.audio.speech.create({
-            model: "tts-1",
-            voice: "nova", // Highly realistic female voice
-            input: text,
-        });
-        
-        const buffer = Buffer.from(await mp3.arrayBuffer());
-        const base64Audio = `data:audio/mp3;base64,${buffer.toString('base64')}`;
-        
         await axios.post(evolutionUrl, {
             number: cleanPhone,
             audio: base64Audio,
@@ -115,7 +148,7 @@ export const sendVoiceNote = async (number, text) => {
         
         return { success: true };
     } catch (error) {
-        console.error('[Automation Service] Error sending Voice Note via OpenAI:', error);
+        console.error('[Automation Service] Error sending Voice Note through Evolution API:', error);
         throw error;
     }
 };
