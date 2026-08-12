@@ -1,6 +1,33 @@
-# Avance de Desarrollo — 10 de Agosto 2026
+# Avance de Desarrollo — 11 de Agosto 2026
 
-## Sesión: Panel de Finanzas Bidireccional, KPI Cambiario y Corrección de Backups
+## Sesión: Registro Financiero Simultáneo y Superpoderes de Voz (STT & TTS Híbrido) para EVA
+
+En esta sesión se cerró la brecha entre el panel de Pagos y el de Finanzas, y se dotó a la asistente EVA de capacidades completas de procesamiento de audio, permitiéndole mantener conversaciones habladas ultra-realistas por WhatsApp.
+
+### 💸 Registro Financiero Simultáneo Automatizado
+- **Integración de Paneles:** Se modificó la herramienta `register_client_payment` para que, al momento de registrar el pago de un cliente, inserte automáticamente una segunda transacción de tipo `INGRESO` en el Libro Mayor (Finanzas).
+- **Conversión Cambiaria Inteligente:** EVA ahora invoca automáticamente la función `getBCVRate()` interna para calcular instantáneamente los equivalentes en USD y VES al registrar el pago, guardando montos perfectos en la base de datos sin importar la moneda original del pago.
+
+### 🎙️ Comunicación por Notas de Voz (Recepción y Emisión)
+- **Speech-to-Text (STT) con Gemini:** Se actualizó el webhook principal de Evolution API para interceptar mensajes de tipo `audioMessage` y `ptvMessage`. EVA extrae el audio en Base64 y utiliza el modelo nativo de audio de **Gemini 2.5 Flash** para transcribir la nota de voz del usuario a texto con altísima precisión.
+- **Text-to-Speech (TTS) Ultra-Realista:** Se integró la API de **OpenAI (tts-1)** para permitir que EVA genere respuestas de audio con la voz "Nova", proporcionando una experiencia conversacional empática y humana.
+- **Regla de Respuesta Exclusiva:** Se programó a EVA para respetar el medio de comunicación: si el usuario le habla por texto, responde por texto; si el usuario le envía una nota de voz, responde **exclusivamente con una nota de voz**.
+
+### 🛡️ Arquitectura de Respaldo Híbrido (Fallback TTS)
+- **Zero-Downtime Audio:** Se implementó una lógica condicional (Fallback) en la función `sendVoiceNote`. Si la API Key de OpenAI no está configurada o se agotan los créditos (Error 429), el sistema atrapa el error y conmuta automáticamente, en milisegundos, a la librería gratuita `google-tts-api`. 
+- **Garantía de Servicio:** Esto garantiza que el administrador pueda seguir recibiendo notas de voz en todo momento para pruebas o producción sin interrupciones por cuotas de facturación.
+
+### 🛠️ Archivos Modificados (11 de Agosto)
+
+| Archivo | Tipo | Cambio |
+|---------|------|--------|
+| `server/services/agentService.js` | MODIFY | Integración en `register_client_payment` hacia tabla `financial_ledger`. Recepción de audios en `handleIncomingWebhook`. Regla de respuesta en `processAdminMessage`. |
+| `server/services/automationService.js` | MODIFY | Creación de función `sendVoiceNote` implementando OpenAI TTS y fallback automático a Google TTS. |
+| `package.json` | MODIFY | Instalación de dependencias `openai` y `google-tts-api`. |
+
+---
+
+# Avance de Desarrollo — 10 de Agosto 2026
 
 En esta sesión se transformó la sección de Finanzas en un Centro de Control Financiero completo con capacidades CRUD bidireccionales, además de resolver bugs críticos en la infraestructura de la base de datos y la funcionalidad de Backups.
 

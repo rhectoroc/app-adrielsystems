@@ -153,6 +153,7 @@ app.get('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, 
         let total_gastos = 0;
         let total_comisiones = 0;
         let account_balances = {};
+        let comisiones_por_banco = {};
 
         for (const row of result.rows) {
             const amount = parseFloat(row.amount_usd);
@@ -160,15 +161,17 @@ app.get('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, 
             
             if (!account_balances[account]) account_balances[account] = 0;
 
-            if (row.type === 'INGRESO' || row.type === 'ENTRADA' || row.type === 'TRANSFERENCIA_ENTRADA') {
+            if (row.type === 'INGRESO' || row.type === 'ENTRADA' || row.type === 'TRANSFERENCIA_ENTRADA' || row.type === 'AJUSTE_POSITIVO') {
                 account_balances[account] += amount;
-                if (row.type !== 'TRANSFERENCIA_ENTRADA') total_ingresos += amount;
-            } else if (row.type === 'GASTO' || row.type === 'SALIDA' || row.type === 'TRANSFERENCIA_SALIDA') {
+                if (row.type !== 'TRANSFERENCIA_ENTRADA' && row.type !== 'AJUSTE_POSITIVO') total_ingresos += amount;
+            } else if (row.type === 'GASTO' || row.type === 'SALIDA' || row.type === 'TRANSFERENCIA_SALIDA' || row.type === 'AJUSTE_NEGATIVO') {
                 account_balances[account] -= amount;
-                if (row.type !== 'TRANSFERENCIA_SALIDA') total_gastos += amount;
+                if (row.type !== 'TRANSFERENCIA_SALIDA' && row.type !== 'AJUSTE_NEGATIVO') total_gastos += amount;
             } else if (row.type === 'COMISION_BANCARIA') {
                 account_balances[account] -= amount;
                 total_comisiones += amount;
+                if (!comisiones_por_banco[account]) comisiones_por_banco[account] = 0;
+                comisiones_por_banco[account] += amount;
             }
         }
 
@@ -181,7 +184,8 @@ app.get('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, 
                 total_gastos,
                 total_comisiones,
                 ganancia_neta,
-                bcv_rate
+                bcv_rate,
+                comisiones_por_banco
             },
             account_balances,
             transactions: result.rows

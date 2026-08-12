@@ -9,11 +9,15 @@ export const Finances = () => {
     
     // CRUD State
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+    const [adjustingAccount, setAdjustingAccount] = useState<string | null>(null);
+    const [adjustBalanceUsd, setAdjustBalanceUsd] = useState('');
     const [editingTx, setEditingTx] = useState<any>(null);
     const [formData, setFormData] = useState({
         type: 'GASTO',
         concept: '',
         amount_usd: '',
+        commission_usd: '',
         account_name: 'Efectivo',
         created_at: ''
     });
@@ -44,6 +48,7 @@ export const Finances = () => {
                 type: tx.type,
                 concept: tx.concept,
                 amount_usd: tx.amount_usd.toString(),
+                commission_usd: '',
                 account_name: tx.account_name || 'Efectivo',
                 created_at: new Date(tx.created_at).toISOString().slice(0, 16)
             });
@@ -53,6 +58,7 @@ export const Finances = () => {
                 type: 'GASTO',
                 concept: '',
                 amount_usd: '',
+                commission_usd: '',
                 account_name: 'Efectivo',
                 created_at: new Date().toISOString().slice(0, 16)
             });
@@ -83,12 +89,59 @@ export const Finances = () => {
                 throw new Error(errorMsg);
             }
 
+            if (!editingTx && formData.type !== 'COMISION_BANCARIA' && parseFloat(formData.commission_usd || '0') > 0) {
+                const commissionPayload = {
+                    type: 'COMISION_BANCARIA',
+                    concept: `Comisión bancaria por: ${formData.concept}`,
+                    amount_usd: parseFloat(formData.commission_usd),
+                    account_name: formData.account_name,
+                    created_at: new Date(formData.created_at).toISOString()
+                };
+                await api.post('/api/finances', commissionPayload);
+            }
+
             setIsModalOpen(false);
             fetchFinances();
             toast.success(editingTx ? 'Transacción actualizada exitosamente' : 'Transacción registrada exitosamente');
         } catch (err: any) {
             console.error('Error saving transaction', err);
             toast.error(`Error al guardar la transacción: ${err.message || ''}`);
+        }
+    };
+
+    const handleAdjustBalance = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!adjustingAccount || adjustBalanceUsd === '') return;
+        
+        const currentBalance = data?.account_balances[adjustingAccount] || 0;
+        const targetBalance = parseFloat(adjustBalanceUsd);
+        const difference = targetBalance - currentBalance;
+        
+        if (difference === 0) {
+            toast.info('El saldo ingresado es igual al actual');
+            setIsAdjustModalOpen(false);
+            return;
+        }
+
+        try {
+            const payload = {
+                type: difference > 0 ? 'AJUSTE_POSITIVO' : 'AJUSTE_NEGATIVO',
+                concept: `Ajuste manual de saldo (${difference > 0 ? 'Sobrante' : 'Faltante'})`,
+                amount_usd: Math.abs(difference),
+                account_name: adjustingAccount,
+                created_at: new Date().toISOString()
+            };
+            
+            const res = await api.post('/api/finances', payload);
+            if (!res || !res.ok) throw new Error('Error al ajustar el saldo');
+            
+            setIsAdjustModalOpen(false);
+            setAdjustingAccount(null);
+            setAdjustBalanceUsd('');
+            fetchFinances();
+            toast.success(`Saldo ajustado exitosamente. Se creó un ${difference > 0 ? 'ajuste positivo' : 'ajuste negativo'} de $${Math.abs(difference).toFixed(2)}`);
+        } catch (err: any) {
+            toast.error('Error al realizar el ajuste');
         }
     };
 
@@ -170,6 +223,7 @@ export const Finances = () => {
                     <div>
                         <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Ingresos</p>
                         <p className="text-2xl font-bold text-green-500">{formatMoney(data.summary.total_ingresos)}</p>
+                        <p className="text-xs text-gray-500 mt-1">~ Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2 }).format(data.summary.total_ingresos * (data.summary.bcv_rate || 0))}</p>
                     </div>
                     <div className="p-3 bg-green-500/10 rounded-lg">
                         <TrendingUp className="w-5 h-5 text-green-500" />
@@ -180,20 +234,36 @@ export const Finances = () => {
                     <div>
                         <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Gastos</p>
                         <p className="text-2xl font-bold text-red-500">{formatMoney(data.summary.total_gastos)}</p>
+                        <p className="text-xs text-gray-500 mt-1">~ Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2 }).format(data.summary.total_gastos * (data.summary.bcv_rate || 0))}</p>
                     </div>
                     <div className="p-3 bg-red-500/10 rounded-lg">
                         <TrendingDown className="w-5 h-5 text-red-500" />
                     </div>
                 </div>
 
-                <div className="bg-white/5 border border-white/10 p-4 rounded-xl flex items-center justify-between hover:bg-white/[0.07] transition-colors">
+                <div className="bg-white/5 border border-white/10 p-4 rounded-xl flex items-center justify-between hover:bg-white/[0.07] transition-colors relative group">
                     <div>
                         <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Comisiones</p>
                         <p className="text-2xl font-bold text-yellow-500">{formatMoney(data.summary.total_comisiones)}</p>
+                        <p className="text-xs text-gray-500 mt-1">~ Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2 }).format(data.summary.total_comisiones * (data.summary.bcv_rate || 0))}</p>
                     </div>
                     <div className="p-3 bg-yellow-500/10 rounded-lg">
                         <Activity className="w-5 h-5 text-yellow-500" />
                     </div>
+                    {/* Tooltip for commission breakdown */}
+                    {data.summary.comisiones_por_banco && Object.keys(data.summary.comisiones_por_banco).length > 0 && (
+                        <div className="absolute left-0 -bottom-2 translate-y-full w-full bg-slate-800 border border-white/10 rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 shadow-xl pointer-events-none">
+                            <p className="text-xs font-bold text-white mb-2 uppercase border-b border-white/10 pb-1">Desglose por Banco</p>
+                            <div className="space-y-1.5">
+                                {Object.entries(data.summary.comisiones_por_banco).map(([bank, amount]) => (
+                                    <div key={bank} className="flex justify-between text-xs">
+                                        <span className="text-gray-400">{bank}</span>
+                                        <span className="font-bold text-yellow-500">{formatMoney(amount as number)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="bg-white/5 border border-white/10 p-4 rounded-xl flex items-center justify-between hover:bg-white/[0.07] transition-colors">
@@ -202,6 +272,7 @@ export const Finances = () => {
                         <p className={`text-2xl font-bold ${data.summary.ganancia_neta >= 0 ? 'text-white' : 'text-red-400'}`}>
                             {formatMoney(data.summary.ganancia_neta)}
                         </p>
+                        <p className="text-xs text-gray-500 mt-1">~ Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2 }).format(data.summary.ganancia_neta * (data.summary.bcv_rate || 0))}</p>
                     </div>
                     <div className={`p-3 rounded-lg ${data.summary.ganancia_neta >= 0 ? 'bg-primary/20' : 'bg-red-500/10'}`}>
                         <DollarSign className={`w-5 h-5 ${data.summary.ganancia_neta >= 0 ? 'text-primary' : 'text-red-400'}`} />
@@ -248,7 +319,7 @@ export const Finances = () => {
                         </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     {Object.entries(data.account_balances || {}).map(([account, balance]) => (
-                        <div key={account} className="bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/[0.07] transition-colors flex flex-col items-center text-center">
+                        <div key={account} className="bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/[0.07] transition-colors flex flex-col items-center text-center relative group">
                             <div className="p-3 bg-white/5 rounded-full mb-3">
                                 {getAccountIcon(account)}
                             </div>
@@ -256,6 +327,19 @@ export const Finances = () => {
                             <p className={`text-lg font-bold ${balance >= 0 ? 'text-white' : 'text-red-400'}`}>
                                 {formatMoney(balance as number)}
                             </p>
+                            <p className="text-[10px] text-gray-500 mt-1">
+                                Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2 }).format((balance as number) * (data.summary.bcv_rate || 0))}
+                            </p>
+                            <button
+                                onClick={() => {
+                                    setAdjustingAccount(account);
+                                    setAdjustBalanceUsd((balance as number).toString());
+                                    setIsAdjustModalOpen(true);
+                                }}
+                                className="mt-3 text-[10px] uppercase font-bold bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white px-3 py-1.5 rounded-md transition-colors w-full"
+                            >
+                                Ajustar Saldo
+                            </button>
                         </div>
                     ))}
                     {Object.keys(data.account_balances || {}).length === 0 && (
@@ -388,6 +472,24 @@ export const Finances = () => {
                                 </div>
                             </div>
 
+                            {!editingTx && formData.type !== 'COMISION_BANCARIA' && (
+                                <div className="animate-in fade-in slide-in-from-top-2">
+                                    <label className="block text-xs text-gray-400 font-medium mb-1">Comisión Bancaria (USD) <span className="text-gray-500 font-normal">(Opcional)</span></label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                                        <input 
+                                            type="number" 
+                                            step="0.01"
+                                            className="w-full bg-black/50 border border-white/10 rounded-lg pl-7 pr-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 outline-none"
+                                            placeholder="0.00"
+                                            value={formData.commission_usd}
+                                            onChange={(e) => setFormData({...formData, commission_usd: e.target.value})}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 mt-1">Si ingresas un monto, se creará un registro separado de comisión asociado a esta cuenta.</p>
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-xs text-gray-400 font-medium mb-1">Concepto / Descripción</label>
                                 <input 
@@ -424,6 +526,60 @@ export const Finances = () => {
                                     className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-black rounded-lg text-sm font-bold transition-colors"
                                 >
                                     {editingTx ? 'Guardar Cambios' : 'Añadir'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+            {/* Adjust Balance Modal */}
+            {isAdjustModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+                    <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center p-4 border-b border-white/10 bg-white/5">
+                            <h3 className="font-bold text-lg">Ajustar Saldo: {adjustingAccount}</h3>
+                            <button onClick={() => setIsAdjustModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleAdjustBalance} className="p-4 space-y-4">
+                            <div className="bg-white/5 p-3 rounded-lg border border-white/10 mb-2">
+                                <p className="text-xs text-gray-400">Saldo actual registrado:</p>
+                                <p className="text-lg font-bold">
+                                    {formatMoney(adjustingAccount ? data.account_balances[adjustingAccount] || 0 : 0)}
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-400 font-medium mb-1">Saldo Real (USD)</label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                                    <input 
+                                        type="number" 
+                                        step="0.01"
+                                        required
+                                        autoFocus
+                                        className="w-full bg-black/50 border border-white/10 rounded-lg pl-7 pr-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                        placeholder="Ej. 150.00"
+                                        value={adjustBalanceUsd}
+                                        onChange={(e) => setAdjustBalanceUsd(e.target.value)}
+                                    />
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-1">El sistema creará un ajuste automático por la diferencia para hacer cuadrar el saldo.</p>
+                            </div>
+
+                            <div className="pt-2 flex gap-3">
+                                <button 
+                                    type="button"
+                                    onClick={() => setIsAdjustModalOpen(false)}
+                                    className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-medium transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    type="submit"
+                                    className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-black rounded-lg text-sm font-bold transition-colors"
+                                >
+                                    Guardar Ajuste
                                 </button>
                             </div>
                         </form>
