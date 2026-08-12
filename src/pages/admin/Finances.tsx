@@ -44,11 +44,18 @@ export const Finances = () => {
 
     const handleOpenModal = (tx: any = null) => {
         if (tx) {
+            const isUSD = ['zelle', 'paypal', 'binance'].some(acc => (tx.account_name || '').toLowerCase().includes(acc));
+            let initialAmount = parseFloat(tx.amount_usd);
+            if (!isUSD) {
+                const rate = data?.summary?.bcv_rate || 1;
+                initialAmount = initialAmount * rate;
+            }
+
             setEditingTx(tx);
             setFormData({
                 type: tx.type,
                 concept: tx.concept,
-                amount_usd: tx.amount_usd.toString(),
+                amount_usd: initialAmount.toFixed(2),
                 commission_usd: '',
                 account_name: tx.account_name || 'Efectivo',
                 created_at: new Date(tx.created_at).toISOString().slice(0, 16)
@@ -69,10 +76,21 @@ export const Finances = () => {
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        let realAmountUsd = parseFloat(formData.amount_usd);
+        let realCommissionUsd = parseFloat(formData.commission_usd || '0');
+        const isUSD = ['zelle', 'paypal', 'binance'].some(acc => formData.account_name.toLowerCase().includes(acc));
+
+        if (!isUSD) {
+            const rate = data?.summary?.bcv_rate || 1;
+            realAmountUsd = realAmountUsd / rate;
+            realCommissionUsd = realCommissionUsd / rate;
+        }
+
         try {
             const payload = {
                 ...formData,
-                amount_usd: parseFloat(formData.amount_usd),
+                amount_usd: realAmountUsd,
                 created_at: new Date(formData.created_at).toISOString(),
                 ...(editingTx ? { id: editingTx.id } : {})
             };
@@ -90,11 +108,11 @@ export const Finances = () => {
                 throw new Error(errorMsg);
             }
 
-            if (!editingTx && formData.type !== 'COMISION_BANCARIA' && parseFloat(formData.commission_usd || '0') > 0) {
+            if (!editingTx && formData.type !== 'COMISION_BANCARIA' && realCommissionUsd > 0) {
                 const commissionPayload = {
                     type: 'COMISION_BANCARIA',
                     concept: `Comisión bancaria por: ${formData.concept}`,
-                    amount_usd: parseFloat(formData.commission_usd),
+                    amount_usd: realCommissionUsd,
                     account_name: formData.account_name,
                     created_at: new Date(formData.created_at).toISOString()
                 };
@@ -459,6 +477,7 @@ export const Finances = () => {
                                         <option value="Efectivo">Efectivo</option>
                                         <option value="Zelle">Zelle</option>
                                         <option value="PayPal">PayPal</option>
+                                        <option value="Binance">Binance</option>
                                         <option value="Banco de Venezuela">Banco de Venezuela</option>
                                         <option value="Banesco">Banesco</option>
                                         <option value="Banca Amiga">Banca Amiga</option>
@@ -466,39 +485,55 @@ export const Finances = () => {
                                 </div>
                             </div>
                             
-                            <div>
-                                <label className="block text-xs text-gray-400 font-medium mb-1">Monto (USD)</label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-2.5 text-gray-500">$</span>
-                                    <input 
-                                        type="number" 
-                                        step="0.01"
-                                        required
-                                        className="w-full bg-black/50 border border-white/10 rounded-lg pl-7 pr-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                                        placeholder="0.00"
-                                        value={formData.amount_usd}
-                                        onChange={(e) => setFormData({...formData, amount_usd: e.target.value})}
-                                    />
-                                </div>
-                            </div>
+                            {(() => {
+                                const isUSD = ['zelle', 'paypal', 'binance'].some(acc => formData.account_name.toLowerCase().includes(acc));
+                                return (
+                                    <>
+                                        <div>
+                                            <label className="block text-xs text-gray-400 font-medium mb-1">
+                                                Monto ({isUSD ? 'USD' : 'VES'})
+                                            </label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-2.5 text-gray-500">{isUSD ? '$' : 'Bs.'}</span>
+                                                <input 
+                                                    type="number" 
+                                                    step="0.01"
+                                                    required
+                                                    className="w-full bg-black/50 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                                    placeholder="0.00"
+                                                    value={formData.amount_usd}
+                                                    onChange={(e) => setFormData({...formData, amount_usd: e.target.value})}
+                                                />
+                                            </div>
+                                            {!isUSD && formData.amount_usd && (
+                                                <p className="text-[10px] text-gray-500 mt-1">
+                                                    ~ $ {new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 2 }).format(parseFloat(formData.amount_usd) / (data.summary.bcv_rate || 1))} USD
+                                                </p>
+                                            )}
+                                        </div>
 
-                            {!editingTx && formData.type !== 'COMISION_BANCARIA' && (
-                                <div className="animate-in fade-in slide-in-from-top-2">
-                                    <label className="block text-xs text-gray-400 font-medium mb-1">Comisión Bancaria (USD) <span className="text-gray-500 font-normal">(Opcional)</span></label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-2.5 text-gray-500">$</span>
-                                        <input 
-                                            type="number" 
-                                            step="0.01"
-                                            className="w-full bg-black/50 border border-white/10 rounded-lg pl-7 pr-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 outline-none"
-                                            placeholder="0.00"
-                                            value={formData.commission_usd}
-                                            onChange={(e) => setFormData({...formData, commission_usd: e.target.value})}
-                                        />
-                                    </div>
-                                    <p className="text-[10px] text-gray-500 mt-1">Si ingresas un monto, se creará un registro separado de comisión asociado a esta cuenta.</p>
-                                </div>
-                            )}
+                                        {!editingTx && formData.type !== 'COMISION_BANCARIA' && (
+                                            <div className="animate-in fade-in slide-in-from-top-2">
+                                                <label className="block text-xs text-gray-400 font-medium mb-1">
+                                                    Comisión Bancaria ({isUSD ? 'USD' : 'VES'}) <span className="text-gray-500 font-normal">(Opcional)</span>
+                                                </label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-2.5 text-gray-500">{isUSD ? '$' : 'Bs.'}</span>
+                                                    <input 
+                                                        type="number" 
+                                                        step="0.01"
+                                                        className="w-full bg-black/50 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 outline-none"
+                                                        placeholder="0.00"
+                                                        value={formData.commission_usd}
+                                                        onChange={(e) => setFormData({...formData, commission_usd: e.target.value})}
+                                                    />
+                                                </div>
+                                                <p className="text-[10px] text-gray-500 mt-1">Si ingresas un monto, se creará un registro separado de comisión asociado a esta cuenta.</p>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()}
 
                             <div>
                                 <label className="block text-xs text-gray-400 font-medium mb-1">Concepto / Descripción</label>
