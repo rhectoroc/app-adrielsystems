@@ -11,7 +11,8 @@ export const Finances = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
     const [adjustingAccount, setAdjustingAccount] = useState<string | null>(null);
-    const [adjustBalanceUsd, setAdjustBalanceUsd] = useState('');
+    const [adjustBalanceInput, setAdjustBalanceInput] = useState('');
+    const [adjustCurrency, setAdjustCurrency] = useState<'USD'|'VES'>('USD');
     const [editingTx, setEditingTx] = useState<any>(null);
     const [formData, setFormData] = useState({
         type: 'GASTO',
@@ -111,13 +112,20 @@ export const Finances = () => {
 
     const handleAdjustBalance = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!adjustingAccount || adjustBalanceUsd === '') return;
+        if (!adjustingAccount || adjustBalanceInput === '') return;
         
-        const currentBalance = data?.account_balances[adjustingAccount] || 0;
-        const targetBalance = parseFloat(adjustBalanceUsd);
-        const difference = targetBalance - currentBalance;
+        const currentBalanceUsd = data?.account_balances[adjustingAccount] || 0;
+        let targetBalanceUsd = parseFloat(adjustBalanceInput);
+
+        if (adjustCurrency === 'VES') {
+            const rate = data?.summary?.bcv_rate || 1;
+            targetBalanceUsd = targetBalanceUsd / rate;
+        }
+
+        const difference = targetBalanceUsd - currentBalanceUsd;
         
-        if (difference === 0) {
+        // Use a small epsilon to account for floating point inaccuracies
+        if (Math.abs(difference) < 0.001) {
             toast.info('El saldo ingresado es igual al actual');
             setIsAdjustModalOpen(false);
             return;
@@ -137,7 +145,8 @@ export const Finances = () => {
             
             setIsAdjustModalOpen(false);
             setAdjustingAccount(null);
-            setAdjustBalanceUsd('');
+            setAdjustBalanceInput('');
+            setAdjustCurrency('USD');
             fetchFinances();
             toast.success(`Saldo ajustado exitosamente. Se creó un ${difference > 0 ? 'ajuste positivo' : 'ajuste negativo'} de $${Math.abs(difference).toFixed(2)}`);
         } catch (err: any) {
@@ -333,7 +342,8 @@ export const Finances = () => {
                             <button
                                 onClick={() => {
                                     setAdjustingAccount(account);
-                                    setAdjustBalanceUsd((balance as number).toString());
+                                    setAdjustBalanceInput((balance as number).toString());
+                                    setAdjustCurrency('USD');
                                     setIsAdjustModalOpen(true);
                                 }}
                                 className="mt-3 text-[10px] uppercase font-bold bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white px-3 py-1.5 rounded-md transition-colors w-full"
@@ -546,25 +556,41 @@ export const Finances = () => {
                             <div className="bg-white/5 p-3 rounded-lg border border-white/10 mb-2">
                                 <p className="text-xs text-gray-400">Saldo actual registrado:</p>
                                 <p className="text-lg font-bold">
-                                    {formatMoney(adjustingAccount ? data.account_balances[adjustingAccount] || 0 : 0)}
+                                    {formatMoney(adjustingAccount ? data.account_balances[adjustingAccount] || 0 : 0)} 
+                                    <span className="text-sm font-normal text-gray-400 ml-2">
+                                        (~ Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2 }).format((adjustingAccount ? data.account_balances[adjustingAccount] || 0 : 0) * (data?.summary?.bcv_rate || 0))})
+                                    </span>
                                 </p>
                             </div>
                             <div>
-                                <label className="block text-xs text-gray-400 font-medium mb-1">Saldo Real (USD)</label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-2.5 text-gray-500">$</span>
-                                    <input 
-                                        type="number" 
-                                        step="0.01"
-                                        required
-                                        autoFocus
-                                        className="w-full bg-black/50 border border-white/10 rounded-lg pl-7 pr-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                                        placeholder="Ej. 150.00"
-                                        value={adjustBalanceUsd}
-                                        onChange={(e) => setAdjustBalanceUsd(e.target.value)}
-                                    />
+                                <label className="block text-xs text-gray-400 font-medium mb-1">Saldo Real en la cuenta</label>
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                        <span className="absolute left-3 top-2.5 text-gray-500">{adjustCurrency === 'USD' ? '$' : 'Bs.'}</span>
+                                        <input 
+                                            type="number" 
+                                            step="0.01"
+                                            required
+                                            autoFocus
+                                            className="w-full bg-black/50 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                            placeholder="Ej. 150.00"
+                                            value={adjustBalanceInput}
+                                            onChange={(e) => setAdjustBalanceInput(e.target.value)}
+                                        />
+                                    </div>
+                                    <select 
+                                        className="bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none w-24"
+                                        value={adjustCurrency}
+                                        onChange={(e) => {
+                                            setAdjustCurrency(e.target.value as 'USD' | 'VES');
+                                            setAdjustBalanceInput('');
+                                        }}
+                                    >
+                                        <option value="USD">USD</option>
+                                        <option value="VES">VES</option>
+                                    </select>
                                 </div>
-                                <p className="text-[10px] text-gray-500 mt-1">El sistema creará un ajuste automático por la diferencia para hacer cuadrar el saldo.</p>
+                                <p className="text-[10px] text-gray-500 mt-2">El sistema creará un ajuste automático por la diferencia para hacer cuadrar el saldo.</p>
                             </div>
 
                             <div className="pt-2 flex gap-3">
