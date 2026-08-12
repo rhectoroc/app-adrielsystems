@@ -1,3 +1,32 @@
+# Avance de Desarrollo — 12 de Agosto 2026
+
+## Sesión: Refinamiento Financiero, Conversiones Inteligentes (VES/USD) y Comisiones Bancarias
+
+En esta sesión se optimizó la experiencia de usuario y la precisión del Módulo de Finanzas, integrando soporte avanzado para el manejo de cuentas bi-monetarias (Bolívares y Dólares) y el registro transparente de comisiones bancarias.
+
+### 💱 Conversiones Bi-Monetarias Inteligentes
+- **Saldos Transparentes:** Se modificaron los KPIs del dashboard y las tarjetas individuales de cada banco para mostrar sutilmente el equivalente en Bolívares (VES) justo debajo del monto en USD, multiplicando automáticamente por la tasa BCV activa del sistema.
+- **Añadir Transacciones Dinámico:** El formulario de creación de transacciones ahora es consciente del tipo de cuenta. Si se selecciona *Zelle, PayPal o Binance* (añadido en esta sesión), el formulario solicita los montos en Dólares (USD). Si se selecciona *Banco de Venezuela, Banesco, Banca Amiga o Efectivo*, solicita el monto en Bolívares (VES) e indica la pre-visualización de su valor convertido en USD. El sistema hace la conversión internamente al guardar para mantener la base de datos homologada en USD.
+
+### ⚖️ Reconciliación de Saldos (Ajuste Manual)
+- **Modal de Ajuste Preciso:** Se introdujo un botón "Ajustar Saldo" en cada tarjeta bancaria. El administrador ahora puede escribir el *Saldo Real* que dicta la plataforma del banco (pudiendo elegir entre USD o VES en el mismo modal). 
+- **Compensación Matemática:** El sistema detecta la diferencia entre el saldo contable interno y la realidad del banco, generando instantáneamente una transacción tipo `AJUSTE_POSITIVO` o `AJUSTE_NEGATIVO` por los centavos/dólares de diferencia (resolviendo fallas por redondeo o transacciones no registradas).
+
+### 🏦 Manejo de Comisiones Bancarias (UI y Agente)
+- **Desglose Visual:** La tarjeta de "Comisiones" ahora revela un tooltip interactivo (al pasar el ratón) mostrando el desglose exacto de cuánto dinero en comisiones se le ha pagado históricamente a cada banco.
+- **Registro Simultáneo de Comisiones:** En el ingreso manual de transacciones, se agregó un campo opcional "Comisión Bancaria". Si un cobro de PayPal por $20 generó una comisión de $1.38, el sistema ahora permite llenar ambos campos e insertará *dos* registros contables independientes (Ingreso Bruto y Comisión Bancaria).
+- **Inteligencia en EVA:** Se entrenó al agente EVA (System Prompt) con la directiva explícita de separar siempre las comisiones bancarias en transacciones distintas al momento de procesar un pago complejo, manteniendo el Libro Mayor (`financial_ledger`) impecable.
+
+### 🛠️ Archivos Modificados (12 de Agosto)
+
+| Archivo | Tipo | Cambio |
+|---------|------|--------|
+| `src/pages/admin/Finances.tsx` | MODIFY | Implementación bi-monetaria en modales y tarjetas. Inclusión de Binance en selectores. Inclusión de Tooltip de desglose de comisiones. |
+| `server/index.js` | MODIFY | Refactor de endpoint `GET /api/finances` para admitir contabilidad de AJUSTES sin afectar métricas globales y agrupar comisiones por banco (`comisiones_por_banco`). |
+| `server/services/agentService.js` | MODIFY | Modificación del Core Prompt para forzar a EVA a registrar la estructura dual (Monto Bruto + Comisión Bancaria) en sus inserciones contables automáticas. |
+
+---
+
 # Avance de Desarrollo — 11 de Agosto 2026
 
 ## Sesión: Registro Financiero Simultáneo y Superpoderes de Voz (STT & TTS Híbrido) para EVA
