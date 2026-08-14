@@ -1,5 +1,28 @@
 # Avance de Desarrollo — 14 de Agosto 2026
 
+## Sesión: Panel Estadístico e Integración de Proyecciones Financieras con IA (Gemini)
+
+En esta sesión se creó un nuevo sub-módulo dentro de Finanzas para brindar una visión analítica del flujo de caja, dotando al sistema de la capacidad de generar proyecciones financieras en tiempo real usando inteligencia artificial.
+
+### 📊 Panel Gráfico Interactivo
+- **Selector de Rango de Tiempo:** Se integró un control para evaluar los últimos 1, 3, 6 o 12 meses de actividad financiera.
+- **Gráficos Animados (Framer Motion):** Construcción de un gráfico de barras ultra-moderno que compara visualmente los ingresos (verde) vs gastos (rojo) por cada mes.
+- **Rendimiento UI:** Todo construido con componentes nativos (Tailwind CSS + Framer Motion) sin dependencias pesadas de terceros.
+
+### 🤖 CFO Virtual (EVA) - Análisis Predictivo
+- **Procesamiento de Data Histórica:** Nuevo endpoint `GET /api/finances/monthly-stats` que agrupa transacciones usando `DATE_TRUNC` en PostgreSQL para alimentar la IA.
+- **Integración con Gemini 2.5 Flash:** Endpoint `POST /api/finances/ai-insights` que ensambla el historial financiero y lo procesa mediante un prompt especializado. EVA asume el rol de CFO para entregar un reporte ejecutivo estructurado.
+- **Reporte en Tiempo Real:** El panel devuelve un análisis de tendencia, una proyección del próximo mes y 3 consejos estratégicos de liquidez, renderizados con soporte Markdown y Glassmorphism en la UI.
+
+### 🛠️ Archivos Modificados
+
+| Archivo | Tipo | Cambio |
+|---------|------|--------|
+| `src/pages/admin/Finances.tsx` | MODIFY | Integración de pestañas (Tabs), nuevo sub-módulo de estadísticas, gráfico animado y panel de IA predictiva. |
+| `server/index.js` | MODIFY | Creación de endpoints `/api/finances/monthly-stats` y `/api/finances/ai-insights` (integración con Gemini API vía fetch nativo). |
+
+---
+
 ## Sesión: Paginación y Optimización de Transacciones Financieras (UI/UX & Conversiones Históricas)
 
 En esta sesión se abordaron mejoras visuales y funcionales en el módulo de Finanzas, optimizando el rendimiento de la tabla de transacciones, la usabilidad de los formularios de registro y asegurando la precisión contable de registros pasados.

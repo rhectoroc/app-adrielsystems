@@ -201,7 +201,7 @@ Sé cálida pero muy profesional y precisa con los números. Usa viñetas y negr
             return res.status(500).json({ message: 'GEMINI_API_KEY no está configurada.' });
         }
 
-        const geminiUrl = \`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=\${GEMINI_API_KEY}\`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
         
         const geminiRes = await fetch(geminiUrl, {
             method: 'POST',
