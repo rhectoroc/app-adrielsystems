@@ -13,7 +13,7 @@ import multer from 'multer';
 import fs from 'fs';
 import { initAutomation, runBillingNotifications, sendMessage } from './services/automationService.js';
 import { handleIncomingWebhook, approvePaymentById, registerEvolutionWebhook, processWebChatMessage, getBCVRate } from './services/agentService.js';
-import { getAuthForProfile } from './services/googleService.js';
+import { getAuthForProfile, sendEmailWithAttachment } from './services/googleService.js';
 import { google } from 'googleapis';
 import backupRoutes from './routes/backup.js';
 
@@ -2427,7 +2427,7 @@ app.post('/api/budgets', authenticateToken, async (req, res) => {
 });
 
 // Send budget PDF via Email
-const { sendEmailWithAttachment } = require('./services/googleService');
+
 app.post('/api/budgets/send-email', authenticateToken, async (req, res) => {
     const { email, clientName, projectName, pdfBase64, finalPrice } = req.body;
     try {
