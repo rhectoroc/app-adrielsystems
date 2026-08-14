@@ -20,8 +20,14 @@ export const Finances = () => {
         amount_usd: '',
         commission_usd: '',
         account_name: 'Efectivo',
-        created_at: ''
+        destination_account: 'Zelle',
+        created_at: '',
+        exchange_rate: ''
     });
+    
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 50;
 
     useEffect(() => {
         fetchFinances();
@@ -58,7 +64,9 @@ export const Finances = () => {
                 amount_usd: initialAmount.toFixed(2),
                 commission_usd: '',
                 account_name: tx.account_name || 'Efectivo',
-                created_at: new Date(tx.created_at).toISOString().slice(0, 16)
+                destination_account: 'Zelle',
+                created_at: new Date(tx.created_at).toISOString().slice(0, 16),
+                exchange_rate: tx.exchange_rate ? tx.exchange_rate.toString() : (data?.summary?.bcv_rate?.toString() || '')
             });
         } else {
             setEditingTx(null);
@@ -68,7 +76,9 @@ export const Finances = () => {
                 amount_usd: '',
                 commission_usd: '',
                 account_name: 'Efectivo',
-                created_at: new Date().toISOString().slice(0, 16)
+                destination_account: 'Zelle',
+                created_at: new Date().toISOString().slice(0, 16),
+                exchange_rate: data?.summary?.bcv_rate?.toString() || ''
             });
         }
         setIsModalOpen(true);
@@ -81,34 +91,63 @@ export const Finances = () => {
         let realCommissionUsd = parseFloat(formData.commission_usd || '0');
         const isUSD = ['zelle', 'paypal', 'binance'].some(acc => formData.account_name.toLowerCase().includes(acc));
 
+        const rateToUse = formData.exchange_rate ? parseFloat(formData.exchange_rate) : (data?.summary?.bcv_rate || 1);
+
         if (!isUSD) {
-            const rate = data?.summary?.bcv_rate || 1;
-            realAmountUsd = realAmountUsd / rate;
-            realCommissionUsd = realCommissionUsd / rate;
+            realAmountUsd = realAmountUsd / rateToUse;
+            realCommissionUsd = realCommissionUsd / rateToUse;
         }
 
         try {
             const payload = {
-                ...formData,
+                type: formData.type,
+                concept: formData.concept,
+                account_name: formData.account_name,
+                commission_usd: formData.commission_usd,
                 amount_usd: realAmountUsd,
+                amount_ves: !isUSD ? parseFloat(formData.amount_usd) : (realAmountUsd * rateToUse),
+                exchange_rate: rateToUse,
                 created_at: new Date(formData.created_at).toISOString(),
                 ...(editingTx ? { id: editingTx.id } : {})
             };
             
-            const res = await api.post('/api/finances', payload);
+            if (formData.type === 'TRASPASO') {
+                if (formData.account_name === formData.destination_account) {
+                    throw new Error('La cuenta de origen y destino no pueden ser la misma.');
+                }
+                const outPayload = {
+                    ...payload,
+                    type: 'TRANSFERENCIA_SALIDA',
+                    concept: formData.concept || `Traspaso a ${formData.destination_account}`
+                };
+                const inPayload = {
+                    ...payload,
+                    type: 'TRANSFERENCIA_ENTRADA',
+                    account_name: formData.destination_account,
+                    concept: formData.concept || `Traspaso desde ${formData.account_name}`
+                };
 
-            if (!res || !res.ok) {
-                let errorMsg = res ? `HTTP ${res.status}` : 'Error de red';
-                try {
-                    if (res) {
-                        const errData = await res.json();
-                        if (errData.message) errorMsg += `: ${errData.message}`;
-                    }
-                } catch(e) {}
-                throw new Error(errorMsg);
+                const resOut = await api.post('/api/finances', outPayload);
+                if (!resOut || !resOut.ok) throw new Error('Error al registrar transferencia de salida');
+                
+                const resIn = await api.post('/api/finances', inPayload);
+                if (!resIn || !resIn.ok) throw new Error('Error al registrar transferencia de entrada');
+            } else {
+                const res = await api.post('/api/finances', payload);
+
+                if (!res || !res.ok) {
+                    let errorMsg = res ? `HTTP ${res.status}` : 'Error de red';
+                    try {
+                        if (res) {
+                            const errData = await res.json();
+                            if (errData.message) errorMsg += `: ${errData.message}`;
+                        }
+                    } catch(e) {}
+                    throw new Error(errorMsg);
+                }
             }
 
-            if (!editingTx && formData.type !== 'COMISION_BANCARIA' && realCommissionUsd > 0) {
+            if (!editingTx && formData.type !== 'COMISION_BANCARIA' && formData.type !== 'TRASPASO' && realCommissionUsd > 0) {
                 const commissionPayload = {
                     type: 'COMISION_BANCARIA',
                     concept: `Comisión bancaria por: ${formData.concept}`,
@@ -227,6 +266,9 @@ export const Finances = () => {
         if (lower.includes('banesco') || lower.includes('venezuela') || lower.includes('amiga')) return <Landmark className="w-5 h-5 text-blue-400" />;
         return <Wallet className="w-5 h-5 text-green-400" />;
     };
+
+    const totalPages = Math.ceil((data?.transactions?.length || 0) / itemsPerPage);
+    const currentTransactions = data?.transactions?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage) || [];
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -393,18 +435,19 @@ export const Finances = () => {
                                 <th className="px-4 py-3 font-medium">Tipo</th>
                                 <th className="px-4 py-3 font-medium">Concepto</th>
                                 <th className="px-4 py-3 font-medium text-right">Monto (USD)</th>
+                                <th className="px-4 py-3 font-medium text-right">Monto (VES)</th>
                                 <th className="px-4 py-3 font-medium text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                            {data.transactions.length === 0 ? (
+                            {currentTransactions.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                                         No hay transacciones registradas.
                                     </td>
                                 </tr>
                             ) : (
-                                data.transactions.map((tx: any) => (
+                                currentTransactions.map((tx: any) => (
                                     <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
                                         <td className="px-4 py-3 text-gray-300">
                                             {new Date(tx.created_at).toLocaleString('es-VE')}
@@ -420,6 +463,9 @@ export const Finances = () => {
                                         <td className="px-4 py-3 font-medium">{tx.concept}</td>
                                         <td className="px-4 py-3 text-right font-bold">
                                             {formatMoney(parseFloat(tx.amount_usd))}
+                                        </td>
+                                        <td className="px-4 py-3 text-right text-gray-400 text-xs">
+                                            Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2 }).format(tx.amount_ves ? parseFloat(tx.amount_ves) : (parseFloat(tx.amount_usd) * (tx.exchange_rate ? parseFloat(tx.exchange_rate) : (data.summary.bcv_rate || 1))))}
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             <div className="flex justify-center gap-2">
@@ -437,6 +483,29 @@ export const Finances = () => {
                         </tbody>
                     </table>
                 </div>
+                {totalPages > 1 && (
+                    <div className="flex justify-between items-center p-4 border-t border-white/10 bg-white/[0.02]">
+                        <p className="text-xs text-gray-500">
+                            Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, data.transactions.length)} de {data.transactions.length}
+                        </p>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm transition-colors"
+                            >
+                                Anterior
+                            </button>
+                            <button 
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm transition-colors"
+                            >
+                                Siguiente
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
             
             {/* CRUD Modal */}
@@ -464,10 +533,13 @@ export const Finances = () => {
                                         <option value="COMISION_BANCARIA">Comisión Bancaria</option>
                                         <option value="TRANSFERENCIA_SALIDA">Transferencia (Salida)</option>
                                         <option value="TRANSFERENCIA_ENTRADA">Transferencia (Entrada)</option>
+                                        {!editingTx && <option value="TRASPASO">Traspaso entre cuentas</option>}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-gray-400 font-medium mb-1">Cuenta/Banco</label>
+                                    <label className="block text-xs text-gray-400 font-medium mb-1">
+                                        {formData.type === 'TRASPASO' ? 'Cuenta Origen' : 'Cuenta/Banco'}
+                                    </label>
                                     <select 
                                         required
                                         className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
@@ -483,6 +555,25 @@ export const Finances = () => {
                                         <option value="Banca Amiga">Banca Amiga</option>
                                     </select>
                                 </div>
+                                {formData.type === 'TRASPASO' && (
+                                    <div className="col-span-2 sm:col-span-1">
+                                        <label className="block text-xs text-gray-400 font-medium mb-1">Cuenta Destino</label>
+                                        <select 
+                                            required
+                                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                            value={formData.destination_account}
+                                            onChange={(e) => setFormData({...formData, destination_account: e.target.value})}
+                                        >
+                                            <option value="Efectivo">Efectivo</option>
+                                            <option value="Zelle">Zelle</option>
+                                            <option value="PayPal">PayPal</option>
+                                            <option value="Binance">Binance</option>
+                                            <option value="Banco de Venezuela">Banco de Venezuela</option>
+                                            <option value="Banesco">Banesco</option>
+                                            <option value="Banca Amiga">Banca Amiga</option>
+                                        </select>
+                                    </div>
+                                )}
                             </div>
                             
                             {(() => {
@@ -507,12 +598,12 @@ export const Finances = () => {
                                             </div>
                                             {!isUSD && formData.amount_usd && (
                                                 <p className="text-[10px] text-gray-500 mt-1">
-                                                    ~ $ {new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 2 }).format(parseFloat(formData.amount_usd) / (data.summary.bcv_rate || 1))} USD
+                                                    ~ $ {new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 2 }).format(parseFloat(formData.amount_usd) / (parseFloat(formData.exchange_rate) || data.summary.bcv_rate || 1))} USD
                                                 </p>
                                             )}
                                         </div>
 
-                                        {!editingTx && formData.type !== 'COMISION_BANCARIA' && (
+                                        {!editingTx && formData.type !== 'COMISION_BANCARIA' && formData.type !== 'TRASPASO' && (
                                             <div className="animate-in fade-in slide-in-from-top-2">
                                                 <label className="block text-xs text-gray-400 font-medium mb-1">
                                                     Comisión Bancaria ({isUSD ? 'USD' : 'VES'}) <span className="text-gray-500 font-normal">(Opcional)</span>
@@ -547,15 +638,32 @@ export const Finances = () => {
                                 />
                             </div>
 
-                            <div>
-                                <label className="block text-xs text-gray-400 font-medium mb-1">Fecha de Registro</label>
-                                <input 
-                                    type="datetime-local" 
-                                    required
-                                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                                    value={formData.created_at}
-                                    onChange={(e) => setFormData({...formData, created_at: e.target.value})}
-                                />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs text-gray-400 font-medium mb-1">Fecha de Registro</label>
+                                    <input 
+                                        type="datetime-local" 
+                                        required
+                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                        value={formData.created_at}
+                                        onChange={(e) => setFormData({...formData, created_at: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-gray-400 font-medium mb-1">Tasa de Cambio (Bs/USD)</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-2.5 text-gray-500">Bs.</span>
+                                        <input 
+                                            type="number" 
+                                            step="0.01"
+                                            required
+                                            className="w-full bg-black/50 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                            placeholder="Tasa BCV"
+                                            value={formData.exchange_rate}
+                                            onChange={(e) => setFormData({...formData, exchange_rate: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="pt-4 flex gap-3">
