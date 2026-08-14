@@ -140,6 +140,87 @@ app.get('/api/activity', authenticateToken, authorizeRole('ADMIN'), async (req, 
     }
 });
 
+app.get('/api/finances/monthly-stats', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const { months } = req.query;
+        const limit = parseInt(months) || 6;
+        
+        // Use DATE_TRUNC to group by month
+        const result = await query(`
+            SELECT 
+                DATE_TRUNC('month', created_at) as month,
+                SUM(CASE WHEN type IN ('INGRESO', 'ENTRADA') THEN amount_usd ELSE 0 END) as ingresos,
+                SUM(CASE WHEN type IN ('GASTO', 'SALIDA') THEN amount_usd ELSE 0 END) as gastos,
+                SUM(CASE WHEN type = 'COMISION_BANCARIA' THEN amount_usd ELSE 0 END) as comisiones
+            FROM financial_ledger
+            WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '${limit - 1} months')
+            GROUP BY month
+            ORDER BY month ASC
+        `);
+        
+        // Format for frontend
+        const formatted = result.rows.map(row => {
+            const date = new Date(row.month);
+            const monthName = date.toLocaleString('es-ES', { month: 'short', year: '2-digit' }).toUpperCase();
+            return {
+                name: monthName,
+                Ingresos: parseFloat(row.ingresos) || 0,
+                Gastos: parseFloat(row.gastos) || 0,
+                Comisiones: parseFloat(row.comisiones) || 0,
+                GananciaNeta: (parseFloat(row.ingresos) || 0) - (parseFloat(row.gastos) || 0) - (parseFloat(row.comisiones) || 0)
+            };
+        });
+        
+        res.json(formatted);
+    } catch (err) {
+        console.error('Error fetching monthly stats:', err);
+        res.status(500).json({ message: 'Error fetching stats' });
+    }
+});
+
+app.post('/api/finances/ai-insights', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    try {
+        const { stats } = req.body;
+        if (!stats || !stats.length) return res.status(400).json({ message: 'No stats provided' });
+
+        const prompt = `Eres EVA, la CFO (Directora Financiera) virtual de Adriel's Systems. 
+Aquí tienes el resumen financiero mensual reciente de la empresa (en USD):
+${JSON.stringify(stats, null, 2)}
+
+Analiza estos datos y redacta un reporte ejecutivo breve y directo para el Jefe. 
+Usa formato Markdown. 
+Estructura sugerida:
+1. Análisis de Tendencia (¿Vamos mejorando o empeorando?).
+2. Proyección para el próximo mes (Basado en el crecimiento/decrecimiento promedio).
+3. 3 Consejos estratégicos para optimizar la liquidez o reducir gastos.
+
+Sé cálida pero muy profesional y precisa con los números. Usa viñetas y negritas.`;
+
+        const { GEMINI_API_KEY } = process.env;
+        if (!GEMINI_API_KEY) {
+            return res.status(500).json({ message: 'GEMINI_API_KEY no está configurada.' });
+        }
+
+        const geminiUrl = \`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=\${GEMINI_API_KEY}\`;
+        
+        const geminiRes = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+        
+        const data = await geminiRes.json();
+        const analysis = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No se pudo generar el análisis.';
+
+        res.json({ analysis });
+    } catch (err) {
+        console.error('Error generating AI insights:', err);
+        res.status(500).json({ message: 'Error generating insights' });
+    }
+});
+
 app.get('/api/finances', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
     try {
         const result = await query(`

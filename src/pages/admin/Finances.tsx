@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Activity, AlertCircle, Plus, Edit2, Trash2, X, Wallet, Landmark, CreditCard, ArrowRightLeft } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { TrendingUp, TrendingDown, DollarSign, Activity, AlertCircle, Plus, Edit2, Trash2, X, Wallet, Landmark, CreditCard, ArrowRightLeft, BarChart2, Sparkles, Calendar, List } from 'lucide-react';
 import { api } from '../../utils/api';
 import { toast } from 'sonner';
 
@@ -29,6 +30,13 @@ export const Finances = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 50;
 
+    // Stats & AI
+    const [activeTab, setActiveTab] = useState<'ledger' | 'stats'>('ledger');
+    const [statsRange, setStatsRange] = useState<number>(6);
+    const [monthlyStats, setMonthlyStats] = useState<any[]>([]);
+    const [aiInsights, setAiInsights] = useState<string | null>(null);
+    const [isAiLoading, setIsAiLoading] = useState(false);
+
     useEffect(() => {
         fetchFinances();
     }, []);
@@ -45,6 +53,43 @@ export const Finances = () => {
             console.error('Error fetching finances', error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'stats') {
+            fetchStats();
+        }
+    }, [activeTab, statsRange]);
+
+    const fetchStats = async () => {
+        try {
+            const res = await api.get(`/api/finances/monthly-stats?months=${statsRange}`);
+            if (res.ok) {
+                const data = await res.json();
+                setMonthlyStats(data);
+            }
+        } catch (error) {
+            console.error('Error fetching stats:', error);
+        }
+    };
+
+    const generateAiInsights = async () => {
+        setIsAiLoading(true);
+        setAiInsights(null);
+        try {
+            const res = await api.post('/api/finances/ai-insights', { stats: monthlyStats });
+            if (res.ok) {
+                const data = await res.json();
+                setAiInsights(data.analysis);
+            } else {
+                toast.error("Error al generar análisis con IA");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Error de conexión con la IA");
+        } finally {
+            setIsAiLoading(false);
         }
     };
 
@@ -421,7 +466,25 @@ export const Finances = () => {
             </div>
             );})()}
 
-            {/* Transactions Table */}
+            {/* Tab Selector */}
+            <div className="flex gap-2 p-1 bg-black/40 border border-white/10 rounded-lg w-fit mb-4">
+                <button 
+                    onClick={() => setActiveTab('ledger')}
+                    className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'ledger' ? 'bg-primary text-black' : 'text-gray-400 hover:text-white'}`}
+                >
+                    <List className="w-4 h-4" />
+                    Registros Contables
+                </button>
+                <button 
+                    onClick={() => setActiveTab('stats')}
+                    className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'stats' ? 'bg-primary text-black' : 'text-gray-400 hover:text-white'}`}
+                >
+                    <BarChart2 className="w-4 h-4" />
+                    Proyecciones & Estadísticas
+                </button>
+            </div>
+
+            {activeTab === 'ledger' && (
             <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden backdrop-blur-sm">
                 <div className="p-4 border-b border-white/10 bg-white/[0.02]">
                     <h2 className="font-bold">Historial de Transacciones</h2>
@@ -507,6 +570,106 @@ export const Finances = () => {
                     </div>
                 )}
             </div>
+            )}
+
+            {activeTab === 'stats' && (
+                <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
+                    <div className="flex justify-between items-center bg-white/5 p-4 rounded-xl border border-white/10">
+                        <div className="flex items-center gap-3">
+                            <Calendar className="w-5 h-5 text-primary" />
+                            <h2 className="font-bold">Rango de Análisis</h2>
+                        </div>
+                        <select 
+                            value={statsRange} 
+                            onChange={(e) => setStatsRange(Number(e.target.value))}
+                            className="bg-black/50 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:border-primary outline-none"
+                        >
+                            <option value={1}>Último Mes</option>
+                            <option value={3}>Últimos 3 Meses</option>
+                            <option value={6}>Últimos 6 Meses</option>
+                            <option value={12}>Último Año (12 Meses)</option>
+                        </select>
+                    </div>
+
+                    {/* Chart Container */}
+                    <div className="bg-white/5 border border-white/10 p-6 rounded-xl">
+                        <h3 className="font-bold mb-6 text-gray-300">Flujo de Caja Mensual</h3>
+                        <div className="flex items-end gap-2 h-64 mt-4 overflow-x-auto pb-2">
+                            {monthlyStats.length === 0 ? (
+                                <div className="w-full text-center text-gray-500 my-auto">Cargando datos históricos...</div>
+                            ) : (
+                                monthlyStats.map((stat, idx) => {
+                                    const maxVal = Math.max(...monthlyStats.map(s => Math.max(s.Ingresos, s.Gastos, 1)));
+                                    const inHeight = (stat.Ingresos / maxVal) * 100;
+                                    const outHeight = (stat.Gastos / maxVal) * 100;
+                                    return (
+                                        <div key={idx} className="flex-1 flex flex-col items-center gap-2 min-w-[60px]">
+                                            <div className="flex gap-1 h-48 items-end w-full justify-center">
+                                                <div className="w-4 sm:w-8 bg-green-500/80 rounded-t-sm relative group">
+                                                    <motion.div initial={{ height: 0 }} animate={{ height: `${inHeight}%` }} transition={{ duration: 1, ease: "easeOut" }} className="w-full bg-green-500/80 rounded-t-sm" />
+                                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black text-xs p-1 rounded z-10 whitespace-nowrap">
+                                                        +{formatMoney(stat.Ingresos)}
+                                                    </div>
+                                                </div>
+                                                <div className="w-4 sm:w-8 bg-red-500/80 rounded-t-sm relative group">
+                                                    <motion.div initial={{ height: 0 }} animate={{ height: `${outHeight}%` }} transition={{ duration: 1, delay: 0.2, ease: "easeOut" }} className="w-full bg-red-500/80 rounded-t-sm" />
+                                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black text-xs p-1 rounded z-10 whitespace-nowrap">
+                                                        -{formatMoney(stat.Gastos)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <span className="text-[10px] sm:text-xs text-gray-400 font-bold">{stat.name}</span>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                        <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/10 text-xs">
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-green-500/80 rounded-sm"></div> Ingresos</div>
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-500/80 rounded-sm"></div> Gastos</div>
+                        </div>
+                    </div>
+
+                    {/* AI Insights Panel */}
+                    <div className="bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-transparent border border-purple-500/20 p-6 rounded-xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                            <Sparkles className="w-32 h-32 text-purple-400" />
+                        </div>
+                        
+                        <div className="flex justify-between items-start mb-6 relative z-10">
+                            <div>
+                                <h3 className="text-lg font-bold flex items-center gap-2 text-purple-300">
+                                    <Sparkles className="w-5 h-5" />
+                                    CFO Virtual (EVA)
+                                </h3>
+                                <p className="text-xs text-purple-200/50 mt-1">Análisis predictivo con Gemini 2.5 Flash</p>
+                            </div>
+                            <button 
+                                onClick={generateAiInsights}
+                                disabled={isAiLoading || monthlyStats.length === 0}
+                                className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {isAiLoading ? (
+                                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Analizando...</>
+                                ) : (
+                                    <>Generar Proyección</>
+                                )}
+                            </button>
+                        </div>
+
+                        {aiInsights && (
+                            <div className="bg-black/40 border border-white/10 rounded-lg p-5 prose prose-invert prose-sm max-w-none text-gray-300 relative z-10">
+                                <div dangerouslySetInnerHTML={{ __html: aiInsights.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>') }} />
+                            </div>
+                        )}
+                        {!aiInsights && !isAiLoading && (
+                            <div className="text-center py-10 text-purple-300/30 font-medium relative z-10 border border-dashed border-purple-500/20 rounded-lg">
+                                Presiona "Generar Proyección" para obtener un análisis de tendencias y consejos.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
             
             {/* CRUD Modal */}
             {isModalOpen && (
