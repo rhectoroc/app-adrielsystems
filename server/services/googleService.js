@@ -451,6 +451,58 @@ export const sendEmail = async (profileKey, to, subject, messageBody) => {
     }
 };
 
+export const sendEmailWithAttachment = async (profileKey, to, subject, messageBody, pdfBase64, fileName) => {
+    const auth = await getAuthForProfile(profileKey);
+    if (!auth) {
+        console.log(`[Google Service] [${profileKey}] Send Email Simulated to: ${to}`);
+        return { id: 'mock-sent-msg-1' };
+    }
+
+    try {
+        const gmail = google.gmail({ version: 'v1', auth });
+        const boundary = 'budget_boundary_12345';
+        
+        const emailContent = [
+            `To: ${to}`,
+            `Subject: ${subject}`,
+            `MIME-Version: 1.0`,
+            `Content-Type: multipart/mixed; boundary="${boundary}"`,
+            '',
+            `--${boundary}`,
+            `Content-Type: text/html; charset="UTF-8"`,
+            '',
+            messageBody,
+            '',
+            `--${boundary}`,
+            `Content-Type: application/pdf; name="${fileName}"`,
+            `Content-Disposition: attachment; filename="${fileName}"`,
+            `Content-Transfer-Encoding: base64`,
+            '',
+            pdfBase64,
+            '',
+            `--${boundary}--`
+        ].join('\r\n');
+
+        const base64SafeEmail = Buffer.from(emailContent)
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+
+        const response = await gmail.users.messages.send({
+            userId: 'me',
+            requestBody: {
+                raw: base64SafeEmail
+            }
+        });
+        console.log(`[Google Service] [${profileKey}] Email with PDF sent successfully to:`, to);
+        return response.data;
+    } catch (error) {
+        console.error(`[Google Service] [${profileKey}] Error sending email with PDF:`, error);
+        throw error;
+    }
+};
+
 // ==========================================
 // 4. Google Sheets & Drive Operations
 // ==========================================

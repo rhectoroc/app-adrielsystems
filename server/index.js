@@ -400,6 +400,38 @@ const initDb = async () => {
                 tool_used VARCHAR(255),
                 timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
+            -- Budgets Module Tables
+            CREATE TABLE IF NOT EXISTS operating_costs (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                amount NUMERIC(10, 2) NOT NULL,
+                currency VARCHAR(10) DEFAULT 'USD',
+                category VARCHAR(100) DEFAULT 'OPERATING',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS budgets (
+                id SERIAL PRIMARY KEY,
+                client_name VARCHAR(255) NOT NULL,
+                project_name VARCHAR(255) NOT NULL,
+                total_hours NUMERIC(10, 2) DEFAULT 0,
+                base_hourly_rate NUMERIC(10, 2) DEFAULT 0,
+                direct_costs NUMERIC(10, 2) DEFAULT 0,
+                profit_margin_percent NUMERIC(5, 2) DEFAULT 0,
+                final_price NUMERIC(10, 2) NOT NULL,
+                status VARCHAR(50) DEFAULT 'DRAFT',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS budget_items (
+                id SERIAL PRIMARY KEY,
+                budget_id INTEGER REFERENCES budgets(id) ON DELETE CASCADE,
+                description VARCHAR(255) NOT NULL,
+                hours NUMERIC(10, 2) DEFAULT 0,
+                is_direct_cost BOOLEAN DEFAULT FALSE,
+                cost_amount NUMERIC(10, 2) DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
         `);
         console.log('Database initialized: Tables ready.');
     } catch (err) {
@@ -2311,6 +2343,119 @@ app.delete('/api/users/:id', authenticateToken, authorizeRole('ADMIN'), async (r
     } catch (err) {
         console.error('Error deleting user:', err);
         res.status(500).json({ message: 'Error deleting user' });
+    }
+});
+
+// --- BUDGETS & OPERATING COSTS ENDPOINTS ---
+
+// Get all operating costs
+app.get('/api/operating-costs', authenticateToken, async (req, res) => {
+    try {
+        const result = await query('SELECT * FROM operating_costs ORDER BY created_at ASC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching operating costs:', err);
+        res.status(500).json({ message: 'Error interno del servidor' });
+    }
+});
+
+// Add operating cost
+app.post('/api/operating-costs', authenticateToken, async (req, res) => {
+    const { name, amount, currency, category } = req.body;
+    try {
+        const result = await query(
+            'INSERT INTO operating_costs (name, amount, currency, category) VALUES ($1, $2, $3, $4) RETURNING *',
+            [name, amount, currency || 'USD', category || 'OPERATING']
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Error saving operating cost:', err);
+        res.status(500).json({ message: 'Error interno del servidor' });
+    }
+});
+
+// Delete operating cost
+app.delete('/api/operating-costs/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        await query('DELETE FROM operating_costs WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error deleting operating cost:', err);
+        res.status(500).json({ message: 'Error interno del servidor' });
+    }
+});
+
+// Get all budgets
+app.get('/api/budgets', authenticateToken, async (req, res) => {
+    try {
+        const result = await query('SELECT * FROM budgets ORDER BY created_at DESC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching budgets:', err);
+        res.status(500).json({ message: 'Error interno del servidor' });
+    }
+});
+
+// Create new budget
+app.post('/api/budgets', authenticateToken, async (req, res) => {
+    const { client_name, project_name, total_hours, base_hourly_rate, direct_costs, profit_margin_percent, final_price, items } = req.body;
+    try {
+        // Insert budget header
+        const budgetResult = await query(`
+            INSERT INTO budgets (client_name, project_name, total_hours, base_hourly_rate, direct_costs, profit_margin_percent, final_price) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+        `, [client_name, project_name, total_hours, base_hourly_rate, direct_costs, profit_margin_percent, final_price]);
+        
+        const budgetId = budgetResult.rows[0].id;
+        
+        // Insert budget items
+        if (items && items.length > 0) {
+            for (const item of items) {
+                await query(`
+                    INSERT INTO budget_items (budget_id, description, hours, is_direct_cost, cost_amount)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, [budgetId, item.description, item.hours, item.is_direct_cost, item.cost_amount]);
+            }
+        }
+        
+        res.json({ success: true, budget: budgetResult.rows[0] });
+    } catch (err) {
+        console.error('Error saving budget:', err);
+        res.status(500).json({ message: 'Error interno del servidor' });
+    }
+});
+
+// Send budget PDF via Email
+const { sendEmailWithAttachment } = require('./services/googleService');
+app.post('/api/budgets/send-email', authenticateToken, async (req, res) => {
+    const { email, clientName, projectName, pdfBase64, finalPrice } = req.body;
+    try {
+        const subject = \`Presupuesto Comercial: \${projectName} - Adriel's Systems\`;
+        const messageBody = \`
+            <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #38bdf8;">Hola \${clientName},</h2>
+                <p>Es un placer saludarte de parte de <strong>Adriel's Systems</strong>.</p>
+                <p>Adjunto a este correo encontrarás la propuesta comercial y presupuesto para el proyecto <strong>\${projectName}</strong>.</p>
+                <p>El valor total de la inversión propuesta es de <strong>$\${finalPrice} USD</strong>.</p>
+                <p>Si tienes alguna pregunta o si deseas que hagamos algún ajuste, por favor responde a este correo o contáctanos por WhatsApp.</p>
+                <br>
+                <p>Atentamente,</p>
+                <p><strong>El equipo de Adriel's Systems</strong></p>
+            </div>
+        \`;
+        
+        // El Base64 que viene del frontend puede incluir "data:application/pdf;base64,...", hay que limpiarlo
+        const cleanBase64 = pdfBase64.includes('base64,') ? pdfBase64.split('base64,')[1] : pdfBase64;
+        
+        const fileName = \`Presupuesto_\${projectName.replace(/\\s+/g, '_')}.pdf\`;
+        
+        await sendEmailWithAttachment('JEFE', email, subject, messageBody, cleanBase64, fileName);
+        
+        res.json({ success: true, message: 'Presupuesto enviado exitosamente.' });
+    } catch (error) {
+        console.error('Error sending budget email:', error);
+        res.status(500).json({ message: 'Error al enviar el correo con el presupuesto.', error: error.message });
     }
 });
 

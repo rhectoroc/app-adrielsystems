@@ -1,6 +1,34 @@
-# Avance de Desarrollo — 14 de Agosto 2026
+# Avance de Desarrollo — 14 de Agosto 2026 (Parte 3)
 
-## Sesión: Panel Estadístico e Integración de Proyecciones Financieras con IA (Gemini)
+## Sesión: Generador Profesional de Presupuestos (PDF) e Integración de Correos
+
+En esta sesión se finalizó la implementación del nuevo módulo **Presupuestos & Costos**, integrando un motor avanzado de cálculo comercial, generación en tiempo real de reportes PDF de alta calidad con el branding de Adriel's Systems, y la capacidad de enviar estas propuestas comerciales por correo electrónico directamente al cliente.
+
+### 💼 Calculadora y Generador de Presupuestos
+- **Formulario Inteligente:** Los administradores ahora pueden generar cotizaciones detallando el cliente, proyecto y cada ítem del servicio, con soporte nativo para diferenciar entre "Horas Hombre" (que se multiplican por la tasa base) y "Costos Fijos Directos" (ej. Hosting, Dominios).
+- **Control de Margen de Ganancia:** Se integró un selector dinámico que calcula instantáneamente la "Ganancia Neta" y el "Precio Final" a partir de un margen porcentual aplicado sobre el costo operativo del proyecto.
+- **Información Mágica:** Un badge especial alerta en todo momento al administrador de cuál es su Costo Base por Hora actual, protegiendo las finanzas de la empresa frente a cotizaciones infravaloradas.
+
+### 📄 Renderizado PDF Nativo
+- **Recreación de Plantilla Corporativa:** Se adaptó fielmente la plantilla Word del Jefe a un componente oculto HTML de alta resolución, renderizando el cintillo superior e inferior asimétricos con el logotipo corporativo (AS) usando CSS Polygon (Clip-path) para garantizar un borde cristalino sin pérdidas de calidad por rasterización.
+- **`html2pdf.js`:** Integración exitosa de esta librería mediante un workflow robusto que genera un Canvas en escala x2 (`scale: 2`), exportándolo como un documento A4 profesional en formato Base64 de forma ultra rápida y sin impactar el DOM visible.
+
+### 📧 Integración de Email (Google API)
+- **Envío con Adjuntos:** Se refactorizó el servicio `googleService.js` en el backend para admitir la función `sendEmailWithAttachment`. Ahora la API de Gmail ensambla un correo Multipart/Mixed para adjuntar el PDF generado en el frontend, nombrando automáticamente el archivo como `Presupuesto_[NombreProyecto].pdf`.
+- **Plantilla HTML en Correo:** El cliente recibe un correo profesional y estilizado en HTML de parte de Adriel's Systems, informando amablemente el costo final y adjuntando su cotización detallada.
+
+### 🛠️ Archivos Modificados (14 de Agosto - Tarde)
+
+| Archivo | Tipo | Cambio |
+|---------|------|--------|
+| `src/pages/admin/Budgets.tsx` | NEW | Creación del componente completo para Gastos Operativos, Generador de Cotizaciones y renderizado PDF oculto (Header/Footer corporativo). |
+| `src/App.tsx` & `AdminLayout.tsx` | MODIFY | Integración del nuevo módulo en las rutas protegidas y en la barra lateral del administrador. |
+| `server/index.js` | MODIFY | Desarrollo de endpoints CRUD para \`operating_costs\` y \`budgets\`, junto al endpoint puente para la generación y despacho del email. |
+| `server/services/googleService.js` | MODIFY | Construcción de la función \`sendEmailWithAttachment\` usando Gmail API para soportar MIME multipart. |
+
+---
+
+# Avance de Desarrollo — 14 de Agosto 2026 (Parte 2)
 
 En esta sesión se creó un nuevo sub-módulo dentro de Finanzas para brindar una visión analítica del flujo de caja, dotando al sistema de la capacidad de generar proyecciones financieras en tiempo real usando inteligencia artificial.
 

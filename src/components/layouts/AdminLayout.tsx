@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
-import { Users, BarChart3, Settings, LogOut, Wallet, Menu, X, Tag, MessageSquare, UserCog, LineChart } from 'lucide-react';
+import { Users, BarChart3, Settings, LogOut, Wallet, Menu, X, Tag, MessageSquare, UserCog, LineChart, Briefcase } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const AdminLayout = () => {
@@ -65,6 +65,10 @@ export const AdminLayout = () => {
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/finances" className="flex items-center px-2.5 py-1.5 text-gray-400 rounded-md hover:bg-white/5 hover:text-white transition-all group text-[11px] font-bold uppercase tracking-wider">
                         <LineChart className="w-3.5 h-3.5 mr-3 group-hover:text-blue-400 transition-colors" />
                         Finanzas
+                    </Link>
+                    <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/budgets" className="flex items-center px-2.5 py-1.5 text-gray-400 rounded-md hover:bg-white/5 hover:text-white transition-all group text-[11px] font-bold uppercase tracking-wider">
+                        <Briefcase className="w-3.5 h-3.5 mr-3 group-hover:text-amber-400 transition-colors" />
+                        Presupuestos
                     </Link>
                     <Link onClick={() => setIsMobileMenuOpen(false)} to="/admin/settings" className="flex items-center px-2.5 py-1.5 text-gray-400 rounded-md hover:bg-white/5 hover:text-white transition-all group text-[11px] font-bold uppercase tracking-wider">
                         <Settings className="w-3.5 h-3.5 mr-3 group-hover:text-gray-300 transition-colors" />
