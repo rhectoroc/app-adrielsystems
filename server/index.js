@@ -2431,24 +2431,24 @@ const { sendEmailWithAttachment } = require('./services/googleService');
 app.post('/api/budgets/send-email', authenticateToken, async (req, res) => {
     const { email, clientName, projectName, pdfBase64, finalPrice } = req.body;
     try {
-        const subject = \`Presupuesto Comercial: \${projectName} - Adriel's Systems\`;
-        const messageBody = \`
+        const subject = `Presupuesto Comercial: ${projectName} - Adriel's Systems`;
+        const messageBody = `
             <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #38bdf8;">Hola \${clientName},</h2>
+                <h2 style="color: #38bdf8;">Hola ${clientName},</h2>
                 <p>Es un placer saludarte de parte de <strong>Adriel's Systems</strong>.</p>
-                <p>Adjunto a este correo encontrarás la propuesta comercial y presupuesto para el proyecto <strong>\${projectName}</strong>.</p>
-                <p>El valor total de la inversión propuesta es de <strong>$\${finalPrice} USD</strong>.</p>
+                <p>Adjunto a este correo encontrarás la propuesta comercial y presupuesto para el proyecto <strong>${projectName}</strong>.</p>
+                <p>El valor total de la inversión propuesta es de <strong>$${finalPrice} USD</strong>.</p>
                 <p>Si tienes alguna pregunta o si deseas que hagamos algún ajuste, por favor responde a este correo o contáctanos por WhatsApp.</p>
                 <br>
                 <p>Atentamente,</p>
                 <p><strong>El equipo de Adriel's Systems</strong></p>
             </div>
-        \`;
+        `;
         
         // El Base64 que viene del frontend puede incluir "data:application/pdf;base64,...", hay que limpiarlo
         const cleanBase64 = pdfBase64.includes('base64,') ? pdfBase64.split('base64,')[1] : pdfBase64;
         
-        const fileName = \`Presupuesto_\${projectName.replace(/\\s+/g, '_')}.pdf\`;
+        const fileName = `Presupuesto_${projectName.replace(/\s+/g, '_')}.pdf`;
         
         await sendEmailWithAttachment('JEFE', email, subject, messageBody, cleanBase64, fileName);
         
