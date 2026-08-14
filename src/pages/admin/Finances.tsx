@@ -465,7 +465,7 @@ export const Finances = () => {
                                             {formatMoney(parseFloat(tx.amount_usd))}
                                         </td>
                                         <td className="px-4 py-3 text-right text-gray-400 text-xs">
-                                            Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2 }).format(tx.amount_ves ? parseFloat(tx.amount_ves) : (parseFloat(tx.amount_usd) * (tx.exchange_rate ? parseFloat(tx.exchange_rate) : (data.summary.bcv_rate || 1))))}
+                                            Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2 }).format(parseFloat(tx.amount_ves) > 0 ? parseFloat(tx.amount_ves) : (parseFloat(tx.amount_usd) * (parseFloat(tx.exchange_rate) > 0 ? parseFloat(tx.exchange_rate) : (data.summary.bcv_rate || 1))))}
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             <div className="flex justify-center gap-2">
@@ -483,10 +483,10 @@ export const Finances = () => {
                         </tbody>
                     </table>
                 </div>
-                {totalPages > 1 && (
+                {totalPages > 0 && (
                     <div className="flex justify-between items-center p-4 border-t border-white/10 bg-white/[0.02]">
                         <p className="text-xs text-gray-500">
-                            Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, data.transactions.length)} de {data.transactions.length}
+                            Mostrando {data.transactions.length > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0} - {Math.min(currentPage * itemsPerPage, data.transactions.length)} de {data.transactions.length}
                         </p>
                         <div className="flex gap-2">
                             <button 
