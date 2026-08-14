@@ -76,7 +76,7 @@ export const Budgets = () => {
     const handleAddCost = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('auth_token');
             const res = await fetch('/api/operating-costs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -94,7 +94,7 @@ export const Budgets = () => {
 
     const handleDeleteCost = async (id: number) => {
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('auth_token');
             await fetch(`/api/operating-costs/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
