@@ -520,7 +520,7 @@ export const Finances = () => {
                         </div>
                         <form onSubmit={handleSave} className="p-4 space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
+                                <div className={formData.type === 'TRASPASO' ? 'col-span-2' : ''}>
                                     <label className="block text-xs text-gray-400 font-medium mb-1">Tipo de Movimiento</label>
                                     <select 
                                         required
@@ -556,7 +556,7 @@ export const Finances = () => {
                                     </select>
                                 </div>
                                 {formData.type === 'TRASPASO' && (
-                                    <div className="col-span-2 sm:col-span-1">
+                                    <div>
                                         <label className="block text-xs text-gray-400 font-medium mb-1">Cuenta Destino</label>
                                         <select 
                                             required

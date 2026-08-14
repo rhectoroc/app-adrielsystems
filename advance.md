@@ -1,6 +1,32 @@
-# Avance de Desarrollo — 12 de Agosto 2026
+# Avance de Desarrollo — 14 de Agosto 2026
 
-## Sesión: Refinamiento Financiero, Conversiones Inteligentes (VES/USD) y Comisiones Bancarias
+## Sesión: Paginación y Optimización de Transacciones Financieras (UI/UX & Conversiones Históricas)
+
+En esta sesión se abordaron mejoras visuales y funcionales en el módulo de Finanzas, optimizando el rendimiento de la tabla de transacciones, la usabilidad de los formularios de registro y asegurando la precisión contable de registros pasados.
+
+### 📝 Paginación de Historial
+- **Rendimiento Mejorado:** Se implementó paginación local en la tabla de transacciones de `Finances.tsx`, limitando la visualización a 50 registros por página. Esto previene el colapso del DOM al cargar cientos de transacciones simultáneamente.
+- **Controles Intuitivos:** Se agregaron botones de navegación (Siguiente/Anterior) y un indicador de rango de registros visibles (Ej: "Mostrando 1 - 50 de 120").
+- **Visibilidad Constante:** La barra de paginación se mantiene visible incluso si hay menos de 50 registros (una sola página), brindando claridad sobre la cantidad total de transacciones actuales al usuario.
+
+### 💱 Precisión Histórica en Conversiones (VES/USD)
+- **Tasa de Cambio Manual:** Se agregó el campo `Tasa de Cambio (Bs/USD)` en el modal de Añadir Transacción. Este campo permite registrar la tasa BCV real de la fecha en que ocurrió una transacción pasada, en lugar de forzar la tasa actual.
+- **Cálculo Seguro en Tabla:** Se optimizó la columna "Monto (VES)" en la tabla. Ahora, si una transacción antigua tiene un valor de `0` en su campo `amount_ves` en la base de datos, el sistema calcula su valor en Bolívares matemáticamente en tiempo real multiplicando su monto en dólares por su tasa de cambio histórica (o la actual por defecto).
+
+### 🔄 Operativa de Traspaso de Fondos
+- **Nuevo Tipo de Transacción:** Se integró la opción "Traspaso entre cuentas" en el formulario de creación de transacciones.
+- **UI Dinámica y Layout Optimizado:** Al seleccionar "Traspaso", la interfaz cambia para mostrar un campo de "Cuenta Origen" y uno de "Cuenta Destino", perfectamente alineados gracias a un rediseño del layout (Grid columns) del formulario.
+- **Doble Asiento Contable Automático:** La lógica de backend/frontend se ajustó para que un Traspaso genere automáticamente dos peticiones: una `TRANSFERENCIA_SALIDA` desde la cuenta origen y una `TRANSFERENCIA_ENTRADA` a la cuenta destino, incluyendo validaciones para evitar traspasos hacia la misma cuenta.
+
+### 🛠️ Archivos Modificados (14 de Agosto)
+
+| Archivo | Tipo | Cambio |
+|---------|------|--------|
+| `src/pages/admin/Finances.tsx` | MODIFY | Paginación (50 items), campo manual para Tasa de Cambio, corrección de cálculo 0.00 VES, integración de UI y lógica para "Traspaso entre cuentas". |
+
+---
+
+# Avance de Desarrollo — 12 de Agosto 2026
 
 En esta sesión se optimizó la experiencia de usuario y la precisión del Módulo de Finanzas, integrando soporte avanzado para el manejo de cuentas bi-monetarias (Bolívares y Dólares) y el registro transparente de comisiones bancarias.
 
