@@ -1,4 +1,4 @@
 allowBuilds:
   bcrypt: true
-  core-js: set this to true or false
+  core-js: true
   esbuild: true
