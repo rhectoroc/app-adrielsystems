@@ -30,6 +30,12 @@ export const Budgets = () => {
     const [operatingCosts, setOperatingCosts] = useState<OperatingCost[]>([]);
     const [newCost, setNewCost] = useState({ name: '', amount: '', category: 'OPERATING', currency: 'USD' });
     const billableHoursPerMonth = 160; // Standard 40h/week
+    
+    // --- DEPRECIATION STATE ---
+    const [depName, setDepName] = useState('');
+    const [depCost, setDepCost] = useState('');
+    const [depResidual, setDepResidual] = useState('');
+    const [depYears, setDepYears] = useState('');
 
     // --- BUDGET STATE ---
     const [clientName, setClientName] = useState('');
@@ -89,6 +95,41 @@ export const Budgets = () => {
             }
         } catch (err) {
             toast.error('Error al guardar');
+        }
+    };
+
+    const handleAddDepreciation = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const cost = parseFloat(depCost);
+        const residual = parseFloat(depResidual) || 0;
+        const years = parseFloat(depYears);
+        
+        if (cost > 0 && years > 0) {
+            const annualDepreciation = (cost - residual) / years;
+            const monthlyDepreciation = annualDepreciation / 12;
+            
+            try {
+                const token = localStorage.getItem('auth_token');
+                const res = await fetch('/api/operating-costs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({
+                        name: `Depreciación: ${depName}`,
+                        amount: monthlyDepreciation.toFixed(2),
+                        category: 'DEPRECIATION',
+                        currency: 'USD'
+                    })
+                });
+                if (res.ok) {
+                    toast.success('Depreciación calculada y agregada');
+                    setDepName(''); setDepCost(''); setDepResidual(''); setDepYears('');
+                    fetchCosts();
+                }
+            } catch (err) {
+                toast.error('Error al guardar depreciación');
+            }
+        } else {
+            toast.error('Verifica que el costo y la vida útil sean mayores a cero');
         }
     };
 
@@ -430,6 +471,41 @@ export const Budgets = () => {
                             <p className="text-xs text-primary/60">
                                 Basado en ${totalMonthlyCost.toFixed(2)} de gastos fijos / {billableHoursPerMonth}h hábiles mensuales.
                             </p>
+                        </div>
+
+                        {/* DEPRECIATION CALCULATOR */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                            <h2 className="text-sm font-bold mb-4 flex items-center gap-2 text-gray-200">
+                                <Calculator className="w-4 h-4 text-primary" /> Depreciación de Equipos
+                            </h2>
+                            <p className="text-xs text-gray-400 mb-4">
+                                Método de Línea Recta: (Costo - Valor Residual) / Vida Útil (Años). Se añadirá automáticamente como un gasto operativo mensual.
+                            </p>
+                            
+                            <form onSubmit={handleAddDepreciation} className="space-y-3">
+                                <div>
+                                    <label className="block text-xs text-gray-400 mb-1">Equipo / Activo</label>
+                                    <input required type="text" placeholder="Ej. Laptop Dell XPS" value={depName} onChange={e => setDepName(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary outline-none" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs text-gray-400 mb-1">Costo Total ($)</label>
+                                        <input required type="number" min="1" step="0.01" value={depCost} onChange={e => setDepCost(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-400 mb-1">V. Residual ($)</label>
+                                        <input type="number" min="0" step="0.01" placeholder="0" value={depResidual} onChange={e => setDepResidual(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary outline-none" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-gray-400 mb-1">Vida Útil (Años)</label>
+                                    <input required type="number" min="1" step="0.5" placeholder="Ej. 3" value={depYears} onChange={e => setDepYears(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary outline-none" />
+                                </div>
+                                
+                                <button type="submit" className="w-full mt-2 bg-white/10 text-white border border-white/20 px-4 py-2 rounded-lg text-sm font-bold hover:bg-white/20 transition-colors">
+                                    Calcular y Agregar al OPEX
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
