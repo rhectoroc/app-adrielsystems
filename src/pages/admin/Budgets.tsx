@@ -43,12 +43,16 @@ export const Budgets = () => {
 
     const fetchCosts = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('auth_token');
             const res = await fetch('/api/operating-costs', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            const data = await res.json();
-            setOperatingCosts(data);
+            if (res.ok) {
+                const data = await res.json();
+                setOperatingCosts(Array.isArray(data) ? data : []);
+            } else {
+                console.error("Failed to fetch operating costs:", res.status);
+            }
         } catch (error) {
             console.error(error);
         }
@@ -141,7 +145,7 @@ export const Budgets = () => {
             element.style.display = 'none';
 
             // Send to Backend
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('auth_token');
             const res = await fetch('/api/budgets/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
