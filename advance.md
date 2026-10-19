@@ -1,5 +1,28 @@
-# Avance de Desarrollo — 14 de Agosto 2026 (Parte 3)
+# Avance de Desarrollo — 14 de Agosto 2026 (Parte 4 - Estabilización y Calculadora OPEX)
 
+## Sesión: Resolución de Bugs en Autenticación y Depreciación de Equipos
+
+Durante esta sesión se resolvieron errores críticos de despliegue en producción que causaban una pantalla blanca en el módulo de Presupuestos, y se integró una herramienta de cálculo de depreciación tecnológica para fortalecer la rentabilidad de la empresa.
+
+### 🐛 Resolución de Blank Screen y 403 Forbidden
+- **Diagnóstico del Crash:** Se identificó que el componente de presupuestos colapsaba al cargar (`TypeError: i.reduce is not a function`). Esto ocurría porque la petición a la API fallaba (403) y el frontend intentaba procesar el objeto de error JSON como si fuera un Array numérico de costos.
+- **Fix de Autenticación (`auth_token`):** El sistema guardaba el JWT bajo la llave `auth_token` en localStorage, pero el nuevo módulo intentaba leer `token`. Se corrigió la extracción en todas las funciones CRUD (Lectura, Guardado, Eliminación y Envío de PDF).
+- **Validación de Tipos (Type Safety):** Se añadió una capa de seguridad en la respuesta del `fetch` comprobando `res.ok` y asegurando que el estado de React siempre reciba un Array (`Array.isArray(data) ? data : []`), previniendo futuros colapsos del DOM.
+
+### 💻 Calculadora de Depreciación (Método de Línea Recta)
+- **Implementación Comercial:** Se añadió una sub-calculadora dentro de la Estructura de Costos que permite registrar activos tecnológicos (Laptops, Servidores) para distribuir su costo a lo largo del tiempo.
+- **Fórmula Integrada:** Utiliza la fórmula financiera estándar: `(Costo Total - Valor Residual) / Vida Útil en Años`, diviéndolo entre 12.
+- **Integración Transparente:** Al procesar el cálculo, el sistema genera automáticamente un nuevo Gasto Operativo Mensual (OPEX) con el prefijo "Depreciación:" de forma silenciosa e incrementa el Costo Base por Hora del administrador.
+
+### 🛠️ Archivos Modificados (14 de Agosto - Noche)
+
+| Archivo | Tipo | Cambio |
+|---------|------|--------|
+| `src/pages/admin/Budgets.tsx` | MODIFY | Corrección global de llaves JWT, catch de errores HTTP 403, e integración UI/Lógica de la calculadora de depreciación lineal. |
+
+---
+
+# Avance de Desarrollo — 14 de Agosto 2026 (Parte 3)
 ## Sesión: Generador Profesional de Presupuestos (PDF) e Integración de Correos
 
 En esta sesión se finalizó la implementación del nuevo módulo **Presupuestos & Costos**, integrando un motor avanzado de cálculo comercial, generación en tiempo real de reportes PDF de alta calidad con el branding de Adriel's Systems, y la capacidad de enviar estas propuestas comerciales por correo electrónico directamente al cliente.

@@ -129,10 +129,21 @@ export const ClientsManagement = () => {
         e.preventDefault();
         setIsSubmitting(true);
 
+        const payload = {
+            ...formData,
+            services: formData.services.map(s => ({
+                ...s,
+                cost: parseFloat(s.cost) || 0,
+                special_price: (s.special_price !== undefined && s.special_price !== '' && s.special_price !== null)
+                    ? parseFloat(s.special_price)
+                    : null
+            }))
+        };
+
         try {
             const response = editMode && currentClientId
-                ? await api.put(`/api/clients/${currentClientId}`, formData)
-                : await api.post('/api/clients', formData);
+                ? await api.put(`/api/clients/${currentClientId}`, payload)
+                : await api.post('/api/clients', payload);
 
             if (!response.ok) {
                 const data = await response.json();

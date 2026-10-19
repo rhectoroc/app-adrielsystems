@@ -983,37 +983,49 @@ VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
         if (services.length > 0) {
             for (const service of services) {
                 const serviceStartDate = service.created_at || new Date().toISOString().split('T')[0];
-                const renewalDaySql = `(CASE WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 15 ELSE 30 END)`;
+                const cleanCost = (service.cost !== undefined && service.cost !== '' && service.cost !== null)
+                    ? parseFloat(service.cost) || 0
+                    : 0;
+                const cleanSpecialPrice = (service.special_price !== undefined && service.special_price !== '' && service.special_price !== null)
+                    ? parseFloat(service.special_price)
+                    : null;
+                const serviceCurrency = service.currency || 'USD';
+
+                const renewalDaySql = `(CASE WHEN EXTRACT(DAY FROM ($5::TEXT)::DATE) <= 15 THEN 15 ELSE 30 END)`;
                 const billingSql = `(
                     CASE 
-                        WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 
-                            (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
+                        WHEN EXTRACT(DAY FROM ($5::TEXT)::DATE) <= 15 THEN 
+                            (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
                         ELSE 
-                            (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', $5::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
+                            (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
                     END
                 )`;
                 await query(
                     `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed, created_at)
-                    VALUES($1, $2, $3, $4, 'ACTIVE', ${renewalDaySql}, $6, ${billingSql}, ${renewalDaySql}, $5)`,
-                    [clientId, service.name, service.cost || 0, service.currency || 'USD', serviceStartDate, service.special_price || null]
+                    VALUES($1, $2, $3, $4, 'ACTIVE', ${renewalDaySql}, $6, ${billingSql}, ${renewalDaySql}, ($5::TEXT)::TIMESTAMPTZ)`,
+                    [clientId, service.name, cleanCost, serviceCurrency, serviceStartDate, cleanSpecialPrice]
                 );
             }
         } else if (service_name) {
             // Backward compatibility for single service
             const serviceStartDate = new Date().toISOString().split('T')[0];
-            const renewalDaySql = `(CASE WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 15 ELSE 30 END)`;
+            const cleanCost = parseFloat(cost) || 0;
+            const cleanSpecialPrice = (req.body.special_price !== undefined && req.body.special_price !== '' && req.body.special_price !== null)
+                ? parseFloat(req.body.special_price)
+                : null;
+            const renewalDaySql = `(CASE WHEN EXTRACT(DAY FROM ($5::TEXT)::DATE) <= 15 THEN 15 ELSE 30 END)`;
             const billingSql = `(
                 CASE 
-                    WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 
-                        (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
+                    WHEN EXTRACT(DAY FROM ($5::TEXT)::DATE) <= 15 THEN 
+                        (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
                     ELSE 
-                        (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', $5::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
+                        (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
                 END
             )`;
             await query(
                 `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed, created_at)
-                VALUES($1, $2, $3, $4, 'ACTIVE', ${renewalDaySql}, $6, ${billingSql}, ${renewalDaySql}, $5)`,
-                [clientId, service_name, cost || 0, currency || 'USD', serviceStartDate, req.body.special_price || null]
+                VALUES($1, $2, $3, $4, 'ACTIVE', ${renewalDaySql}, $6, ${billingSql}, ${renewalDaySql}, ($5::TEXT)::TIMESTAMPTZ)`,
+                [clientId, service_name, cleanCost, currency || 'USD', serviceStartDate, cleanSpecialPrice]
             );
         }
 
@@ -1081,20 +1093,28 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
         if (services.length > 0) {
             for (const service of services) {
                 const serviceStartDate = service.created_at || new Date().toISOString().split('T')[0];
-                const renewalDaySql = `(CASE WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 15 ELSE 30 END)`;
+                const cleanCost = (service.cost !== undefined && service.cost !== '' && service.cost !== null)
+                    ? parseFloat(service.cost) || 0
+                    : 0;
+                const cleanSpecialPrice = (service.special_price !== undefined && service.special_price !== '' && service.special_price !== null)
+                    ? parseFloat(service.special_price)
+                    : null;
+                const serviceCurrency = service.currency || 'USD';
+
+                const renewalDaySql = `(CASE WHEN EXTRACT(DAY FROM ($5::TEXT)::DATE) <= 15 THEN 15 ELSE 30 END)`;
                 if (service.id) {
                     // Update existing service
                     const billingSql = `(
                         CASE 
-                            WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 
-                                (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
+                            WHEN EXTRACT(DAY FROM ($5::TEXT)::DATE) <= 15 THEN 
+                                (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
                             ELSE 
-                                (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', $5::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
+                                (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
                         END
                     )`;
                     await query(
                         `UPDATE services 
-                         SET name = $1, cost = $2, currency = $3, special_price = $4, created_at = $5,
+                         SET name = $1, cost = $2, currency = $3, special_price = $4, created_at = ($5::TEXT)::TIMESTAMPTZ,
                              renewal_day = ${renewalDaySql},
                              billing_day_fixed = ${renewalDaySql},
                              expiration_date = CASE 
@@ -1102,22 +1122,22 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
                                  ELSE expiration_date
                              END
                          WHERE id = $6 AND client_id = $7`,
-                        [service.name, service.cost || 0, service.currency || 'USD', service.special_price || null, serviceStartDate, service.id, id]
+                        [service.name, cleanCost, serviceCurrency, cleanSpecialPrice, serviceStartDate, service.id, id]
                     );
                 } else {
                     // Create new service
                     const billingSql = `(
                         CASE 
-                            WHEN EXTRACT(DAY FROM $5::DATE) <= 15 THEN 
-                                (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
+                            WHEN EXTRACT(DAY FROM ($5::TEXT)::DATE) <= 15 THEN 
+                                (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '1 month') + INTERVAL '14 days')::DATE
                             ELSE 
-                                (DATE_TRUNC('month', $5::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', $5::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
+                                (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '1 month') + (LEAST(30, EXTRACT(DAY FROM (DATE_TRUNC('month', ($5::TEXT)::DATE + INTERVAL '2 months') - INTERVAL '1 day'))::INT) - 1) * INTERVAL '1 day')::DATE
                         END
                     )`;
                     await query(
                         `INSERT INTO services(client_id, name, cost, currency, status, renewal_day, special_price, expiration_date, billing_day_fixed, created_at)
-                         VALUES($1, $2, $3, $4, 'ACTIVE', ${renewalDaySql}, $6, ${billingSql}, ${renewalDaySql}, $5)`,
-                        [id, service.name, service.cost || 0, service.currency || 'USD', serviceStartDate, service.special_price || null]
+                         VALUES($1, $2, $3, $4, 'ACTIVE', ${renewalDaySql}, $6, ${billingSql}, ${renewalDaySql}, ($5::TEXT)::TIMESTAMPTZ)`,
+                        [id, service.name, cleanCost, serviceCurrency, serviceStartDate, cleanSpecialPrice]
                     );
                 }
             }
@@ -1128,7 +1148,7 @@ app.put('/api/clients/:id', authenticateToken, authorizeRole('ADMIN'), async (re
     } catch (err) {
         await query('ROLLBACK');
         console.error('Error updating client:', err);
-        res.status(500).json({ message: 'Error updating client' });
+        res.status(500).json({ message: err.message || 'Error updating client' });
     }
 });
 // DELETE /api/clients/:id - Delete client and all related data
