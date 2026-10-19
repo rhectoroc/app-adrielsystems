@@ -19,9 +19,10 @@ export const Finances = () => {
         type: 'GASTO',
         concept: '',
         amount_usd: '',
+        destination_amount: '',
         commission_usd: '',
         account_name: 'Efectivo',
-        destination_account: 'Zelle',
+        destination_account: 'PayPal',
         created_at: '',
         exchange_rate: ''
     });
@@ -107,9 +108,10 @@ export const Finances = () => {
                 type: tx.type,
                 concept: tx.concept,
                 amount_usd: initialAmount.toFixed(2),
+                destination_amount: '',
                 commission_usd: '',
                 account_name: tx.account_name || 'Efectivo',
-                destination_account: 'Zelle',
+                destination_account: 'PayPal',
                 created_at: new Date(tx.created_at).toISOString().slice(0, 16),
                 exchange_rate: tx.exchange_rate ? tx.exchange_rate.toString() : (data?.summary?.bcv_rate?.toString() || '')
             });
@@ -119,9 +121,10 @@ export const Finances = () => {
                 type: 'GASTO',
                 concept: '',
                 amount_usd: '',
+                destination_amount: '',
                 commission_usd: '',
                 account_name: 'Efectivo',
-                destination_account: 'Zelle',
+                destination_account: 'PayPal',
                 created_at: new Date().toISOString().slice(0, 16),
                 exchange_rate: data?.summary?.bcv_rate?.toString() || ''
             });
@@ -132,54 +135,123 @@ export const Finances = () => {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        const isSourceUSD = ['zelle', 'paypal', 'binance'].some(acc => formData.account_name.toLowerCase().includes(acc));
+        const isDestUSD = ['zelle', 'paypal', 'binance'].some(acc => formData.destination_account.toLowerCase().includes(acc));
+        const bcvRate = data?.summary?.bcv_rate || 1;
+
         let realAmountUsd = parseFloat(formData.amount_usd);
         let realCommissionUsd = parseFloat(formData.commission_usd || '0');
-        const isUSD = ['zelle', 'paypal', 'binance'].some(acc => formData.account_name.toLowerCase().includes(acc));
+        const rateToUse = formData.exchange_rate ? parseFloat(formData.exchange_rate) : bcvRate;
 
-        const rateToUse = formData.exchange_rate ? parseFloat(formData.exchange_rate) : (data?.summary?.bcv_rate || 1);
-
-        if (!isUSD) {
+        if (!isSourceUSD) {
             realAmountUsd = realAmountUsd / rateToUse;
             realCommissionUsd = realCommissionUsd / rateToUse;
         }
 
         try {
-            const payload = {
-                type: formData.type,
-                concept: formData.concept,
-                account_name: formData.account_name,
-                commission_usd: formData.commission_usd,
-                amount_usd: realAmountUsd,
-                amount_ves: !isUSD ? parseFloat(formData.amount_usd) : (realAmountUsd * rateToUse),
-                exchange_rate: rateToUse,
-                created_at: new Date(formData.created_at).toISOString(),
-                ...(editingTx ? { id: editingTx.id } : {})
-            };
-            
             if (formData.type === 'TRASPASO') {
                 if (formData.account_name === formData.destination_account) {
                     throw new Error('La cuenta de origen y destino no pueden ser la misma.');
                 }
-                const outPayload = {
-                    ...payload,
-                    type: 'TRANSFERENCIA_SALIDA',
-                    concept: formData.concept || `Traspaso a ${formData.destination_account}`
-                };
-                const inPayload = {
-                    ...payload,
-                    type: 'TRANSFERENCIA_ENTRADA',
-                    account_name: formData.destination_account,
-                    concept: formData.concept || `Traspaso desde ${formData.account_name}`
-                };
 
-                const resOut = await api.post('/api/finances', outPayload);
-                if (!resOut || !resOut.ok) throw new Error('Error al registrar transferencia de salida');
-                
-                const resIn = await api.post('/api/finances', inPayload);
-                if (!resIn || !resIn.ok) throw new Error('Error al registrar transferencia de entrada');
+                // Check if it's a cross-currency exchange (e.g. VES -> USD or USD -> VES)
+                if (isSourceUSD !== isDestUSD && formData.destination_amount) {
+                    const destInputAmount = parseFloat(formData.destination_amount);
+                    
+                    let outAmountUsd: number;
+                    let outAmountVes: number;
+                    let inAmountUsd: number;
+                    let inAmountVes: number;
+                    let effectiveRate: number;
+
+                    if (!isSourceUSD && isDestUSD) {
+                        // Buying USD with VES (e.g., Pago Bs desde Banco de Venezuela -> Recibo USD en PayPal)
+                        const vesPaid = parseFloat(formData.amount_usd);
+                        const usdReceived = destInputAmount;
+                        effectiveRate = usdReceived > 0 ? (vesPaid / usdReceived) : bcvRate;
+
+                        outAmountUsd = vesPaid / bcvRate; // Debited value in USD base
+                        outAmountVes = vesPaid;
+
+                        inAmountUsd = usdReceived; // Direct USD balance increment
+                        inAmountVes = usdReceived * effectiveRate;
+                    } else {
+                        // Selling USD for VES (e.g., Venta Binance USDT -> Recibo Bs en Banesco)
+                        const usdSpent = parseFloat(formData.amount_usd);
+                        const vesReceived = destInputAmount;
+                        effectiveRate = usdSpent > 0 ? (vesReceived / usdSpent) : bcvRate;
+
+                        outAmountUsd = usdSpent;
+                        outAmountVes = usdSpent * effectiveRate;
+
+                        inAmountUsd = vesReceived / bcvRate;
+                        inAmountVes = vesReceived;
+                    }
+
+                    const outPayload = {
+                        type: 'TRANSFERENCIA_SALIDA',
+                        concept: formData.concept || `Traspaso hacia ${formData.destination_account} (Tasa: ${effectiveRate.toFixed(2)} Bs/$)`,
+                        account_name: formData.account_name,
+                        amount_usd: outAmountUsd,
+                        amount_ves: outAmountVes,
+                        exchange_rate: effectiveRate,
+                        created_at: new Date(formData.created_at).toISOString()
+                    };
+
+                    const inPayload = {
+                        type: 'TRANSFERENCIA_ENTRADA',
+                        concept: formData.concept || `Traspaso desde ${formData.account_name} (Tasa: ${effectiveRate.toFixed(2)} Bs/$)`,
+                        account_name: formData.destination_account,
+                        amount_usd: inAmountUsd,
+                        amount_ves: inAmountVes,
+                        exchange_rate: effectiveRate,
+                        created_at: new Date(formData.created_at).toISOString()
+                    };
+
+                    const resOut = await api.post('/api/finances', outPayload);
+                    if (!resOut || !resOut.ok) throw new Error('Error al registrar transferencia de salida');
+
+                    const resIn = await api.post('/api/finances', inPayload);
+                    if (!resIn || !resIn.ok) throw new Error('Error al registrar transferencia de entrada');
+                } else {
+                    // Standard same-currency or automatic conversion transfer
+                    const payload = {
+                        type: 'TRANSFERENCIA_SALIDA',
+                        concept: formData.concept || `Traspaso a ${formData.destination_account}`,
+                        account_name: formData.account_name,
+                        amount_usd: realAmountUsd,
+                        amount_ves: !isSourceUSD ? parseFloat(formData.amount_usd) : (realAmountUsd * rateToUse),
+                        exchange_rate: rateToUse,
+                        created_at: new Date(formData.created_at).toISOString()
+                    };
+
+                    const inPayload = {
+                        ...payload,
+                        type: 'TRANSFERENCIA_ENTRADA',
+                        account_name: formData.destination_account,
+                        concept: formData.concept || `Traspaso desde ${formData.account_name}`
+                    };
+
+                    const resOut = await api.post('/api/finances', payload);
+                    if (!resOut || !resOut.ok) throw new Error('Error al registrar transferencia de salida');
+
+                    const resIn = await api.post('/api/finances', inPayload);
+                    if (!resIn || !resIn.ok) throw new Error('Error al registrar transferencia de entrada');
+                }
             } else {
-                const res = await api.post('/api/finances', payload);
+                const payload = {
+                    type: formData.type,
+                    concept: formData.concept,
+                    account_name: formData.account_name,
+                    commission_usd: formData.commission_usd,
+                    amount_usd: realAmountUsd,
+                    amount_ves: !isSourceUSD ? parseFloat(formData.amount_usd) : (realAmountUsd * rateToUse),
+                    exchange_rate: rateToUse,
+                    created_at: new Date(formData.created_at).toISOString(),
+                    ...(editingTx ? { id: editingTx.id } : {})
+                };
 
+                const res = await api.post('/api/finances', payload);
                 if (!res || !res.ok) {
                     let errorMsg = res ? `HTTP ${res.status}` : 'Error de red';
                     try {
@@ -754,7 +826,96 @@ export const Finances = () => {
                             </div>
                             
                             {(() => {
-                                const isUSD = ['zelle', 'paypal', 'binance'].some(acc => formData.account_name.toLowerCase().includes(acc));
+                                const isSourceUSD = ['zelle', 'paypal', 'binance'].some(acc => formData.account_name.toLowerCase().includes(acc));
+                                const isDestUSD = ['zelle', 'paypal', 'binance'].some(acc => formData.destination_account.toLowerCase().includes(acc));
+                                const isCrossCurrency = formData.type === 'TRASPASO' && (isSourceUSD !== isDestUSD);
+                                const sourcePrefix = isSourceUSD ? '$' : 'Bs.';
+                                const destPrefix = isDestUSD ? '$' : 'Bs.';
+
+                                const bcvRate = data?.summary?.bcv_rate || 1;
+                                const srcAmt = parseFloat(formData.amount_usd) || 0;
+                                const destAmt = parseFloat(formData.destination_amount || '') || 0;
+                                
+                                let calculatedRate = 0;
+                                if (isCrossCurrency && srcAmt > 0 && destAmt > 0) {
+                                    calculatedRate = !isSourceUSD ? (srcAmt / destAmt) : (destAmt / srcAmt);
+                                }
+                                const gapPercent = (calculatedRate > 0 && bcvRate > 0) 
+                                    ? (((calculatedRate - bcvRate) / bcvRate) * 100) 
+                                    : 0;
+
+                                if (isCrossCurrency) {
+                                    return (
+                                        <div className="space-y-3 bg-white/[0.02] p-3.5 rounded-xl border border-white/5">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
+                                                    🔄 Conversión Multimoneda ({isSourceUSD ? 'USD' : 'VES'} ➔ {isDestUSD ? 'USD' : 'VES'})
+                                                </span>
+                                                <span className="text-[9px] font-bold text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                                                    Tasa BCV: {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2 }).format(bcvRate)} Bs
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
+                                                        Debitar de {formData.account_name} ({isSourceUSD ? 'USD' : 'VES'})
+                                                    </label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs select-none pointer-events-none">
+                                                            {sourcePrefix}
+                                                        </span>
+                                                        <input 
+                                                            type="number" 
+                                                            step="0.01"
+                                                            required
+                                                            className={`w-full bg-black/50 border border-white/10 rounded-lg ${isSourceUSD ? 'pl-9' : 'pl-14'} pr-3 py-2 text-xs text-white focus:border-primary outline-none font-medium transition-all`}
+                                                            placeholder="0.00"
+                                                            value={formData.amount_usd}
+                                                            onChange={(e) => setFormData({...formData, amount_usd: e.target.value})}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
+                                                        Acreditar en {formData.destination_account} ({isDestUSD ? 'USD' : 'VES'})
+                                                    </label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs select-none pointer-events-none">
+                                                            {destPrefix}
+                                                        </span>
+                                                        <input 
+                                                            type="number" 
+                                                            step="0.01"
+                                                            required
+                                                            className={`w-full bg-black/50 border border-white/10 rounded-lg ${isDestUSD ? 'pl-9' : 'pl-14'} pr-3 py-2 text-xs text-white focus:border-primary outline-none font-medium transition-all`}
+                                                            placeholder="0.00"
+                                                            value={formData.destination_amount || ''}
+                                                            onChange={(e) => setFormData({...formData, destination_amount: e.target.value})}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {calculatedRate > 0 && (
+                                                <div className="flex items-center justify-between p-2 rounded-lg bg-black/30 border border-white/5 text-[11px]">
+                                                    <div className="flex items-center gap-1.5 font-bold text-white">
+                                                        <span>Tasa Real Operación:</span>
+                                                        <span className="text-primary font-black">
+                                                            {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(calculatedRate)} Bs/USD
+                                                        </span>
+                                                    </div>
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${gapPercent >= 0 ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>
+                                                        Brecha: {gapPercent >= 0 ? '+' : ''}{gapPercent.toFixed(1)}% vs BCV
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                }
+
+                                const isUSD = isSourceUSD;
                                 const prefix = isUSD ? '$' : 'Bs.';
                                 return (
                                     <>
