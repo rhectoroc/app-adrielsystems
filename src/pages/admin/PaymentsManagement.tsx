@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Loader2, X, Save, Eye, DollarSign, Edit2, History, ArrowLeft, Trash2, MessageSquare, Send } from 'lucide-react';
+import { Plus, Loader2, X, Save, Eye, DollarSign, Edit2, History, ArrowLeft, Trash2, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
@@ -44,6 +44,7 @@ interface Client {
         status: string;
         expiration_date: string;
         payment_status: 'OVERDUE' | 'UPCOMING' | 'PAID';
+        billing_day_fixed?: number;
     }>;
 }
 
