@@ -673,67 +673,81 @@ export const Finances = () => {
             
             {/* CRUD Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-                    <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="flex justify-between items-center p-4 border-b border-white/10 bg-white/5">
-                            <h3 className="font-bold text-lg">{editingTx ? 'Editar Transacción' : 'Añadir Transacción'}</h3>
-                            <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
+                <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+                    <div className="bg-[#0b1329] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center p-5 border-b border-white/10 bg-white/[0.03]">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-primary/10 rounded-lg text-primary border border-primary/20">
+                                    <DollarSign className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-sm text-white uppercase tracking-wider">
+                                        {editingTx ? 'Editar Transacción' : 'Añadir Transacción'}
+                                    </h3>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
+                                        Libro Mayor & Control de Tesorería
+                                    </p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsModalOpen(false)} className="p-1 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <form onSubmit={handleSave} className="p-4 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                        <form onSubmit={handleSave} className="p-5 space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <div className={formData.type === 'TRASPASO' ? 'col-span-2' : ''}>
-                                    <label className="block text-xs text-gray-400 font-medium mb-1">Tipo de Movimiento</label>
-                                    <select 
-                                        required
-                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                                        value={formData.type}
-                                        onChange={(e) => setFormData({...formData, type: e.target.value})}
-                                    >
-                                        <option value="INGRESO">Ingreso</option>
-                                        <option value="GASTO">Gasto</option>
-                                        <option value="COMISION_BANCARIA">Comisión Bancaria</option>
-                                        <option value="TRANSFERENCIA_SALIDA">Transferencia (Salida)</option>
-                                        <option value="TRANSFERENCIA_ENTRADA">Transferencia (Entrada)</option>
-                                        {!editingTx && <option value="TRASPASO">Traspaso entre cuentas</option>}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs text-gray-400 font-medium mb-1">
-                                        {formData.type === 'TRASPASO' ? 'Cuenta Origen' : 'Cuenta/Banco'}
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">
+                                        Tipo de Movimiento
                                     </label>
                                     <select 
                                         required
-                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                                        value={formData.type}
+                                        onChange={(e) => setFormData({...formData, type: e.target.value})}
+                                    >
+                                        <option value="INGRESO" className="bg-[#0b1329]">Ingreso</option>
+                                        <option value="GASTO" className="bg-[#0b1329]">Gasto</option>
+                                        <option value="COMISION_BANCARIA" className="bg-[#0b1329]">Comisión Bancaria</option>
+                                        <option value="TRANSFERENCIA_SALIDA" className="bg-[#0b1329]">Transferencia (Salida)</option>
+                                        <option value="TRANSFERENCIA_ENTRADA" className="bg-[#0b1329]">Transferencia (Entrada)</option>
+                                        {!editingTx && <option value="TRASPASO" className="bg-[#0b1329]">Traspaso entre cuentas</option>}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">
+                                        {formData.type === 'TRASPASO' ? 'Cuenta Origen' : 'Cuenta / Banco'}
+                                    </label>
+                                    <select 
+                                        required
+                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                                         value={formData.account_name}
                                         onChange={(e) => setFormData({...formData, account_name: e.target.value})}
                                     >
-                                        <option value="Efectivo">Efectivo</option>
-                                        <option value="Zelle">Zelle</option>
-                                        <option value="PayPal">PayPal</option>
-                                        <option value="Binance">Binance</option>
-                                        <option value="Banco de Venezuela">Banco de Venezuela</option>
-                                        <option value="Banesco">Banesco</option>
-                                        <option value="Banca Amiga">Banca Amiga</option>
+                                        <option value="Efectivo" className="bg-[#0b1329]">Efectivo</option>
+                                        <option value="Zelle" className="bg-[#0b1329]">Zelle</option>
+                                        <option value="PayPal" className="bg-[#0b1329]">PayPal</option>
+                                        <option value="Binance" className="bg-[#0b1329]">Binance</option>
+                                        <option value="Banco de Venezuela" className="bg-[#0b1329]">Banco de Venezuela</option>
+                                        <option value="Banesco" className="bg-[#0b1329]">Banesco</option>
+                                        <option value="Banca Amiga" className="bg-[#0b1329]">Banca Amiga</option>
                                     </select>
                                 </div>
                                 {formData.type === 'TRASPASO' && (
                                     <div>
-                                        <label className="block text-xs text-gray-400 font-medium mb-1">Cuenta Destino</label>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Cuenta Destino</label>
                                         <select 
                                             required
-                                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                                             value={formData.destination_account}
                                             onChange={(e) => setFormData({...formData, destination_account: e.target.value})}
                                         >
-                                            <option value="Efectivo">Efectivo</option>
-                                            <option value="Zelle">Zelle</option>
-                                            <option value="PayPal">PayPal</option>
-                                            <option value="Binance">Binance</option>
-                                            <option value="Banco de Venezuela">Banco de Venezuela</option>
-                                            <option value="Banesco">Banesco</option>
-                                            <option value="Banca Amiga">Banca Amiga</option>
+                                            <option value="Efectivo" className="bg-[#0b1329]">Efectivo</option>
+                                            <option value="Zelle" className="bg-[#0b1329]">Zelle</option>
+                                            <option value="PayPal" className="bg-[#0b1329]">PayPal</option>
+                                            <option value="Binance" className="bg-[#0b1329]">Binance</option>
+                                            <option value="Banco de Venezuela" className="bg-[#0b1329]">Banco de Venezuela</option>
+                                            <option value="Banesco" className="bg-[#0b1329]">Banesco</option>
+                                            <option value="Banca Amiga" className="bg-[#0b1329]">Banca Amiga</option>
                                         </select>
                                     </div>
                                 )}
@@ -741,48 +755,53 @@ export const Finances = () => {
                             
                             {(() => {
                                 const isUSD = ['zelle', 'paypal', 'binance'].some(acc => formData.account_name.toLowerCase().includes(acc));
+                                const prefix = isUSD ? '$' : 'Bs.';
                                 return (
                                     <>
                                         <div>
-                                            <label className="block text-xs text-gray-400 font-medium mb-1">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">
                                                 Monto ({isUSD ? 'USD' : 'VES'})
                                             </label>
                                             <div className="relative">
-                                                <span className="absolute left-3 top-2.5 text-gray-500">{isUSD ? '$' : 'Bs.'}</span>
+                                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs select-none pointer-events-none">
+                                                    {prefix}
+                                                </span>
                                                 <input 
                                                     type="number" 
                                                     step="0.01"
                                                     required
-                                                    className="w-full bg-black/50 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                                    className={`w-full bg-black/50 border border-white/10 rounded-lg ${isUSD ? 'pl-9' : 'pl-14'} pr-3 py-2.5 text-xs text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none font-medium transition-all`}
                                                     placeholder="0.00"
                                                     value={formData.amount_usd}
                                                     onChange={(e) => setFormData({...formData, amount_usd: e.target.value})}
                                                 />
                                             </div>
                                             {!isUSD && formData.amount_usd && (
-                                                <p className="text-[10px] text-gray-500 mt-1">
-                                                    ~ $ {new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 2 }).format(parseFloat(formData.amount_usd) / (parseFloat(formData.exchange_rate) || data.summary.bcv_rate || 1))} USD
+                                                <p className="text-[10px] text-gray-400 mt-1.5 pl-1 font-semibold">
+                                                    Equivalente: <span className="text-primary font-bold">~ $ {new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 2 }).format(parseFloat(formData.amount_usd) / (parseFloat(formData.exchange_rate) || data?.summary?.bcv_rate || 1))} USD</span>
                                                 </p>
                                             )}
                                         </div>
 
                                         {!editingTx && formData.type !== 'COMISION_BANCARIA' && formData.type !== 'TRASPASO' && (
-                                            <div className="animate-in fade-in slide-in-from-top-2">
-                                                <label className="block text-xs text-gray-400 font-medium mb-1">
-                                                    Comisión Bancaria ({isUSD ? 'USD' : 'VES'}) <span className="text-gray-500 font-normal">(Opcional)</span>
+                                            <div className="animate-in fade-in slide-in-from-top-1 bg-white/[0.02] p-3 rounded-lg border border-white/5 space-y-1.5">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                                    Comisión Bancaria ({isUSD ? 'USD' : 'VES'}) <span className="text-gray-500 font-normal lowercase">(opcional)</span>
                                                 </label>
                                                 <div className="relative">
-                                                    <span className="absolute left-3 top-2.5 text-gray-500">{isUSD ? '$' : 'Bs.'}</span>
+                                                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs select-none pointer-events-none">
+                                                        {prefix}
+                                                    </span>
                                                     <input 
                                                         type="number" 
                                                         step="0.01"
-                                                        className="w-full bg-black/50 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 outline-none"
+                                                        className={`w-full bg-black/50 border border-white/10 rounded-lg ${isUSD ? 'pl-9' : 'pl-14'} pr-3 py-2 text-xs text-white focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 outline-none transition-all`}
                                                         placeholder="0.00"
                                                         value={formData.commission_usd}
                                                         onChange={(e) => setFormData({...formData, commission_usd: e.target.value})}
                                                     />
                                                 </div>
-                                                <p className="text-[10px] text-gray-500 mt-1">Si ingresas un monto, se creará un registro separado de comisión asociado a esta cuenta.</p>
+                                                <p className="text-[9px] text-gray-500 leading-relaxed">Se registrará automáticamente como un movimiento contable separado tipo Comisión.</p>
                                             </div>
                                         )}
                                     </>
@@ -790,37 +809,45 @@ export const Finances = () => {
                             })()}
 
                             <div>
-                                <label className="block text-xs text-gray-400 font-medium mb-1">Concepto / Descripción</label>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">
+                                    Concepto / Descripción
+                                </label>
                                 <input 
                                     type="text" 
                                     required
-                                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                                    placeholder="Ej. Pago de internet, Compra de equipos..."
+                                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                                    placeholder="Ej. Pago de internet, Hosting, Mantenimiento..."
                                     value={formData.concept}
                                     onChange={(e) => setFormData({...formData, concept: e.target.value})}
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs text-gray-400 font-medium mb-1">Fecha de Registro</label>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">
+                                        Fecha de Registro
+                                    </label>
                                     <input 
                                         type="datetime-local" 
                                         required
-                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-2.5 py-2 text-xs text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                                         value={formData.created_at}
                                         onChange={(e) => setFormData({...formData, created_at: e.target.value})}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-gray-400 font-medium mb-1">Tasa de Cambio (Bs/USD)</label>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">
+                                        Tasa de Cambio (Bs/USD)
+                                    </label>
                                     <div className="relative">
-                                        <span className="absolute left-3 top-2.5 text-gray-500">Bs.</span>
+                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs select-none pointer-events-none">
+                                            Bs.
+                                        </span>
                                         <input 
                                             type="number" 
                                             step="0.01"
                                             required
-                                            className="w-full bg-black/50 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                            className="w-full bg-black/50 border border-white/10 rounded-lg pl-14 pr-3 py-2 text-xs text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none font-medium transition-all"
                                             placeholder="Tasa BCV"
                                             value={formData.exchange_rate}
                                             onChange={(e) => setFormData({...formData, exchange_rate: e.target.value})}
@@ -829,87 +856,97 @@ export const Finances = () => {
                                 </div>
                             </div>
 
-                            <div className="pt-4 flex gap-3">
+                            <div className="pt-3 flex gap-2.5 border-t border-white/5">
                                 <button 
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
-                                    className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-medium transition-colors"
+                                    className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-bold text-gray-300 transition-colors uppercase tracking-wider"
                                 >
                                     Cancelar
                                 </button>
                                 <button 
                                     type="submit"
-                                    className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-black rounded-lg text-sm font-bold transition-colors"
+                                    className="flex-1 px-4 py-2.5 bg-primary hover:bg-primary/90 text-black rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20"
                                 >
-                                    {editingTx ? 'Guardar Cambios' : 'Añadir'}
+                                    {editingTx ? 'Guardar Cambios' : 'Añadir Movimiento'}
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
+
             {/* Adjust Balance Modal */}
             {isAdjustModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-                    <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="flex justify-between items-center p-4 border-b border-white/10 bg-white/5">
-                            <h3 className="font-bold text-lg">Ajustar Saldo: {adjustingAccount}</h3>
-                            <button onClick={() => setIsAdjustModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
-                                <X className="w-5 h-5" />
+                <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+                    <div className="bg-[#0b1329] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center p-4 border-b border-white/10 bg-white/[0.03]">
+                            <div className="flex items-center gap-2">
+                                <Wallet className="w-4 h-4 text-primary" />
+                                <h3 className="font-black text-xs text-white uppercase tracking-wider">
+                                    Ajustar Saldo: <span className="text-primary">{adjustingAccount}</span>
+                                </h3>
+                            </div>
+                            <button onClick={() => setIsAdjustModalOpen(false)} className="p-1 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                                <X className="w-4 h-4" />
                             </button>
                         </div>
-                        <form onSubmit={handleAdjustBalance} className="p-4 space-y-4">
-                            <div className="bg-white/5 p-3 rounded-lg border border-white/10 mb-2">
-                                <p className="text-xs text-gray-400">Saldo actual registrado:</p>
-                                <p className="text-lg font-bold">
-                                    {formatMoney(adjustingAccount ? data.account_balances[adjustingAccount] || 0 : 0)} 
-                                    <span className="text-sm font-normal text-gray-400 ml-2">
-                                        (~ Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2 }).format((adjustingAccount ? data.account_balances[adjustingAccount] || 0 : 0) * (data?.summary?.bcv_rate || 0))})
-                                    </span>
+                        <form onSubmit={handleAdjustBalance} className="p-5 space-y-4">
+                            <div className="bg-white/[0.03] p-3.5 rounded-xl border border-white/10 space-y-1">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Saldo actual registrado:</p>
+                                <p className="text-lg font-black text-white">
+                                    {formatMoney(adjustingAccount && data ? data.account_balances[adjustingAccount] || 0 : 0)} 
+                                </p>
+                                <p className="text-[11px] text-gray-400 font-medium">
+                                    ~ Bs. {new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2 }).format((adjustingAccount && data ? data.account_balances[adjustingAccount] || 0 : 0) * (data?.summary?.bcv_rate || 0))}
                                 </p>
                             </div>
                             <div>
-                                <label className="block text-xs text-gray-400 font-medium mb-1">Saldo Real en la cuenta</label>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Saldo Real en la cuenta</label>
                                 <div className="flex gap-2">
                                     <div className="relative flex-1">
-                                        <span className="absolute left-3 top-2.5 text-gray-500">{adjustCurrency === 'USD' ? '$' : 'Bs.'}</span>
+                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs select-none pointer-events-none">
+                                            {adjustCurrency === 'USD' ? '$' : 'Bs.'}
+                                        </span>
                                         <input 
                                             type="number" 
                                             step="0.01"
                                             required
                                             autoFocus
-                                            className="w-full bg-black/50 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                                            placeholder="Ej. 150.00"
+                                            className={`w-full bg-black/50 border border-white/10 rounded-lg ${adjustCurrency === 'USD' ? 'pl-9' : 'pl-14'} pr-3 py-2 text-xs text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none font-medium transition-all`}
+                                            placeholder="150.00"
                                             value={adjustBalanceInput}
                                             onChange={(e) => setAdjustBalanceInput(e.target.value)}
                                         />
                                     </div>
                                     <select 
-                                        className="bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none w-24"
+                                        className="bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs font-bold text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none w-24 transition-all"
                                         value={adjustCurrency}
                                         onChange={(e) => {
                                             setAdjustCurrency(e.target.value as 'USD' | 'VES');
                                             setAdjustBalanceInput('');
                                         }}
                                     >
-                                        <option value="USD">USD</option>
-                                        <option value="VES">VES</option>
+                                        <option value="USD" className="bg-[#0b1329]">USD</option>
+                                        <option value="VES" className="bg-[#0b1329]">VES</option>
                                     </select>
                                 </div>
-                                <p className="text-[10px] text-gray-500 mt-2">El sistema creará un ajuste automático por la diferencia para hacer cuadrar el saldo.</p>
+                                <p className="text-[9px] text-gray-500 mt-2 leading-relaxed">
+                                    El sistema creará un ajuste automático contable por la diferencia para hacer cuadrar el saldo exacto.
+                                </p>
                             </div>
 
-                            <div className="pt-2 flex gap-3">
+                            <div className="pt-2 flex gap-2.5 border-t border-white/5">
                                 <button 
                                     type="button"
                                     onClick={() => setIsAdjustModalOpen(false)}
-                                    className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-medium transition-colors"
+                                    className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-bold text-gray-300 transition-colors uppercase tracking-wider"
                                 >
                                     Cancelar
                                 </button>
                                 <button 
                                     type="submit"
-                                    className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-black rounded-lg text-sm font-bold transition-colors"
+                                    className="flex-1 px-4 py-2.5 bg-primary hover:bg-primary/90 text-black rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20"
                                 >
                                     Guardar Ajuste
                                 </button>
