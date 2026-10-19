@@ -1582,8 +1582,9 @@ RETURNING *
 
         await query('COMMIT');
 
-        // Send WhatsApp receipt confirmation if status is PAGADO/PAID
-        if (status === 'PAGADO' || status === 'PAID') {
+        // Send WhatsApp receipt confirmation if status is PAGADO/PAID and send_receipt is not explicitly false
+        const shouldSendReceipt = req.body.send_receipt === undefined || req.body.send_receipt === 'true' || req.body.send_receipt === true;
+        if ((status === 'PAGADO' || status === 'PAID') && shouldSendReceipt) {
             try {
                 const clientRes = await query('SELECT name, phone FROM clients WHERE id = $1', [client_id]);
                 const client = clientRes.rows[0];
@@ -1673,8 +1674,9 @@ app.put('/api/payments/:id', authenticateToken, authorizeRole('ADMIN'), upload.s
 
         await query('COMMIT');
 
-        // Send WhatsApp receipt confirmation if status changed to PAGADO/PAID
-        if ((prevStatus !== 'PAGADO' && prevStatus !== 'PAID') && (status === 'PAGADO' || status === 'PAID')) {
+        // Send WhatsApp receipt confirmation if status changed to PAGADO/PAID and send_receipt is not false
+        const shouldSendReceipt = req.body.send_receipt === undefined || req.body.send_receipt === 'true' || req.body.send_receipt === true;
+        if ((prevStatus !== 'PAGADO' && prevStatus !== 'PAID') && (status === 'PAGADO' || status === 'PAID') && shouldSendReceipt) {
             try {
                 const clientRes = await query('SELECT name, phone FROM clients WHERE id = $1', [payment.client_id]);
                 const client = clientRes.rows[0];

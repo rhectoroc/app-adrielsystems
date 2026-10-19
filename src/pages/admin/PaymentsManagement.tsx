@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Loader2, X, Save, Eye, DollarSign, Edit2, History, ArrowLeft, Trash2 } from 'lucide-react';
+import { Plus, Loader2, X, Save, Eye, DollarSign, Edit2, History, ArrowLeft, Trash2, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { api } from '../../utils/api';
@@ -91,6 +91,7 @@ export const PaymentsManagement = () => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [discountPercent, setDiscountPercent] = useState<number | string>(0);
     const [discountType, setDiscountType] = useState<'PRESET' | 'CUSTOM' | 'MANUAL'>('PRESET');
+    const [sendReceipt, setSendReceipt] = useState<boolean>(true);
 
     // Form State
     interface PaymentFormData {
@@ -343,35 +344,45 @@ export const PaymentsManagement = () => {
         setCurrentPaymentId(null);
         setDiscountPercent(0);
         setDiscountType('PRESET');
+        setSendReceipt(true);
 
         // Auto-fill logic
         const lastPayment = clientPayments.length > 0 ? clientPayments[0] : null;
-        const lastDate = lastPayment ? new Date(lastPayment.payment_date).toISOString().split('T')[0] : '';
+        const todayStr = new Date().toISOString().split('T')[0];
         
         // Intelligent dynamic amount: Sum of all active services
         const totalAmount = (isFromHistory && selectedClient) ? (selectedClient.total_monthly || 0) : 0;
         const activeServices = (isFromHistory && selectedClient?.services) ? selectedClient.services.filter(s => s.status === 'ACTIVE') : [];
         const defaultServiceId = activeServices.length === 1 ? activeServices[0].id.toString() : (activeServices.length > 1 ? 'all' : '');
 
+        // Determine base start date for the service period
+        const initialServiceMonth = (() => {
+            if (isFromHistory && selectedClient) {
+                // If service/client has expiration_date, the new period starts on that date
+                if (selectedClient.expiration_date) {
+                    return selectedClient.expiration_date.split('T')[0];
+                }
+            }
+            if (lastPayment && lastPayment.service_month) {
+                const next = new Date(lastPayment.service_month);
+                next.setMonth(next.getMonth() + (lastPayment.months_covered || 1));
+                return next.toISOString().split('T')[0];
+            }
+            return todayStr;
+        })();
+
         setFormData({
             client_id: isFromHistory ? (selectedClient?.id.toString() || '') : '',
             service_id: defaultServiceId,
             amount: isFromHistory ? totalAmount.toString() : '',
             currency: isFromHistory ? (activeServices[0]?.currency || 'USD') : 'USD',
-            payment_date: isFromHistory ? lastDate : new Date().toISOString().split('T')[0],
-            due_date: new Date().toISOString().split('T')[0],
+            payment_date: todayStr, // Always default to today, allows past dates freely
+            due_date: todayStr,
             status: 'PAGADO',
             payment_method: '',
             notes: '',
             months_covered: 1,
-            service_month: (() => {
-                if (lastPayment && lastPayment.service_month) {
-                    const next = new Date(lastPayment.service_month);
-                    next.setMonth(next.getMonth() + (lastPayment.months_covered || 1));
-                    return next.toISOString().split('T')[0];
-                }
-                return new Date().toISOString().split('T')[0];
-            })()
+            service_month: initialServiceMonth
         });
         setSelectedFile(null);
 
@@ -455,6 +466,7 @@ export const PaymentsManagement = () => {
                     data.append(key, payload[key].toString());
                 }
             });
+            data.append('send_receipt', sendReceipt ? 'true' : 'false');
             
             if (selectedFile) {
                 data.append('evidence', selectedFile);
@@ -517,15 +529,29 @@ export const PaymentsManagement = () => {
         return statusMap[status] || status;
     };
 
-    const calculatePeriod = (startDate: string, months: number) => {
+    const calculatePeriod = (startDate: string, months: number, serviceId?: string) => {
         const start = parseSafeDate(startDate);
         if (!start) return 'N/A';
+
+        // Check if there's a specific billing day (day 15 or 30)
+        let billingDay = 30;
+        if (serviceId && serviceId !== 'all') {
+            const s = services.find(item => item.id.toString() === serviceId);
+            if (s && s.billing_day_fixed) billingDay = s.billing_day_fixed;
+        } else if (selectedClient?.services && selectedClient.services.length > 0) {
+            billingDay = selectedClient.services[0].billing_day_fixed || 30;
+        }
+
         const end = new Date(start);
-        end.setMonth(end.getMonth() + months);
+        end.setMonth(end.getMonth() + Number(months || 1));
+
+        // Enforce cut-off day on end date
+        const lastDayOfEndMonth = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+        end.setDate(Math.min(billingDay, lastDayOfEndMonth));
 
         const fmt = (d: Date) => `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
 
-        return `${fmt(start)} - ${fmt(end)}`;
+        return `${fmt(start)} al ${fmt(end)}`;
     };
 
     const handleUpdateExpiration = async () => {
@@ -882,30 +908,54 @@ export const PaymentsManagement = () => {
                                             </div>
                                             <div className="space-y-1">
                                                 <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1 italic flex justify-between">
-                                                    <span>Mes de Inicio de Servicio</span>
+                                                    <span>Mes / Período del Servicio</span>
                                                     {Number(formData.months_covered) > 1 && <span className="text-primary font-black uppercase">Periodo Extendido</span>}
                                                 </label>
-                                                <div className="relative group">
-                                                    <input 
-                                                        type="month" 
-                                                        name="service_month" 
-                                                        value={formData.service_month.slice(0, 7)} 
-                                                        onChange={(e) => setFormData(prev => ({ ...prev, service_month: e.target.value + '-01' }))} 
-                                                        required 
-                                                        className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50 transition-all" 
-                                                    />
-                                                    <div className="mt-1 flex justify-between items-center px-1">
-                                                        <span className="text-[9px] text-gray-500 font-bold uppercase">Atribuido a:</span>
-                                                        <span className="text-[10px] text-white font-black uppercase tracking-tighter">
-                                                            {calculatePeriod(formData.service_month, parseInt(formData.months_covered.toString()))}
+                                                <div className="relative group bg-white/[0.02] p-2.5 rounded-lg border border-white/5 space-y-2">
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div>
+                                                            <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest block mb-0.5">Inicio del Corte</span>
+                                                            <input 
+                                                                type="date" 
+                                                                name="service_month" 
+                                                                value={formData.service_month.split('T')[0]} 
+                                                                onChange={(e) => setFormData(prev => ({ ...prev, service_month: e.target.value }))} 
+                                                                required 
+                                                                className="w-full px-2 py-1.5 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50 transition-all" 
+                                                            />
+                                                        </div>
+                                                        <div className="flex flex-col justify-end">
+                                                            <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest block mb-0.5">Día de Corte Habitual</span>
+                                                            <div className="px-2 py-1.5 bg-black/20 border border-white/5 rounded-lg text-xs text-primary font-black">
+                                                                Día {(() => {
+                                                                    if (formData.service_id && formData.service_id !== 'all') {
+                                                                        const s = services.find(item => item.id.toString() === formData.service_id);
+                                                                        if (s?.billing_day_fixed) return s.billing_day_fixed;
+                                                                    }
+                                                                    return selectedClient?.services?.[0]?.billing_day_fixed || 30;
+                                                                })()} de cada mes
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex justify-between items-center px-1 pt-1 border-t border-white/5">
+                                                        <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Período Cancelado:</span>
+                                                        <span className="text-[10px] text-primary font-black uppercase tracking-tighter bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                                                            {calculatePeriod(formData.service_month, parseInt(formData.months_covered.toString()), formData.service_id)}
                                                         </span>
                                                     </div>
                                                 </div>
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div className="space-y-1">
-                                                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Fecha</label>
-                                                    <input type="date" name="payment_date" value={formData.payment_date} onChange={handleInputChange} required className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50" />
+                                                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Fecha de Pago</label>
+                                                    <input 
+                                                        type="date" 
+                                                        name="payment_date" 
+                                                        value={formData.payment_date} 
+                                                        onChange={handleInputChange} 
+                                                        required 
+                                                        className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50" 
+                                                    />
                                                 </div>
                                                 <div className="space-y-1">
                                                     <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Método</label>
@@ -919,6 +969,34 @@ export const PaymentsManagement = () => {
                                                 <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1 italic">Comprobante (Opcional)</label>
                                                 <input type="file" accept="image/*" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="w-full text-[10px] text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer" />
                                             </div>
+
+                                            {/* WhatsApp Notification Toggle */}
+                                            <div className="p-3 bg-white/[0.02] border border-white/10 rounded-lg flex items-center justify-between group hover:border-primary/30 transition-all">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className={`p-2 rounded-lg transition-colors ${sendReceipt ? 'bg-green-500/10 text-green-400' : 'bg-gray-800 text-gray-500'}`}>
+                                                        <MessageSquare className="w-4 h-4" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-xs font-black text-white flex items-center gap-1.5">
+                                                            Enviar recibo por WhatsApp
+                                                            {sendReceipt && <span className="text-[9px] text-green-400 font-bold bg-green-500/10 px-1.5 py-0.2 rounded border border-green-500/20">ACTIVO</span>}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-500 font-medium">
+                                                            Notificar confirmación automática al cliente
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={sendReceipt} 
+                                                        onChange={(e) => setSendReceipt(e.target.checked)} 
+                                                        className="sr-only peer" 
+                                                    />
+                                                    <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                                                </label>
+                                            </div>
+
                                             <button type="submit" disabled={isSubmitting} className="w-full py-2.5 bg-primary hover:bg-primary/90 text-black rounded-lg font-black text-xs uppercase tracking-widest transition-all mt-4 disabled:opacity-50">
                                                 {isSubmitting ? 'Procesando...' : (editMode ? 'Actualizar' : 'Registrar Pago')}
                                             </button>
