@@ -1563,22 +1563,30 @@ export const processWebChatMessage = async (sessionId, messageText) => {
     try {
         console.log(`[Agent Service] Processing web chat for session: ${sessionId}. Message: "${messageText}"`);
 
-        // 1. Fetch chat history for this web session
-        const logHistory = await query(
-            'SELECT sender, message_content FROM conversations WHERE session_id = $1 ORDER BY timestamp DESC LIMIT 8',
-            [sessionId]
-        );
-        
-        const history = logHistory.rows.reverse().map(l => ({
-            role: l.sender === 'User' ? 'user' : 'assistant',
-            content: l.message_content
-        }));
+        // 1. Fetch chat history for this web session (safe fallback if DB is offline)
+        let history = [];
+        try {
+            const logHistory = await query(
+                'SELECT sender, message_content FROM conversations WHERE session_id = $1 ORDER BY timestamp DESC LIMIT 8',
+                [sessionId]
+            );
+            history = logHistory.rows.reverse().map(l => ({
+                role: l.sender === 'User' ? 'user' : 'assistant',
+                content: l.message_content
+            }));
+        } catch (dbErr) {
+            console.warn('[Agent Service] DB unavailable for chat history:', dbErr.message);
+        }
 
-        // 2. Save current User message to Database
-        await query(
-            'INSERT INTO conversations (session_id, sender, message_content) VALUES ($1, $2, $3)',
-            [sessionId, 'User', messageText]
-        );
+        // 2. Save current User message to Database (non-blocking)
+        try {
+            await query(
+                'INSERT INTO conversations (session_id, sender, message_content) VALUES ($1, $2, $3)',
+                [sessionId, 'User', messageText]
+            );
+        } catch (dbErr) {
+            // DB offline locally, continue gracefully
+        }
 
         // 3. Define the Web EVA system instructions
         const systemMessage = `Eres EVA, la asistente virtual de Adriel's Systems. Tu misión: atender visitantes del sitio web con calidez y guiarlos a agendar una cita o contratar un servicio.
@@ -1623,11 +1631,15 @@ REGLAS DE NEGOCIO:
         
         const cleanReply = replyText.replace(/\[MOSTRAR_CALENDARIO\]/gi, '').replace(/\[MOTIVO:.*?\]/gi, '').trim();
 
-        // 7. Save Eva's clean reply to Database
-        await query(
-            'INSERT INTO conversations (session_id, sender, message_content) VALUES ($1, $2, $3)',
-            [sessionId, 'Eva', cleanReply]
-        );
+        // 7. Save Eva's clean reply to Database (non-blocking)
+        try {
+            await query(
+                'INSERT INTO conversations (session_id, sender, message_content) VALUES ($1, $2, $3)',
+                [sessionId, 'Eva', cleanReply]
+            );
+        } catch (dbErr) {
+            // DB offline locally, continue gracefully
+        }
 
         return { response: cleanReply, showCalendar, reason };
     } catch (error) {
