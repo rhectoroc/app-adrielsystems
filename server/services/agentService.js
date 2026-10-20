@@ -701,6 +701,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
   * GASTOS / INGRESOS NORMALES: [{"type": "GASTO"|"INGRESO"|"COMISION_BANCARIA", "concept": "...", "amount": número, "currency": "VES"|"USD", "account": "..."}].
   * COMISIONES: Si una operación cobró comisión bancaria aparte, agrega otro objeto con tipo COMISION_BANCARIA.)
 - get_current_balance(account) (Úsala para consultar el saldo de una cuenta bancaria específica o el saldo total general de todas las cuentas. Parámetro opcional 'account': "Banesco"|"Banco de Venezuela"|"Banca Amiga"|"PayPal"|"Zelle"|"Binance"|"Efectivo".)
+- reconcile_account_balance(account, real_balance, currency) (Úsala cuando el Jefe te diga cuánto saldo real tiene en el banco en este momento para cuadrarlo o conciliarlo. Ej: "Eva, en Banesco tengo 8200 bolivares", "en el banco de venezuela me quedan 25000 bs", "en paypal tengo $50". Parámetros: 'account' ("Banco de Venezuela"|"Banesco"|"Banca Amiga"|"PayPal"|"Zelle"|"Binance"|"Efectivo"), 'real_balance' (número), 'currency' ("VES"|"USD"). Esta herramienta calcula automáticamente la diferencia respecto a lo que tiene registrado el sistema: si falta dinero por comisiones bancarias no registradas, crea automáticamente un registro de tipo COMISION_BANCARIA para dejar el saldo exactamente igual al del banco y te informa la comisión que se ajustó.)
 - get_financial_summary(start_date, end_date) (Genera un reporte consolidado de ingresos, gastos, comisiones bancarias y ganancia neta en un rango de fechas. Formato YYYY-MM-DD. Ideal para resúmenes semanales o mensuales)
 - get_historical_bcv_rate(date_string) (Úsala para consultar a cómo estaba la tasa del BCV en una fecha pasada. FORMATO ESTRICTO YYYY-MM-DD. NO envíes frases relativas, deduce matemáticamente la fecha usando la HORA ACTUAL)
 - get_bcv_rate_range(start_date, end_date) (Úsala para pedir las tasas del dólar en un periodo de tiempo y hacer análisis de fluctuación. FORMATOS ESTRICTOS YYYY-MM-DD)
@@ -939,6 +940,89 @@ MENSAJE DEL USUARIO:
                                 total_all_accounts_ves: parseFloat((totalUsd * rate).toFixed(2))
                             });
                         }
+                        break;
+                    }
+                    case 'reconcile_account_balance': {
+                        const { account, real_balance, currency } = parsed.parameters || {};
+                        if (!account || real_balance === undefined) {
+                            toolResult = JSON.stringify({ success: false, message: 'Faltan parámetros requeridos: account o real_balance.' });
+                            break;
+                        }
+
+                        const targetAccount = account;
+                        const targetBalance = parseFloat(real_balance);
+                        const isVES = (currency || 'VES').toUpperCase() === 'VES';
+                        const rate = await getBCVRate() || 1;
+
+                        // 1. Get current balance from DB
+                        const currRes = await query(`
+                            SELECT 
+                                COALESCE(SUM(
+                                    CASE 
+                                        WHEN type IN ('INGRESO', 'ENTRADA', 'TRANSFERENCIA_ENTRADA', 'AJUSTE_POSITIVO') THEN amount_usd 
+                                        WHEN type IN ('GASTO', 'SALIDA', 'TRANSFERENCIA_SALIDA', 'AJUSTE_NEGATIVO', 'COMISION_BANCARIA') THEN -amount_usd 
+                                        ELSE 0 
+                                    END
+                                ), 0) as balance_usd
+                            FROM financial_ledger
+                            WHERE LOWER(account_name) = LOWER($1)
+                        `, [targetAccount]);
+
+                        const currentBalanceUsd = parseFloat(currRes.rows[0]?.balance_usd || 0);
+                        const currentBalanceVes = currentBalanceUsd * rate;
+
+                        const targetBalanceUsd = isVES ? (targetBalance / rate) : targetBalance;
+                        const targetBalanceVes = isVES ? targetBalance : (targetBalance * rate);
+
+                        const diffUsd = targetBalanceUsd - currentBalanceUsd;
+                        const diffVes = isVES ? (targetBalance - currentBalanceVes) : (diffUsd * rate);
+
+                        if (Math.abs(diffUsd) < 0.005) {
+                            toolResult = JSON.stringify({
+                                success: true,
+                                message: `El saldo de ${targetAccount} ya se encuentra exactamente cuadrado con el banco.`,
+                                account: targetAccount,
+                                saldo_actual_usd: `$${currentBalanceUsd.toFixed(2)} USD`,
+                                saldo_actual_ves: `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2 }).format(currentBalanceVes)} VES`
+                            });
+                            break;
+                        }
+
+                        let adjustType = '';
+                        let adjustConcept = '';
+
+                        if (diffUsd < 0) {
+                            // Missing money = hidden bank commissions/charges
+                            adjustType = 'COMISION_BANCARIA';
+                            adjustConcept = `Ajuste por comisiones bancarias no registradas (${targetAccount})`;
+                        } else {
+                            // Surplus money
+                            adjustType = 'AJUSTE_POSITIVO';
+                            adjustConcept = `Ajuste de saldo (Sobrante/Nivelación ${targetAccount})`;
+                        }
+
+                        const absDiffUsd = Math.abs(diffUsd);
+                        const absDiffVes = Math.abs(diffVes);
+
+                        await query(`
+                            INSERT INTO financial_ledger (type, concept, amount_usd, amount_ves, exchange_rate, account_name, created_at)
+                            VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+                        `, [adjustType, adjustConcept, absDiffUsd, absDiffVes, rate, targetAccount]);
+
+                        toolResult = JSON.stringify({
+                            success: true,
+                            message: `Cuenta ${targetAccount} conciliada con éxito.`,
+                            account: targetAccount,
+                            tipo_ajuste: adjustType,
+                            diferencia_aplicada: {
+                                usd: `$${absDiffUsd.toFixed(2)} USD`,
+                                ves: `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2 }).format(absDiffVes)} VES`
+                            },
+                            nuevo_saldo_exacto: {
+                                usd: `$${targetBalanceUsd.toFixed(2)} USD`,
+                                ves: `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2 }).format(targetBalanceVes)} VES`
+                            }
+                        });
                         break;
                     }
                     case 'get_historical_bcv_rate': {
