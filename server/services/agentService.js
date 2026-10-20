@@ -260,13 +260,17 @@ REGLAS DE RESOLUCIÓN:
 - Si responde "Listo" tras agendar: Pide su correo y dile que en breve confirmaremos su cita.
 - Nunca inventes datos de facturación ni reveles variables internas.`;
 
-        // 4. Connect to DeepSeek / LLM
-        const llmResponse = await callLLMText(systemMessage, history, combinedMessage);
-        const agentReply = llmResponse.replace('<think>', '').replace('</think>', '').trim(); // Fallback clean
+        // 4. Connect to LLM (Gemini / DeepSeek)
+        const messagesForLLM = [
+            ...history,
+            { role: 'user', content: combinedMessage }
+        ];
+        const llmResponse = await callLLM(systemMessage, messagesForLLM);
+        const agentReply = llmResponse.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
         console.log(`[Agent Service] Response for ${remoteJid}:\n"${agentReply}"`);
 
-        // Send Response
+        // 5. Send Response
         if (buffer.isAudio) {
             try {
                 await sendVoiceNote(remoteJid, agentReply);
@@ -281,7 +285,7 @@ REGLAS DE RESOLUCIÓN:
         // 6. Save Bot Reply to History
         await query(
             'INSERT INTO conversations (session_id, sender, message_content) VALUES ($1, $2, $3)',
-            [sessionId, 'bot', replyText]
+            [sessionId, 'bot', agentReply]
         );
 
     } catch (error) {
@@ -1292,6 +1296,10 @@ Continúa razonando y devuelve el JSON correspondiente.`;
  */
 export const getClientContext = async (phone) => {
     try {
+        const cleanPhone = phone.replace(/\D/g, '');
+        const suffix = cleanPhone.length >= 7 ? cleanPhone.substring(cleanPhone.length - 7) : cleanPhone;
+        const phoneWithoutCountry = cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone;
+
         const clientRes = await query(`
             SELECT c.*,
             COALESCE(
@@ -1329,9 +1337,10 @@ export const getClientContext = async (phone) => {
             ) FILTER(WHERE s.status = 'ACTIVE' AND s.expiration_date < CURRENT_DATE), 0) as deuda_total
             FROM clients c
             LEFT JOIN services s ON s.client_id = c.id
-            WHERE c.phone = $1 OR c.phone LIKE $2
+            WHERE regexp_replace(c.phone, '[^0-9]', '', 'g') LIKE $1 OR regexp_replace(c.phone, '[^0-9]', '', 'g') = $2
             GROUP BY c.id
-        `, [phone, `%${phone.substring(3)}%`]);
+            LIMIT 1
+        `, [`%${suffix}`, cleanPhone]);
 
         const client = clientRes.rows[0];
         if (!client) {
