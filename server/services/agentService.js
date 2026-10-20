@@ -687,7 +687,7 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - create_financial_sheet() (Úsala si el Jefe te pide explícitamente crear o inicializar el documento de Excel/Sheets para llevar los registros financieros desde cero)
 - get_bcv_rate() (Úsala si el Jefe te pregunta cuál es la tasa del dólar actual del BCV)
 - log_multiple_transactions(transactions) (Usa esta herramienta cuando el Jefe indique que realizó un gasto, recibió un pago, pagó una comisión o hizo una transferencia entre cuentas. Debes extraer el monto, clasificarlo como INGRESO, GASTO, COMISION_BANCARIA, TRANSFERENCIA_SALIDA o TRANSFERENCIA_ENTRADA, y asignar una categoría. El parámetro 'transactions' es un ARREGLO de objetos JSON [{"type": "INGRESO"|"GASTO"|"COMISION_BANCARIA"|"TRANSFERENCIA_SALIDA"|"TRANSFERENCIA_ENTRADA", "concept": "...", "amount": número, "currency": "VES"|"USD", "account": "Zelle"|"PayPal"|"Banco de Venezuela"|"Banesco"|"Banca Amiga"|"Efectivo"}]. IMPORTANTE: Si una transacción incluye una comisión bancaria (ej. PayPal), DEBES hacer DOS transacciones separadas en el arreglo: una para el ingreso/gasto bruto, y OTRA de tipo COMISION_BANCARIA con la cuenta exacta para reflejar el cobro del banco. Si cambia Zelle a Bolívares, haz dos transacciones: TRANSFERENCIA_SALIDA de Zelle y TRANSFERENCIA_ENTRADA a Banesco/Venezuela.)
-- get_current_balance() (Úsala para consultar el saldo total y exacto de la cuenta en Postgres)
+- get_current_balance(account) (Úsala para consultar el saldo de una cuenta bancaria específica o el saldo total general de todas las cuentas. Parámetro opcional 'account': "Banesco"|"Banco de Venezuela"|"Banca Amiga"|"PayPal"|"Zelle"|"Binance"|"Efectivo". Si especificas una cuenta, te devuelve el saldo exacto en USD y VES de esa cuenta y el total global. REGLA DE RESPUESTA: Cuando debitas o registras un movimiento en un banco específico (ej. Banesco), en tu mensaje final SIEMPRE debes informar prioritariamente el nuevo saldo de ESE BANCO en particular (en Bs y en USD). Opcionalmente puedes mencionar el Saldo Total Consolidado de todas las cuentas, pero NUNCA confundas el total con el de una cuenta específica ni muestres números negativos globales por error de cálculo.)
 - get_financial_summary(start_date, end_date) (Genera un reporte consolidado de ingresos, gastos, comisiones bancarias y ganancia neta en un rango de fechas. Formato YYYY-MM-DD. Ideal para resúmenes semanales o mensuales)
 - get_historical_bcv_rate(date_string) (Úsala para consultar a cómo estaba la tasa del BCV en una fecha pasada. FORMATO ESTRICTO YYYY-MM-DD. NO envíes frases relativas, deduce matemáticamente la fecha usando la HORA ACTUAL)
 - get_bcv_rate_range(start_date, end_date) (Úsala para pedir las tasas del dólar en un periodo de tiempo y hacer análisis de fluctuación. FORMATOS ESTRICTOS YYYY-MM-DD)
@@ -873,15 +873,59 @@ MENSAJE DEL USUARIO:
                         break;
                     }
                     case 'get_current_balance': {
-                        // Query Postgres
-                        const balanceRes = await query(`
+                        const targetAccount = parsed.parameters?.account;
+                        const rate = await getBCVRate() || 1;
+                        
+                        let querySql = `
                             SELECT 
-                                COALESCE(SUM(CASE WHEN type = 'ENTRADA' THEN amount_usd ELSE -amount_usd END), 0) as balance_usd,
-                                COALESCE(SUM(CASE WHEN type = 'ENTRADA' THEN amount_ves ELSE -amount_ves END), 0) as balance_ves
+                                account_name,
+                                COALESCE(SUM(
+                                    CASE 
+                                        WHEN type IN ('INGRESO', 'ENTRADA', 'TRANSFERENCIA_ENTRADA', 'AJUSTE_POSITIVO') THEN amount_usd 
+                                        WHEN type IN ('GASTO', 'SALIDA', 'TRANSFERENCIA_SALIDA', 'AJUSTE_NEGATIVO', 'COMISION_BANCARIA') THEN -amount_usd 
+                                        ELSE 0 
+                                    END
+                                ), 0) as balance_usd
                             FROM financial_ledger
-                        `);
-                        const b = balanceRes.rows[0];
-                        toolResult = JSON.stringify({ success: true, balance_usd: parseFloat(b.balance_usd).toFixed(2), balance_ves: parseFloat(b.balance_ves).toFixed(2) });
+                        `;
+                        const params = [];
+                        if (targetAccount) {
+                            querySql += ` WHERE LOWER(account_name) = LOWER($1)`;
+                            params.push(targetAccount);
+                        }
+                        querySql += ` GROUP BY account_name`;
+
+                        const res = await query(querySql, params);
+                        
+                        let accountsMap = {};
+                        let totalUsd = 0;
+                        for (const row of res.rows) {
+                            const bUsd = parseFloat(row.balance_usd);
+                            accountsMap[row.account_name] = {
+                                balance_usd: bUsd,
+                                balance_ves: bUsd * rate
+                            };
+                            totalUsd += bUsd;
+                        }
+
+                        if (targetAccount) {
+                            const accData = accountsMap[targetAccount] || { balance_usd: 0, balance_ves: 0 };
+                            toolResult = JSON.stringify({
+                                success: true,
+                                account: targetAccount,
+                                balance_usd: parseFloat(accData.balance_usd.toFixed(2)),
+                                balance_ves: parseFloat(accData.balance_ves.toFixed(2)),
+                                total_all_accounts_usd: parseFloat(totalUsd.toFixed(2)),
+                                total_all_accounts_ves: parseFloat((totalUsd * rate).toFixed(2))
+                            });
+                        } else {
+                            toolResult = JSON.stringify({
+                                success: true,
+                                accounts: accountsMap,
+                                total_all_accounts_usd: parseFloat(totalUsd.toFixed(2)),
+                                total_all_accounts_ves: parseFloat((totalUsd * rate).toFixed(2))
+                            });
+                        }
                         break;
                     }
                     case 'get_historical_bcv_rate': {
@@ -1038,10 +1082,49 @@ MENSAJE DEL USUARIO:
 
                         // ----- RETURN RESULT -----
                         if (successCount > 0) {
-                            // Fetch fresh balance
-                            const balanceRes = await query(`SELECT COALESCE(SUM(CASE WHEN type = 'ENTRADA' THEN amount_usd ELSE -amount_usd END), 0) as balance_usd FROM financial_ledger`);
-                            const b = balanceRes.rows[0];
-                            toolResult = JSON.stringify({ success: true, message: `Se registraron ${successCount} transacciones en la Base de Datos y Sheets. Nuevo Saldo: $${parseFloat(b.balance_usd).toFixed(2)} USD.` });
+                            // Fetch fresh account balances
+                            const allAccountsRes = await query(`
+                                SELECT 
+                                    account_name,
+                                    COALESCE(SUM(
+                                        CASE 
+                                            WHEN type IN ('INGRESO', 'ENTRADA', 'TRANSFERENCIA_ENTRADA', 'AJUSTE_POSITIVO') THEN amount_usd 
+                                            WHEN type IN ('GASTO', 'SALIDA', 'TRANSFERENCIA_SALIDA', 'AJUSTE_NEGATIVO', 'COMISION_BANCARIA') THEN -amount_usd 
+                                            ELSE 0 
+                                        END
+                                    ), 0) as balance_usd
+                                FROM financial_ledger
+                                GROUP BY account_name
+                            `);
+
+                            let balancesSummary = {};
+                            let grandTotalUsd = 0;
+                            for (const row of allAccountsRes.rows) {
+                                const val = parseFloat(row.balance_usd);
+                                balancesSummary[row.account_name] = {
+                                    usd: parseFloat(val.toFixed(2)),
+                                    ves: parseFloat((val * rate).toFixed(2))
+                                };
+                                grandTotalUsd += val;
+                            }
+
+                            // Determine primary account affected
+                            const primaryAccount = transactions[0]?.account || 'Efectivo';
+                            const primaryAccData = balancesSummary[primaryAccount] || { usd: 0, ves: 0 };
+
+                            toolResult = JSON.stringify({ 
+                                success: true, 
+                                message: `Se registraron ${successCount} transacciones correctamente.`,
+                                cuenta_afectada: primaryAccount,
+                                saldo_cuenta: {
+                                    usd: `$${primaryAccData.usd.toFixed(2)} USD`,
+                                    ves: `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2 }).format(primaryAccData.ves)} VES`
+                                },
+                                saldo_total_global: {
+                                    usd: `$${grandTotalUsd.toFixed(2)} USD`,
+                                    ves: `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2 }).format(grandTotalUsd * rate)} VES`
+                                }
+                            });
                         } else {
                             toolResult = JSON.stringify({ success: false, message: 'Ninguna transacción fue válida para registrar.' });
                         }
