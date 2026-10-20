@@ -687,11 +687,17 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - create_financial_sheet() (Úsala si el Jefe te pide explícitamente crear o inicializar el documento de Excel/Sheets para llevar los registros financieros desde cero)
 - get_bcv_rate() (Úsala si el Jefe te pregunta cuál es la tasa del dólar actual del BCV)
 - log_multiple_transactions(transactions) (Usa esta herramienta cuando el Jefe indique que realizó un gasto, recibió un pago, pagó una comisión o hizo una transferencia/traspaso/compra de saldo entre cuentas.
+  * FLUJO ESPECIAL: CLIENTE PAGA POR ZELLE Y SE CAMBIA A BOLÍVARES (Ej: "El cliente Juan me pagó $50 por Zelle y cambié esos $50 a Bs. 46.500 al Banco de Venezuela / Banesco"):
+    En este caso, si ya se registró el pago del cliente en Zelle (o si te pide registrarlo todo junto):
+    1) Si el pago del cliente aún no está registrado, primero usa \`register_client_payment\` con account_name="Zelle" o registra el INGRESO en Zelle.
+    2) Para el CAMBIO/VENTA de los dólares a Bolívares: Genera dos movimientos en 'transactions':
+       - {"type": "TRANSFERENCIA_SALIDA", "concept": "Venta/Cambio saldo Zelle", "amount": 50, "currency": "USD", "account": "Zelle"}
+       - {"type": "TRANSFERENCIA_ENTRADA", "concept": "Recepción Bolívares por cambio Zelle", "amount": 46500, "currency": "VES", "account": "Banco de Venezuela"|"Banesco"|"Banca Amiga"}
+    ¡Esto deja Zelle en $0 (sin dólares acumulados falsos) y suma los Bolívares exactos a la cuenta receptora!
   * COMPRA DE DIVISAS / TRASPASO MULTIMONEDA (Ej: "compré $30 en Paypal y pagué en Bs con Banco de Venezuela"):
     Debes generar DOS registros vinculados en el arreglo 'transactions':
     1) {"type": "TRANSFERENCIA_SALIDA", "concept": "Compra saldo PayPal (Pago móvil)", "amount": monto_en_bs, "currency": "VES", "account": "Banco de Venezuela"}
     2) {"type": "TRANSFERENCIA_ENTRADA", "concept": "Recepción compra saldo PayPal", "amount": monto_en_dolares, "currency": "USD", "account": "PayPal"}
-    Si tienes la imagen del comprobante de Pago Móvil con el monto en Bolívares (ej. 27.270,00 Bs) y el texto indica que compraste $30 en PayPal, usa los 27.270,00 VES para la salida del Banco de Venezuela y los 30.00 USD para la entrada de PayPal.
   * GASTOS / INGRESOS NORMALES: [{"type": "GASTO"|"INGRESO"|"COMISION_BANCARIA", "concept": "...", "amount": número, "currency": "VES"|"USD", "account": "..."}].
   * COMISIONES: Si una operación cobró comisión bancaria aparte, agrega otro objeto con tipo COMISION_BANCARIA.)
 - get_current_balance(account) (Úsala para consultar el saldo de una cuenta bancaria específica o el saldo total general de todas las cuentas. Parámetro opcional 'account': "Banesco"|"Banco de Venezuela"|"Banca Amiga"|"PayPal"|"Zelle"|"Binance"|"Efectivo".)
