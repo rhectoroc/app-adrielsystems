@@ -686,8 +686,15 @@ Debes usar estas herramientas cuando te pidan gestionar el calendario, email, ta
 - send_whatsapp(phone, message) (Úsala para enviar un mensaje directo de WhatsApp a un cliente o número. Ej: recordatorios de pago, notificaciones personalizadas o cualquier mensaje que el Jefe te solicite enviar por WhatsApp)
 - create_financial_sheet() (Úsala si el Jefe te pide explícitamente crear o inicializar el documento de Excel/Sheets para llevar los registros financieros desde cero)
 - get_bcv_rate() (Úsala si el Jefe te pregunta cuál es la tasa del dólar actual del BCV)
-- log_multiple_transactions(transactions) (Usa esta herramienta cuando el Jefe indique que realizó un gasto, recibió un pago, pagó una comisión o hizo una transferencia entre cuentas. Debes extraer el monto, clasificarlo como INGRESO, GASTO, COMISION_BANCARIA, TRANSFERENCIA_SALIDA o TRANSFERENCIA_ENTRADA, y asignar una categoría. El parámetro 'transactions' es un ARREGLO de objetos JSON [{"type": "INGRESO"|"GASTO"|"COMISION_BANCARIA"|"TRANSFERENCIA_SALIDA"|"TRANSFERENCIA_ENTRADA", "concept": "...", "amount": número, "currency": "VES"|"USD", "account": "Zelle"|"PayPal"|"Banco de Venezuela"|"Banesco"|"Banca Amiga"|"Efectivo"}]. IMPORTANTE: Si una transacción incluye una comisión bancaria (ej. PayPal), DEBES hacer DOS transacciones separadas en el arreglo: una para el ingreso/gasto bruto, y OTRA de tipo COMISION_BANCARIA con la cuenta exacta para reflejar el cobro del banco. Si cambia Zelle a Bolívares, haz dos transacciones: TRANSFERENCIA_SALIDA de Zelle y TRANSFERENCIA_ENTRADA a Banesco/Venezuela.)
-- get_current_balance(account) (Úsala para consultar el saldo de una cuenta bancaria específica o el saldo total general de todas las cuentas. Parámetro opcional 'account': "Banesco"|"Banco de Venezuela"|"Banca Amiga"|"PayPal"|"Zelle"|"Binance"|"Efectivo". Si especificas una cuenta, te devuelve el saldo exacto en USD y VES de esa cuenta y el total global. REGLA DE RESPUESTA: Cuando debitas o registras un movimiento en un banco específico (ej. Banesco), en tu mensaje final SIEMPRE debes informar prioritariamente el nuevo saldo de ESE BANCO en particular (en Bs y en USD). Opcionalmente puedes mencionar el Saldo Total Consolidado de todas las cuentas, pero NUNCA confundas el total con el de una cuenta específica ni muestres números negativos globales por error de cálculo.)
+- log_multiple_transactions(transactions) (Usa esta herramienta cuando el Jefe indique que realizó un gasto, recibió un pago, pagó una comisión o hizo una transferencia/traspaso/compra de saldo entre cuentas.
+  * COMPRA DE DIVISAS / TRASPASO MULTIMONEDA (Ej: "compré $30 en Paypal y pagué en Bs con Banco de Venezuela"):
+    Debes generar DOS registros vinculados en el arreglo 'transactions':
+    1) {"type": "TRANSFERENCIA_SALIDA", "concept": "Compra saldo PayPal (Pago móvil)", "amount": monto_en_bs, "currency": "VES", "account": "Banco de Venezuela"}
+    2) {"type": "TRANSFERENCIA_ENTRADA", "concept": "Recepción compra saldo PayPal", "amount": monto_en_dolares, "currency": "USD", "account": "PayPal"}
+    Si tienes la imagen del comprobante de Pago Móvil con el monto en Bolívares (ej. 27.270,00 Bs) y el texto indica que compraste $30 en PayPal, usa los 27.270,00 VES para la salida del Banco de Venezuela y los 30.00 USD para la entrada de PayPal.
+  * GASTOS / INGRESOS NORMALES: [{"type": "GASTO"|"INGRESO"|"COMISION_BANCARIA", "concept": "...", "amount": número, "currency": "VES"|"USD", "account": "..."}].
+  * COMISIONES: Si una operación cobró comisión bancaria aparte, agrega otro objeto con tipo COMISION_BANCARIA.)
+- get_current_balance(account) (Úsala para consultar el saldo de una cuenta bancaria específica o el saldo total general de todas las cuentas. Parámetro opcional 'account': "Banesco"|"Banco de Venezuela"|"Banca Amiga"|"PayPal"|"Zelle"|"Binance"|"Efectivo".)
 - get_financial_summary(start_date, end_date) (Genera un reporte consolidado de ingresos, gastos, comisiones bancarias y ganancia neta en un rango de fechas. Formato YYYY-MM-DD. Ideal para resúmenes semanales o mensuales)
 - get_historical_bcv_rate(date_string) (Úsala para consultar a cómo estaba la tasa del BCV en una fecha pasada. FORMATO ESTRICTO YYYY-MM-DD. NO envíes frases relativas, deduce matemáticamente la fecha usando la HORA ACTUAL)
 - get_bcv_rate_range(start_date, end_date) (Úsala para pedir las tasas del dólar en un periodo de tiempo y hacer análisis de fluctuación. FORMATOS ESTRICTOS YYYY-MM-DD)
@@ -1021,20 +1028,32 @@ MENSAJE DEL USUARIO:
                         // ----- STEP 1: Postgres -----
                         let successCount = 0;
                         for (const tx of transactions) {
-                            const { type, concept, amount, currency, account } = tx;
-                            if (!type || !concept || amount === undefined || !currency) continue;
+                            const { type, concept, amount, currency, account, amount_usd, amount_ves, exchange_rate } = tx;
+                            if (!type || !concept || (amount === undefined && amount_usd === undefined && amount_ves === undefined)) continue;
 
-                            const parsedAmount = parseFloat(amount);
-                            if (isNaN(parsedAmount)) continue;
+                            let parsedAmount = parseFloat(amount || 0);
+                            let rateToUse = parseFloat(exchange_rate) || rate;
 
-                            let amountVES = currency.toUpperCase() === 'USD' ? parsedAmount * rate : parsedAmount;
-                            let amountUSD = currency.toUpperCase() === 'VES' ? parsedAmount / rate : parsedAmount;
+                            let finalAmountVES = 0;
+                            let finalAmountUSD = 0;
+
+                            if (amount_usd !== undefined && amount_ves !== undefined) {
+                                finalAmountUSD = parseFloat(amount_usd);
+                                finalAmountVES = parseFloat(amount_ves);
+                            } else if (currency && currency.toUpperCase() === 'USD') {
+                                finalAmountUSD = parsedAmount;
+                                finalAmountVES = parsedAmount * rateToUse;
+                            } else {
+                                finalAmountVES = parsedAmount;
+                                finalAmountUSD = rateToUse > 0 ? (parsedAmount / rateToUse) : 0;
+                            }
+
                             let accountName = account || 'Efectivo';
 
                             await query(`
                                 INSERT INTO financial_ledger (type, concept, amount_ves, amount_usd, exchange_rate, account_name)
                                 VALUES ($1, $2, $3, $4, $5, $6)
-                            `, [type.toUpperCase(), concept, amountVES, amountUSD, rate, accountName]);
+                            `, [type.toUpperCase(), concept, finalAmountVES, finalAmountUSD, rateToUse, accountName]);
                             successCount++;
                         }
                         
@@ -1173,8 +1192,8 @@ Continúa razonando y devuelve el JSON correspondiente.`;
         );
 
     } catch (error) {
-        console.error('[Agent Service] Error in Admin processing:', error);
-        await sendMessage(remoteJid, 'Jefe, ha ocurrido un error procesando su solicitud. Por favor verifique el log de la aplicación.');
+        console.error('[Agent Service] Error in Admin processing:', error.stack || error);
+        await sendMessage(remoteJid, `Jefe, ocurrió un detalle procesando su solicitud: ${error.message || 'Error interno'}. Por favor revise el log.`);
     }
 };
 
